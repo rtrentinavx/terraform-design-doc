@@ -959,9 +959,10 @@ async function callMockFlowMCP(doc){
       console.log("[MockFlow] Parsed:",parsed);
       return{url:parsed.url||parsed.boardUrl||parsed.link||"",thumbnailUrl:parsed.thumbnailUrl||parsed.thumbnail||parsed.imageUrl||"",title:parsed.title||parsed.name||"",success:parsed.success!==false};
     }catch{
-      // Text might be a URL directly
+      // Text might contain a URL (e.g. "URL: https://..." or just the URL)
       const t=textItem.text.trim();
-      if(t.startsWith("http"))return{url:t,thumbnailUrl:"",title:"MockFlow Diagram",success:true};
+      const urlMatch=t.match(/https?:\/\/[^\s"'<>]+/);
+      if(urlMatch)return{url:urlMatch[0],thumbnailUrl:"",title:"Cloud Architecture Diagram",success:true};
       return{url:"",thumbnailUrl:"",title:t,success:true};
     }
   }
@@ -1458,11 +1459,17 @@ function DocView({doc,selModel,dark,onExport}){
           </div>}
           {mfResult&&mfResult.success&&<div className="rounded-xl overflow-hidden" style={{border:`1px solid #3B82F640`}}>
             {mfResult.thumbnailUrl&&<div className="p-4" style={{background:"#3B82F608"}}><img src={mfResult.thumbnailUrl} alt="MockFlow Cloud Architecture" className="w-full rounded-lg" style={{maxHeight:500,objectFit:"contain"}}/></div>}
-            <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-4" style={{background:AV.nm,borderTop:`1px solid #3B82F630`}}>
-              <div>
-                <div className="text-sm font-semibold" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</div>
-                <p className="text-xs mt-0.5" style={{color:AV.tm}}>Interactive diagram — edit, annotate, and share on MockFlow</p>
-              </div>
+            {!mfResult.thumbnailUrl&&mfResult.url&&<div className="p-8 text-center" style={{background:"#3B82F608"}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-16 h-16 mx-auto mb-4" style={{color:"#3B82F6"}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+              <p className="font-bold text-lg mb-2" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</p>
+              <p className="text-sm mb-5" style={{color:AV.tm}}>Your diagram is ready on MockFlow IdeaBoard</p>
+              <a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 4px 16px #3B82F630"}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Open in MockFlow
+              </a>
+            </div>}
+            <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-3" style={{background:AV.nm,borderTop:`1px solid #3B82F630`}}>
+              <p className="text-xs" style={{color:AV.tm}}>Interactive diagram — edit, annotate, and share on MockFlow</p>
               <div className="flex items-center gap-2">
                 <button onClick={()=>{
                   setMfLoading(true);setMfError(null);setMfResult(null);
@@ -1471,7 +1478,7 @@ function DocView({doc,selModel,dark,onExport}){
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   Regenerate
                 </button>
-                {mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm text-white" style={{background:"#3B82F6",boxShadow:"0 2px 8px #3B82F630"}}>
+                {mfResult.thumbnailUrl&&mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm text-white" style={{background:"#3B82F6"}}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   Open in MockFlow
                 </a>}
