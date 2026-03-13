@@ -830,6 +830,137 @@ function exportDocx(data,customerName){
   });
 }
 
+// ── MockFlow MCP Integration ──────────────────────────────────────────────
+const MOCKFLOW_MCP="https://app.mockflow.com/ideaboard/mcp";
+const MF_COLORS={aws:{cloud:"#FF9900",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF3E0"},azure:{cloud:"#0078D4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#F3E5F5"},gcp:{cloud:"#4285F4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF8E1"}};
+
+function buildMockFlowData(doc){
+  const nd=doc.network_design||{},vpcs=nd.vpcs||[],subs=nd.subnets||[];
+  const prov=doc.provider==="azure"?"azure":doc.provider==="gcp"?"gcloud":"aws";
+  const diagramType=prov;
+  const palette=MF_COLORS[prov==="gcloud"?"gcp":prov]||MF_COLORS.aws;
+  const nodes=[],links=[];
+  let nid=1;const id=()=>String(nid++);
+
+  // Cloud group
+  const cloudId=id();
+  nodes.push({key:cloudId,text:prov==="azure"?"Azure Cloud":prov==="gcloud"?"Google Cloud":"AWS Cloud",isGroup:true,category:"cloud",fill:palette.cloud+"15",stroke:palette.cloud,loc:"0 0"});
+
+  // VPC groups inside cloud
+  const vpcMap={};
+  const hubs=vpcs.filter(v=>v.type==="transit");
+  const spokes=vpcs.filter(v=>v.type!=="transit");
+  const allV=[...hubs,...spokes];
+
+  allV.forEach((v,vi)=>{
+    const vid=id();
+    vpcMap[v.name]=vid;
+    const x=vi*320,y=0;
+    nodes.push({key:vid,text:v.name+(v.cidr?` (${v.cidr})`:""),isGroup:true,group:cloudId,category:"vpc",fill:v.type==="transit"?"#E3F2FD":"#F5F5F5",stroke:v.type==="transit"?"#1565C0":"#9E9E9E",loc:`${x} ${y}`});
+
+    // Subnets for this VPC
+    const vSubs=subs.filter(s=>s.vpc===v.name);
+    if(vSubs.length){
+      vSubs.forEach((s,si)=>{
+        const sid=id();
+        const isPub=/public|pub|dmz|nat/i.test(s.name)||/public/i.test(s.purpose||"");
+        const sy=si*80+40;
+        nodes.push({key:sid,text:s.name+(s.cidr?` ${s.cidr}`:""),isGroup:true,group:vid,category:"subnet",fill:isPub?palette.pub:palette.priv,stroke:isPub?"#4CAF50":"#1976D2",loc:`${x+20} ${sy}`});
+      });
+    }
+
+    // Gateway node
+    if(v.type==="transit"||v.gw_size){
+      const gwId=id();
+      const gwY=vSubs.length*80+60;
+      nodes.push({key:gwId,text:(v.type==="transit"?"Transit GW":"Spoke GW")+` (${v.gw_size||"default"})`,group:vid,category:"service",fill:v.type==="transit"?"#BBDEFB":"#C8E6C9",stroke:v.type==="transit"?"#1565C0":"#388E3C",loc:`${x+40} ${gwY}`});
+    }
+
+    // FireNet node
+    if(v.firenet===true&&doc.firewall_detail?.present){
+      const fwId=id();
+      const fwY=(vSubs.length||0)*80+120;
+      const fwVendor=doc.firewall_detail.vendor||doc.firewall_vendor||"NGFW";
+      nodes.push({key:fwId,text:`FireNet: ${fwVendor}`,group:vid,category:"service",fill:"#FFCDD2",stroke:"#E53935",loc:`${x+40} ${fwY}`});
+    }
+  });
+
+  // Links: spoke → transit (spoke attachment)
+  spokes.forEach(sv=>{
+    const svId=vpcMap[sv.name];if(!svId)return;
+    const target=sv.connected_transit?hubs.find(h=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
+    if(target&&vpcMap[target.name]){
+      links.push({from:svId,to:vpcMap[target.name],text:"Spoke Attachment",stroke:"#FF6B35",strokeWidth:2});
+    }
+  });
+
+  // Links: transit ↔ transit (peering)
+  for(let i=0;i<hubs.length-1;i++){
+    const a=vpcMap[hubs[i].name],b=vpcMap[hubs[i+1].name];
+    if(a&&b)links.push({from:a,to:b,text:"Transit Peering",stroke:"#3B82F6",strokeWidth:2,strokeDashArray:"6 3"});
+  }
+
+  // Internet node
+  const hasInet=vpcs.some(v=>v.type==="transit");
+  if(hasInet){
+    const inetId=id();
+    nodes.push({key:inetId,text:"Internet",category:"external",fill:"#E0F7FA",stroke:"#00838F",loc:"-200 -100"});
+    if(hubs[0]&&vpcMap[hubs[0].name])links.push({from:inetId,to:vpcMap[hubs[0].name],text:"Internet GW",stroke:"#0891B2",strokeDashArray:"4 4"});
+  }
+
+  // Edge devices
+  (doc.edge_devices||[]).forEach((e,ei)=>{
+    const eid=id();
+    nodes.push({key:eid,text:`Edge: ${e.name}`,category:"external",fill:"#FFF3E0",stroke:"#F57C00",loc:`${-200} ${ei*100+100}`});
+    if(e.connected_transit){
+      const targets=e.connected_transit.split(",").map(s=>s.trim());
+      targets.forEach(t=>{
+        const hub=hubs.find(h=>h.name.toLowerCase().includes(t.toLowerCase()))||hubs.find(h=>t.toLowerCase().includes(h.name.toLowerCase()));
+        if(hub&&vpcMap[hub.name])links.push({from:eid,to:vpcMap[hub.name],text:"Edge Attachment",stroke:"#F97316",strokeDashArray:"4 4"});
+      });
+    }
+  });
+
+  return{diagramType,nodeDataArray:nodes,linkDataArray:links};
+}
+
+async function callMockFlowMCP(doc){
+  const payload=buildMockFlowData(doc);
+  // Step 1: Initialize session
+  const initResp=await fetch(MOCKFLOW_MCP,{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"terraform-idd",version:"1.0.0"}}})
+  });
+  if(!initResp.ok)throw new Error(`MockFlow init failed: HTTP ${initResp.status}`);
+  // Extract session header
+  const sessionId=initResp.headers.get("mcp-session-id")||"";
+  const headers={"Content-Type":"application/json"};
+  if(sessionId)headers["mcp-session-id"]=sessionId;
+
+  // Step 2: Send initialized notification
+  await fetch(MOCKFLOW_MCP,{method:"POST",headers,body:JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized"})});
+
+  // Step 3: Call render_cloudarchitecture
+  const callResp=await fetch(MOCKFLOW_MCP,{
+    method:"POST",headers,
+    body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"render_cloudarchitecture",arguments:payload}})
+  });
+  if(!callResp.ok)throw new Error(`MockFlow call failed: HTTP ${callResp.status}`);
+  const result=await callResp.json();
+  if(result.error)throw new Error(result.error.message||JSON.stringify(result.error));
+
+  // Parse result — content array with text items
+  const content=result.result?.content||[];
+  const textItem=content.find(c=>c.type==="text");
+  if(textItem){
+    try{
+      const parsed=JSON.parse(textItem.text);
+      return{url:parsed.url||"",thumbnailUrl:parsed.thumbnailUrl||"",title:parsed.title||"",success:parsed.success!==false};
+    }catch{return{url:textItem.text,thumbnailUrl:"",title:"",success:true};}
+  }
+  throw new Error("No result from MockFlow");
+}
+
 // ── ZIP helpers ────────────────────────────────────────────────────────────
 const VE=[".tf",".tfvars"];
 const isV=n=>VE.some(e=>n.endsWith(e));
@@ -840,6 +971,10 @@ function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.documen
 function DocView({doc,selModel,dark,onExport}){
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
+  const [mfLoading,setMfLoading]=useState(false);
+  const [mfResult,setMfResult]=useState(null);
+  const [mfError,setMfError]=useState(null);
+  const [diagMode,setDiagMode]=useState("svg");
   const tabs=[{id:"overview",l:"Overview"},{id:"network",l:"Network"},{id:"security",l:"Security"},{id:"dcf",l:"DCF Policies"},{id:"edge",l:"Edge & Ext"},{id:"components",l:"Components"},{id:"diagram",l:"Diagram"},{id:"flows",l:"Data Flows"},{id:"variables",l:"Variables"}];
   const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
@@ -1003,8 +1138,85 @@ function DocView({doc,selModel,dark,onExport}){
 
       {/* Always render diagram so SVG is in DOM for DOCX export */}
       <div style={tab==="diagram"?{}:{position:"absolute",left:"-9999px",top:0,opacity:0,pointerEvents:"none"}}>
-        {tab==="diagram"&&<TabIntro text="Visual network topology showing transit gateways, spoke VPCs, firewall and DCF placement, edge device connections, and internet/on-prem connectivity paths."/>}
-        <Diagram doc={doc} dark={dark}/>
+        {tab==="diagram"&&<>
+          <TabIntro text="Visual network topology showing transit gateways, spoke VPCs, firewall and DCF placement, edge device connections, and internet/on-prem connectivity paths."/>
+          {/* Diagram mode toggle */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+              <button onClick={()=>setDiagMode("svg")} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="svg"?{background:`${AV.or}18`,color:AV.or,borderRight:`1px solid ${AV.nb}`}:{background:AV.nl,color:AV.tm,borderRight:`1px solid ${AV.nb}`}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                SVG Diagram
+              </button>
+              <button onClick={()=>{
+                setDiagMode("mockflow");
+                if(!mfResult&&!mfLoading&&!mfError){
+                  setMfLoading(true);setMfError(null);
+                  callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+                }
+              }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="mockflow"?{background:"#3B82F618",color:"#60A5FA"}:{background:AV.nl,color:AV.tm}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                MockFlow
+                <span className="text-xs px-1.5 py-0.5 rounded" style={{background:"#3B82F615",color:"#60A5FA",fontSize:9,fontWeight:700}}>BETA</span>
+              </button>
+            </div>
+          </div>
+        </>}
+        {/* SVG diagram — always rendered for DOCX export, hidden when mockflow active */}
+        <div style={diagMode==="mockflow"&&tab==="diagram"?{display:"none"}:{}}>
+          <Diagram doc={doc} dark={dark}/>
+        </div>
+        {/* MockFlow view */}
+        {tab==="diagram"&&diagMode==="mockflow"&&<div>
+          {mfLoading&&<div className="rounded-xl p-12 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <svg className="animate-spin w-8 h-8 mx-auto mb-4" style={{color:"#3B82F6"}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+            <p className="font-semibold" style={{color:AV.tp}}>Generating MockFlow diagram...</p>
+            <p className="text-sm mt-1" style={{color:AV.tm}}>Creating interactive cloud architecture on IdeaBoard</p>
+          </div>}
+          {mfError&&<div className="rounded-xl p-6" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mfError}</div>
+            <button onClick={()=>{
+              setMfLoading(true);setMfError(null);setMfResult(null);
+              callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+            }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#3B82F6"}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Retry
+            </button>
+          </div>}
+          {mfResult&&mfResult.success&&<div className="rounded-xl overflow-hidden" style={{border:`1px solid #3B82F640`}}>
+            {mfResult.thumbnailUrl&&<div className="p-4" style={{background:"#3B82F608"}}><img src={mfResult.thumbnailUrl} alt="MockFlow Cloud Architecture" className="w-full rounded-lg" style={{maxHeight:500,objectFit:"contain"}}/></div>}
+            <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-4" style={{background:AV.nm,borderTop:`1px solid #3B82F630`}}>
+              <div>
+                <div className="text-sm font-semibold" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</div>
+                <p className="text-xs mt-0.5" style={{color:AV.tm}}>Interactive diagram — edit, annotate, and share on MockFlow</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={()=>{
+                  setMfLoading(true);setMfError(null);setMfResult(null);
+                  callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+                }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  Regenerate
+                </button>
+                {mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm text-white" style={{background:"#3B82F6",boxShadow:"0 2px 8px #3B82F630"}}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Open in MockFlow
+                </a>}
+              </div>
+            </div>
+          </div>}
+          {!mfLoading&&!mfError&&!mfResult&&<div className="rounded-xl p-8 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-12 h-12 mx-auto mb-3" style={{color:"#3B82F6"}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <p className="font-semibold mb-1" style={{color:AV.tp}}>MockFlow Cloud Architecture</p>
+            <p className="text-sm mb-4" style={{color:AV.tm}}>Generate an interactive, editable diagram on MockFlow IdeaBoard</p>
+            <button onClick={()=>{
+              setMfLoading(true);setMfError(null);
+              callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+            }} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 2px 12px #3B82F630"}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              Generate Diagram
+            </button>
+          </div>}
+        </div>}
       </div>
 
       {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{(doc.data_flows||[]).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{f.name}</div><Pr t={f.description}/>{f.path?.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{f.path.map((p,j)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<f.path.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
