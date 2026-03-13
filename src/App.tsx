@@ -27,14 +27,14 @@ const SYS=`You are a senior cloud infrastructure architect writing a formal Infr
 IMPORTANT — DESCRIPTIONS: Every "description" field must be a meaningful 2-4 sentence explanation. Do NOT leave descriptions empty or generic. Explain the WHY and HOW:
 - executive_summary: Summarize the full architecture purpose, cloud provider, key design patterns, HA strategy, and security posture in 3-5 sentences.
 - architecture_overview.description: Explain the topology pattern, how transit/spoke VPCs interconnect, regional strategy, and connectivity model.
-- network_design.description: Explain the IP addressing strategy, CIDR allocation, subnet segmentation logic, and how traffic routes between VPCs.
+- network_design.description: Explain the IP addressing strategy, CIDR allocation, subnet layout, and how traffic routes between VPCs.
 - Each VPC purpose: Explain what workloads or services the VPC hosts and why it exists.
 - security.description: Explain the overall security architecture including firewall placement, inspection model, encryption, and access control strategy.
 - compute.description: Explain the compute instances deployed, their roles, sizing rationale, and HA configuration.
 - Each component purpose: Explain what the component does in the architecture and why it is needed.
 - Each data_flow description: Explain the traffic path, what triggers it, and any inspection/encryption along the way.
 - routing: Explain the routing model (BGP, static, dynamic), route propagation, and any route filtering.
-- segmentation: Explain network segmentation strategy and how domains/segments are isolated.
+- network_domains: Explain Aviatrix Network Domains strategy and how domains are isolated. Only populate if enable_segmentation=true is set on transit gateways; leave empty string if not enabled.
 - connectivity: Explain how on-prem, edge, and cloud networks interconnect.
 - deployment_notes: Explain deployment order, dependencies, prerequisites, and any automation considerations.
 
@@ -42,7 +42,7 @@ IMPORTANT — DESCRIPTIONS: Every "description" field must be a meaningful 2-4 s
   "title":"string","version":"1.0","date":"MUST be today's date in YYYY-MM-DD format","provider":"aws|azure|gcp|multi|unknown","firewall_vendor":"palo_alto|fortinet|checkpoint|cisco|none|unknown",
   "executive_summary":"string (3-5 sentences)",
   "architecture_overview":{"description":"string (2-4 sentences)","pattern":"hub-and-spoke|flat|mesh|hybrid|unknown","regions":["string"],"availability_zones":["string"],"diagram_description":"string"},
-  "network_design":{"description":"string (2-4 sentences)","vpcs":[{"name":"string","cidr":"string","purpose":"string (1-2 sentences)","type":"transit|spoke|mgmt|shared|unknown","gw_size":"string (VM instance type)","connected_transit":"string (name of the transit VPC this spoke/mgmt VPC attaches to — MUST match a transit VPC name exactly; leave empty for transit VPCs)"}],"subnets":[{"name":"string","cidr":"string","purpose":"string","az":"string","vpc":"string (name of the VPC this subnet belongs to — MUST match a VPC name exactly)"}],"routing":"string (2-3 sentences)","segmentation":"string (2-3 sentences)","connectivity":"string (2-3 sentences)"},
+  "network_design":{"description":"string (2-4 sentences)","vpcs":[{"name":"string","cidr":"string","purpose":"string (1-2 sentences)","type":"transit|spoke|mgmt|shared|unknown","gw_size":"string (VM instance type)","connected_transit":"string (name of the transit VPC this spoke/mgmt VPC attaches to — MUST match a transit VPC name exactly; leave empty for transit VPCs)","firenet":"boolean — true ONLY if this specific transit has FireNet enabled (aviatrix_firenet, mc-firenet, or enable_firenet=true for THIS transit); false for all others"}],"subnets":[{"name":"string","cidr":"string","purpose":"string","az":"string","vpc":"string (name of the VPC this subnet belongs to — MUST match a VPC name exactly)"}],"routing":"string (2-3 sentences)","network_domains":"string (2-3 sentences, only if enable_segmentation=true on transit gateways; empty string if not enabled)","connectivity":"string (2-3 sentences)"},
   "compute":{"description":"string (2-3 sentences)","instances":[{"name":"string","type":"string","purpose":"string","ha":true}]},
   "security":{"description":"string (2-4 sentences)","firewall":"string (1-2 sentences)","encryption":"string (1-2 sentences)","access_control":"string (1-2 sentences)","inspection":"string (1-2 sentences)"},
   "firewall_detail":{"present":true,"vendor":"string REQUIRED","product":"string REQUIRED","instance_size":"string REQUIRED (VM instance type e.g. c5.xlarge)","vcpus":"string REQUIRED","memory_gb":"string REQUIRED","license_model":"BYOL|PAYG|included|unknown","license_type":"string REQUIRED","ha_mode":"active-active|active-passive|standalone|unknown","ha_instances":2,"deployment_mode":"string REQUIRED","interfaces":["management","egress","lan"],"version":"string","notes":"string REQUIRED (2-3 sentences explaining firewall deployment)"},
@@ -160,6 +160,67 @@ const AvxLogo=({x,y,sz=20,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz}
   <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill={c}/>
 </svg>;
 
+// ── Aviatrix Transit Gateway Icon (hub with radiating connections) ─────────
+const AvxTransitIco=({x,y,sz=18,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="4.5" fill={c} opacity="0.2" stroke={c} strokeWidth="1.2"/>
+  <circle cx="12" cy="12" r="2" fill={c}/>
+  {/* Radiating spokes */}
+  <line x1="12" y1="2" x2="12" y2="7" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+  <line x1="12" y1="17" x2="12" y2="22" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+  <line x1="2" y1="12" x2="7" y2="12" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+  <line x1="17" y1="12" x2="22" y2="12" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+  {/* Corner nodes */}
+  <circle cx="12" cy="2" r="1.3" fill={c}/><circle cx="12" cy="22" r="1.3" fill={c}/>
+  <circle cx="2" cy="12" r="1.3" fill={c}/><circle cx="22" cy="12" r="1.3" fill={c}/>
+</svg>;
+
+// ── Aviatrix Spoke Gateway Icon (endpoint with single uplink) ─────────────
+const AvxSpokeIco=({x,y,sz=18,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
+  <rect x="5" y="10" width="14" height="10" rx="2.5" fill={c} opacity="0.15" stroke={c} strokeWidth="1.2"/>
+  <circle cx="12" cy="15" r="2.5" fill={c} opacity="0.3" stroke={c} strokeWidth="1"/>
+  <circle cx="12" cy="15" r="1" fill={c}/>
+  {/* Uplink arrow to transit */}
+  <line x1="12" y1="10" x2="12" y2="4" stroke={c} strokeWidth="1.4" strokeLinecap="round"/>
+  <path d="M9 6.5L12 3l3 3.5" fill="none" stroke={c} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+</svg>;
+
+// ── Cloud VPC/VNet Icon (official architecture icons) ─────────────────────
+let vpcIcoId=0;
+const VpcIcon=({prov,x,y,sz=16})=>{
+  const uid=`vpci-${vpcIcoId++}`;
+  if(prov==="aws")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 64 64">
+    <defs><linearGradient id={uid} x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#4D27A8"/><stop offset="100%" stopColor="#A166FF"/></linearGradient></defs>
+    <rect width="64" height="64" rx="8" fill={`url(#${uid})`}/>
+    <path d="M48,33.98L44.5,32.51V46.88C47.91,46.15 48,42.18 48,42L48,33.98ZM42.5,46.92V32.51L39,33.98V42C39.01,42.47 39.18,46.34 42.5,46.92ZM43.11,30.08C43.36,29.98 43.64,29.98 43.89,30.08L49.39,32.39C49.76,32.55 50,32.91 50,33.31V42C49.98,44.43 48.56,49 43.37,49C38.39,49 37.03,44.43 37,42.02V33.31C37,32.91 37.24,32.55 37.61,32.39L43.11,30.08ZM52,30.79L43.49,27.09L35,30.67V41.03C35,41.09 34.96,46.01 37.81,48.89C39.19,50.29 41.06,51 43.37,51C51.81,51 52,41.43 52,41.02V30.79ZM54,30.14V41.03C53.97,45.17 51.72,53 43.37,53C40.5,53 38.15,52.09 36.37,50.29C32.94,46.8 33,41.24 33,41.01V30C33,29.6 33.24,29.24 33.61,29.08L43.11,25.08C43.36,24.98 43.65,24.98 43.9,25.09L53.4,29.22C53.76,29.38 54,29.74 54,30.14ZM19,38H30V40H19C14.22,40 10.27,36.48 10.02,31.99C10,31.81 10,31.6 10,31.39C10,26.09 13.65,24.04 15.92,23.28C15.9,23.06 15.89,22.84 15.89,22.63C15.89,18.04 18.66,13.7 22.62,12.08C27.58,10.05 33.24,10.94 36.7,14.29C37.72,15.28 38.6,16.6 39.34,18.21C40.3,17.42 41.39,17 42.52,17C45.23,17 48.28,19.3 48.9,23.06C51.07,23.34 52.94,24.64 53.9,26.58L52.1,27.47C51.34,25.93 49.81,25 48,25C47.47,25 47.03,24.59 47,24.06C46.81,20.76 44.28,19 42.52,19C41.55,19 40.58,19.57 39.8,20.61C39.58,20.9 39.22,21.05 38.85,20.99C38.49,20.94 38.19,20.69 38.06,20.35C37.33,18.35 36.4,16.79 35.3,15.72C32.41,12.92 27.62,12.2 23.38,13.93C19.78,15.41 17.89,19.42 17.89,22.63C17.89,23.03 17.95,23.5 17.99,23.89C18.05,24.39 17.73,24.85 17.24,24.98C15.28,25.46 12,26.94 12,31.39C12,31.54 12,31.69 12.01,31.84C12.21,35.31 15.28,38 19,38Z" fill="#FFFFFF"/>
+  </svg>);
+  if(prov==="azure")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
+    {/* Official Azure VNet — redrawn with simple lines for clarity at small sizes */}
+    <rect width="24" height="24" rx="3" fill="#0078D4"/>
+    {/* X-arms matching official colors #50e6ff and #1490df */}
+    <line x1="5" y1="5" x2="19" y2="19" stroke="#1490df" strokeWidth="2" strokeLinecap="round"/>
+    <line x1="19" y1="5" x2="5" y2="19" stroke="#50e6ff" strokeWidth="2" strokeLinecap="round"/>
+    {/* Three green nodes matching official #86d633 */}
+    <circle cx="7" cy="12" r="2.2" fill="#86d633"/>
+    <circle cx="12" cy="12" r="2.2" fill="#86d633"/>
+    <circle cx="17" cy="12" r="2.2" fill="#86d633"/>
+  </svg>);
+  if(prov==="gcp")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
+    {/* Official GCP VPC Network icon */}
+    <rect width="24" height="24" rx="3" fill="#4285F4"/>
+    <rect x="16" y="2" width="6" height="6" fill="#aecbfa"/><rect x="19" y="2" width="3" height="6" fill="#669df6"/>
+    <rect x="16" y="16" width="6" height="6" fill="#aecbfa"/><rect x="19" y="16" width="3" height="6" fill="#669df6"/>
+    <rect x="2" y="2" width="6" height="6" fill="#aecbfa"/><rect x="5" y="2" width="3" height="6" fill="#669df6"/>
+    <rect x="2" y="16" width="6" height="6" fill="#aecbfa"/><rect x="5" y="16" width="3" height="6" fill="#669df6"/>
+    <rect x="8" y="4" width="8" height="2" fill="#fff"/><rect x="8" y="18" width="8" height="2" fill="#fff"/>
+    <rect x="18" y="8" width="2" height="8" fill="#fff"/><rect x="4" y="8" width="2" height="8" fill="#fff"/>
+  </svg>);
+  // generic — cloud
+  return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24" fill="none">
+    <rect width="24" height="24" rx="3" fill="#6366F1"/>
+    <path d="M6.5 18a3.5 3.5 0 0 1-.33-6.98 5.5 5.5 0 0 1 10.66 0A3.5 3.5 0 0 1 14.5 18H6.5z" fill="#fff"/>
+  </svg>);
+};
+
 // ── Firewall Vendor Logo ────────────────────────────────────────────────────
 const FwLogo=({vendor,x,y,sz=18})=>{
   const v=(vendor||"").toLowerCase();
@@ -206,6 +267,21 @@ function Diagram({doc,dark}){
   const PC={aws:"#FF9900",azure:"#0078D4",gcp:"#34A853",multi:"#6366F1",unknown:"#6366F1"}[prov]||"#6366F1";
   const provName={aws:"AWS",azure:"Azure",gcp:"GCP",multi:"Multi-Cloud",unknown:"Cloud"}[prov]||"Cloud";
 
+  // Detect cloud provider per VPC (for multi-cloud diagrams)
+  // Check name first to avoid false positives from purpose mentioning other clouds
+  const vpcProv=v=>{
+    const nm=(v.name||"").toLowerCase();
+    if(/azure|az-|vnet/.test(nm))return"azure";
+    if(/gcp|google/.test(nm))return"gcp";
+    if(/aws|amazon|ec2/.test(nm))return"aws";
+    // Fallback: check purpose (but name takes priority above)
+    const p=(v.purpose||"").toLowerCase();
+    if(/azure|vnet/.test(p))return"azure";
+    if(/gcp|google/.test(p))return"gcp";
+    if(/aws|amazon|ec2/.test(p))return"aws";
+    return prov==="multi"?"unknown":prov;
+  };
+
   const hub=vpcs.filter(v=>v.type==="transit");
   const spk=vpcs.filter(v=>v.type!=="transit");
   const hV=hub.length>0?hub:vpcs.slice(0,Math.ceil(vpcs.length/2));
@@ -214,17 +290,40 @@ function Diagram({doc,dark}){
   const snFor=v=>{
     // First: match by explicit vpc field
     const byVpc=subs.filter(s=>s.vpc&&s.vpc.toLowerCase()===v.name.toLowerCase());
-    if(byVpc.length>0)return byVpc.slice(0,4);
-    // Fallback: fuzzy match by name prefix
-    const k=(v.name||"").toLowerCase().replace(/[-_\s]/g,"").slice(0,8);
-    return subs.filter(s=>{const n=(s.name||"").toLowerCase().replace(/[-_\s]/g,"");return n.startsWith(k)||n.includes(k);}).slice(0,4);
+    if(byVpc.length>0)return byVpc.slice(0,5);
+    // Fallback: fuzzy match — try full name, then parts, then short prefix
+    const vn=(v.name||"").toLowerCase();
+    const vnClean=vn.replace(/[-_\s]/g,"");
+    const parts=vn.split(/[-_\s]/).filter(p=>p.length>2);
+    return subs.filter(s=>{
+      const sn=(s.name||"").toLowerCase();
+      const snClean=sn.replace(/[-_\s]/g,"");
+      // Exact substring match (either direction)
+      if(snClean.includes(vnClean)||vnClean.includes(snClean))return true;
+      // Any significant part of VPC name appears in subnet name
+      if(parts.some(p=>sn.includes(p)))return true;
+      // Short prefix match
+      const k=vnClean.slice(0,8);
+      if(k&&(snClean.startsWith(k)||snClean.includes(k)))return true;
+      return false;
+    }).slice(0,5);
   };
-  const svcFor=v=>{if(v.type!=="transit")return[];const n=["Avx GW"];if(fw.present)n.push(tr(fw.vendor?.split(" ")[0]||"NGFW",9));if(dcf.enabled)n.push("DCF");return n;};
+  const svcFor=v=>{
+    const n=[];
+    if(v.type==="transit"){
+      n.push({type:"avx-transit",label:"Avx Transit GW",color:"#FF6B35"});
+      if(fw.present&&v.firenet===true){const vn=fw.vendor||"";const fl=/palo/i.test(vn)?"Palo Alto":/forti/i.test(vn)?"Fortinet":/check/i.test(vn)?"CheckPoint":"NGFW";n.push({type:"fw",label:fl,color:"#EC4899"});}
+      if(dcf.enabled)n.push({type:"dcf",label:"DCF",color:"#A855F7"});
+    }else{
+      n.push({type:"avx-spoke",label:"Avx Spoke GW",color:"#FF6B35"});
+    }
+    return n;
+  };
 
   // ── Sizing ──
   const VW=240,VP=12,HH=44,SH=28,SG=4,VG=40;
   const CW=130,CH=52,EW=160,EH=44;
-  const vH=v=>{const s=snFor(v),sv=svcFor(v);return HH+VP+Math.max(1,s.length)*(SH+SG)-SG+VP+(sv.length>0?8+22+VP:VP);};
+  const vH=v=>{const s=snFor(v),sv=svcFor(v);return HH+VP+Math.max(1,s.length)*(SH+SG)-SG+VP+(sv.length>0?8+24+VP:VP);};
   const rW=r=>Math.max(1,r.length)*(VW+VG)-VG;
 
   const PAD=30,TH=44;
@@ -309,19 +408,19 @@ function Diagram({doc,dark}){
     const {x,y}=pos,h=vH(v),sns=snFor(v),svcs=svcFor(v);
     const isH=v.type==="transit";
     const isMgmt=v.type==="mgmt";
-    const accent=isH?"#3B82F6":isMgmt?"#06B6D4":PC;
+    const vp=vpcProv(v);
+    const accent=isH?"#3B82F6":isMgmt?"#06B6D4":({aws:"#FF9900",azure:"#0078D4",gcp:"#34A853"}[vp]||PC);
     return(<g>
       {/* Card shadow + border */}
       <rect x={x} y={y} width={VW} height={h} rx={8} fill={D.card} stroke={D.cardBd} strokeWidth="1" style={{filter:`drop-shadow(0 2px 6px ${D.shadow})`}}/>
       {/* Top accent bar */}
       <rect x={x} y={y} width={VW} height={4} rx={2} fill={accent}/>
-      {/* Header */}
-      <text x={x+VP} y={y+20} fill={D.dim} fontSize="7" fontWeight="700" letterSpacing="0.8">{(v.type||"vpc").toUpperCase()}</text>
-      <text x={x+VP} y={y+34} fill={D.text} fontSize="11" fontWeight="700">{tr(v.name,24)}</text>
+      {/* Header with per-VPC cloud icon */}
+      <VpcIcon prov={vp} x={x+VP} y={y+6} sz={16}/>
+      <text x={x+VP+20} y={y+20} fill={D.dim} fontSize="7" fontWeight="700" letterSpacing="0.8">{(v.type||"vpc").toUpperCase()}</text>
+      <text x={x+VP} y={y+36} fill={D.text} fontSize="11" fontWeight="700">{tr(v.name,24)}</text>
       {v.cidr&&<text x={x+VW-VP} y={y+20} textAnchor="end" fill={D.dim} fontSize="7" fontFamily="monospace">{v.cidr}</text>}
-      {v.gw_size&&<text x={x+VW-VP} y={y+34} textAnchor="end" fill={accent} fontSize="7.5" fontWeight="600" fontFamily="monospace">{v.gw_size}</text>}
-      {/* Provider logo in transit cards */}
-      {isH&&<ProvLogo prov={prov} x={x+VW-32} y={y+6} sz={18}/>}
+      {v.gw_size&&<text x={x+VW-VP} y={y+36} textAnchor="end" fill={accent} fontSize="7.5" fontWeight="600" fontFamily="monospace">{v.gw_size}</text>}
       {/* Divider */}
       <line x1={x+VP} y1={y+HH} x2={x+VW-VP} y2={y+HH} stroke={D.cardBd} strokeWidth="0.8"/>
       {/* Subnets */}
@@ -336,16 +435,21 @@ function Diagram({doc,dark}){
           <text x={x+VP+10} y={sy+22} fill={D.dim} fontSize="6.5" fontFamily="monospace">{tr((s.cidr||"")+(s.az?` · ${s.az}`:""),32)}</text>
         </g>);
       })}
-      {/* Service badges */}
+      {/* Service badges with icons */}
       {svcs.length>0&&(()=>{
-        const bY=y+h-VP-22;
+        const bY=y+h-VP-24;
         const bW=Math.floor((VW-VP*2-(svcs.length-1)*4)/svcs.length);
-        return svcs.map((s,si)=>{
+        return svcs.map((svc,si)=>{
           const bx=x+VP+si*(bW+4);
-          const sc=si===0?"#FF6B35":si===1?"#EC4899":"#A855F7";
-          return(<g key={s}>
-            <rect x={bx} y={bY} width={bW} height={22} rx={4} fill={dark?`${sc}15`:`${sc}10`} stroke={`${sc}40`} strokeWidth="0.7"/>
-            <text x={bx+bW/2} y={bY+14} textAnchor="middle" fill={sc} fontSize="7" fontWeight="600">{s}</text>
+          const sc=svc.color;
+          const icoSz=14;
+          return(<g key={svc.label}>
+            <rect x={bx} y={bY} width={bW} height={24} rx={4} fill={dark?`${sc}15`:`${sc}10`} stroke={`${sc}40`} strokeWidth="0.7"/>
+            {svc.type==="avx-transit"&&<AvxTransitIco x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz} c={sc}/>}
+            {svc.type==="avx-spoke"&&<AvxSpokeIco x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz} c={sc}/>}
+            {svc.type==="fw"&&<FwLogo vendor={fw.vendor} x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz}/>}
+            {svc.type==="dcf"&&<Ico d={IC.dcf} x={bx+4+icoSz/2} y={bY+12} sz={icoSz} c={sc}/>}
+            <text x={bx+icoSz+8} y={bY+15} fill={sc} fontSize="7" fontWeight="600">{svc.label}</text>
           </g>);
         });
       })()}
@@ -609,7 +713,7 @@ function exportDocx(data,customerName){
       }
 
       if(nd.routing){ch.push(ph("Routing",2));ch.push(pp(nd.routing));}
-      if(nd.segmentation){ch.push(ph("Segmentation",2));ch.push(pp(nd.segmentation));}
+      if(nd.network_domains){ch.push(ph("Network Domains",2));ch.push(pp(nd.network_domains));}
       if(nd.connectivity){ch.push(ph("Connectivity",2));ch.push(pp(nd.connectivity));}
       ch.push(dv());
 
@@ -799,12 +903,12 @@ function DocView({doc,selModel,dark,onExport}){
       </div>}
 
       {tab==="network"&&<div className="space-y-6">
-        <TabIntro text="Network topology extracted from your Terraform configuration, including VPCs/VNets, CIDR allocations, subnet layout, gateway instance sizes, routing model, and segmentation strategy."/>
+        <TabIntro text="Network topology extracted from your Terraform configuration, including VPCs/VNets, CIDR allocations, subnet layout, gateway instance sizes, routing model, and Network Domains."/>
         {nd.description&&<Sec title="Network Topology"><Pr t={nd.description}/></Sec>}
         {nd.vpcs?.length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{v.name}</div><div className="grid grid-cols-2 gap-1"><KV k="CIDR" v={v.cidr}/><KV k="Type" v={v.type}/><KV k="Gateway Size" v={v.gw_size}/></div><Pr t={v.purpose}/></div>)}</div></Sec>}
         {nd.subnets?.length>0&&<Sec title="Subnets"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","CIDR","AZ","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{nd.subnets.map((s,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono text-xs" style={{color:AV.or}}>{s.name}</td><td className="px-4 py-2 font-mono text-xs" style={{color:"#60A5FA"}}>{s.cidr||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.az||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.purpose}</td></tr>)}</tbody></table></div></Sec>}
         {nd.routing&&<Sec title="Routing"><Pr t={nd.routing}/></Sec>}
-        {nd.segmentation&&<Sec title="Segmentation"><Pr t={nd.segmentation}/></Sec>}
+        {nd.network_domains&&<Sec title="Network Domains"><Pr t={nd.network_domains}/></Sec>}
         {nd.connectivity&&<Sec title="Connectivity"><Pr t={nd.connectivity}/></Sec>}
       </div>}
 

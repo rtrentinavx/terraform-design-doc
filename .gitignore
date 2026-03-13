@@ -6,3 +6,8 @@ dist/
 *.log
 .DS_Store
 .vite/
+BLOG.md
+landingpage.png
+filesloaded.png
+design1stpage.png
+networkdiagram.png
