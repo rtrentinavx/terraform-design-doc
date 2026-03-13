@@ -949,143 +949,240 @@ async function callMockFlowMCP(doc){
   const result=await callResp.json();
   if(result.error)throw new Error(result.error.message||JSON.stringify(result.error));
 
-  // Parse result — content array with text items
+  // Parse result — content array with text items, or direct result object
+  console.log("[MockFlow] Raw response:",JSON.stringify(result).slice(0,1000));
   const content=result.result?.content||[];
   const textItem=content.find(c=>c.type==="text");
   if(textItem){
     try{
       const parsed=JSON.parse(textItem.text);
-      return{url:parsed.url||"",thumbnailUrl:parsed.thumbnailUrl||"",title:parsed.title||"",success:parsed.success!==false};
-    }catch{return{url:textItem.text,thumbnailUrl:"",title:"",success:true};}
+      console.log("[MockFlow] Parsed:",parsed);
+      return{url:parsed.url||parsed.boardUrl||parsed.link||"",thumbnailUrl:parsed.thumbnailUrl||parsed.thumbnail||parsed.imageUrl||"",title:parsed.title||parsed.name||"",success:parsed.success!==false};
+    }catch{
+      // Text might be a URL directly
+      const t=textItem.text.trim();
+      if(t.startsWith("http"))return{url:t,thumbnailUrl:"",title:"MockFlow Diagram",success:true};
+      return{url:"",thumbnailUrl:"",title:t,success:true};
+    }
   }
-  throw new Error("No result from MockFlow");
+  // Fallback: check if result itself has the data
+  if(result.result?.url||result.result?.boardUrl){
+    const r=result.result;
+    return{url:r.url||r.boardUrl||"",thumbnailUrl:r.thumbnailUrl||r.thumbnail||"",title:r.title||"",success:true};
+  }
+  throw new Error("No result from MockFlow. Response: "+JSON.stringify(result).slice(0,300));
 }
 
 // ── Mermaid Diagram ───────────────────────────────────────────────────────
+const initMermaid=(dark=true)=>{
+  window.mermaid?.initialize({startOnLoad:false,theme:dark?"dark":"default",
+    themeVariables:dark?{primaryColor:"#1A2240",primaryTextColor:"#F0F4FF",primaryBorderColor:"#3B82F6",lineColor:"#FF6B35",secondaryColor:"#0F1628",tertiaryColor:"#1E2D50",background:"#0D1117",mainBkg:"#1A2240",nodeBorder:"#3B82F6",clusterBkg:"#0F162880",clusterBorder:"#3B82F640",titleColor:"#F0F4FF",edgeLabelBackground:"#1A2240"}
+    :{primaryColor:"#DBEAFE",primaryTextColor:"#1E3A5F",primaryBorderColor:"#2563EB",lineColor:"#EA580C",secondaryColor:"#FFF7ED",tertiaryColor:"#EDE9FE",background:"#FAFBFC",mainBkg:"#FFFFFF",nodeBorder:"#2563EB",clusterBkg:"#F8FAFC",clusterBorder:"#E2E8F0",titleColor:"#0F172A",edgeLabelBackground:"#FFFFFF"}
+  });
+};
 function useMermaid(){
   useEffect(()=>{
     if(window.mermaid)return;
     const s=window.document.createElement("script");
     s.src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
-    s.onload=()=>window.mermaid?.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#1A2240",primaryTextColor:"#F0F4FF",primaryBorderColor:"#3B82F6",lineColor:"#FF6B35",secondaryColor:"#0F1628",tertiaryColor:"#1E2D50"}});
+    s.onload=()=>initMermaid(true);
     window.document.head.appendChild(s);
   },[]);
 }
 
-function buildMermaid(doc){
-  const nd=doc.network_design||{},vpcs=nd.vpcs||[];
+function buildMermaid(doc,dark=true){
+  const nd=doc.network_design||{},vpcs=nd.vpcs||[],subs=nd.subnets||[];
   const fw=doc.firewall_detail||{};
   const edges=doc.edge_devices||[];
   const extConns=doc.external_connections||[];
+  const dcf=doc.dcf||{};
   const hubs=vpcs.filter(v=>v.type==="transit");
   const spokes=vpcs.filter(v=>v.type!=="transit");
-  // Sanitize node IDs and labels
   const sid=s=>s.replace(/[^a-zA-Z0-9]/g,"_");
-  const lines=["flowchart TB"];
+  const provLabel=doc.provider==="azure"?"Azure Cloud":doc.provider==="gcp"?"Google Cloud":doc.provider==="multi"?"Multi-Cloud":"AWS Cloud";
+  const connType=doc.provider==="azure"?"VPN / ExpressRoute":doc.provider==="gcp"?"VPN / Interconnect":"VPN / Direct Connect";
+  const vpcLabel=doc.provider==="azure"?"VNet":"VPC";
+  const L=[];
 
-  // Internet node
+  L.push("flowchart TB");
+
+  // External nodes
   const hasInet=hubs.length>0;
-  if(hasInet)lines.push(`  INET((("Internet")))`);
-
-  // On-Prem node
   const hasOnPrem=extConns.length>0||edges.length>0;
-  if(hasOnPrem)lines.push(`  ONPREM[/"On-Premises"\\]`);
+  if(hasInet) L.push(`  INET((("🌐 Internet<br/>Public Network")))`);
+  if(hasOnPrem) L.push(`  ONPREM[("🏢 On-Premises<br/>Corporate Network")]`);
 
-  // Cloud subgraph
-  const provLabel=doc.provider==="azure"?"Azure Cloud":doc.provider==="gcp"?"Google Cloud":"AWS Cloud";
-  lines.push(`  subgraph CLOUD["${provLabel}"]`);
-  lines.push("    direction TB");
+  // Cloud region subgraph
+  const regions=(doc.architecture_overview||{}).regions||[];
+  const regionLabel=regions.length?` — ${regions.join(", ")}`:"";
+  L.push(`  subgraph CLOUD["☁️ ${provLabel}${regionLabel}"]`);
+  L.push("    direction TB");
 
-  // Transit VPCs
-  hubs.forEach(v=>{
-    const id=sid(v.name);
-    lines.push(`    subgraph ${id}["${v.name}${v.cidr?" · "+v.cidr:""}"]`);
-    lines.push("      direction LR");
-    lines.push(`      ${id}_gw[/"Transit GW${v.gw_size?" · "+v.gw_size:""}"/]`);
-    if(v.firenet===true&&fw.present){
-      const fwV=fw.vendor||doc.firewall_vendor||"NGFW";
-      lines.push(`      ${id}_fw{{"FireNet: ${fwV}"}}`);
-      lines.push(`      ${id}_gw --- ${id}_fw`);
-    }
-    // Subnets in this VPC
-    const vSubs=(nd.subnets||[]).filter(s=>s.vpc===v.name);
-    vSubs.forEach(s=>{
-      const subId=sid(v.name+"_"+s.name);
-      lines.push(`      ${subId}["${s.name}${s.cidr?" · "+s.cidr:""}"]`);
+  // Transit tier subgraph
+  if(hubs.length){
+    L.push(`    subgraph TRANSIT_TIER["🔷 Transit Tier"]`);
+    L.push("      direction LR");
+    hubs.forEach(v=>{
+      const id=sid(v.name);
+      const typeIcon=doc.provider==="azure"?"🔷":"🔶";
+      L.push(`      subgraph ${id}["${typeIcon} ${v.name}<br/>${vpcLabel}: ${v.cidr||'—'}"]`);
+      L.push("        direction TB");
+      L.push(`        ${id}_gw{{"🛡️ Transit Gateway<br/>${v.gw_size||'default'}"}}`);
+      if(v.firenet===true&&fw.present){
+        const fwV=fw.vendor||doc.firewall_vendor||"NGFW";
+        const fwP=fw.product||"";
+        const fwHA=fw.ha_mode&&fw.ha_mode!=="unknown"?` (${fw.ha_mode})`:"";
+        L.push(`        ${id}_fw[["🔥 FireNet: ${fwV}<br/>${fwP}${fwHA}<br/>${fw.instance_size||''}"]]\n        ${id}_gw --> ${id}_fw`);
+      }
+      if(dcf.enabled) L.push(`        ${id}_dcf(["🛡️ DCF: ${dcf.default_action||'deny'}"])`);
+      const vSubs=subs.filter(s=>s.vpc===v.name);
+      if(vSubs.length){
+        L.push(`        subgraph ${id}_subs["Subnets"]`);
+        L.push("          direction LR");
+        vSubs.forEach(s=>{
+          const subId=sid(v.name+"_"+s.name);
+          const isPub=/public|pub|dmz|nat/i.test(s.name+s.purpose);
+          L.push(`          ${subId}["${isPub?"🟢":"🔵"} ${s.name}<br/>${s.cidr||''}"]`);
+        });
+        L.push("        end");
+      }
+      L.push("      end");
     });
-    lines.push("    end");
-  });
+    L.push("    end");
+  }
 
-  // Spoke VPCs
-  spokes.forEach(v=>{
-    const id=sid(v.name);
-    lines.push(`    subgraph ${id}["${v.name}${v.cidr?" · "+v.cidr:""}"]`);
-    lines.push("      direction LR");
-    lines.push(`      ${id}_gw[/"Spoke GW${v.gw_size?" · "+v.gw_size:""}"/]`);
-    const vSubs=(nd.subnets||[]).filter(s=>s.vpc===v.name);
-    vSubs.forEach(s=>{
-      const subId=sid(v.name+"_"+s.name);
-      lines.push(`      ${subId}["${s.name}${s.cidr?" · "+s.cidr:""}"]`);
+  // Spoke tier subgraph
+  if(spokes.length){
+    L.push(`    subgraph SPOKE_TIER["🔸 Spoke Tier"]`);
+    L.push("      direction LR");
+    spokes.forEach(v=>{
+      const id=sid(v.name);
+      L.push(`      subgraph ${id}["📦 ${v.name}<br/>${vpcLabel}: ${v.cidr||'—'}"]`);
+      L.push("        direction TB");
+      L.push(`        ${id}_gw(["🔀 Spoke Gateway<br/>${v.gw_size||'default'}"])`);
+      const vSubs=subs.filter(s=>s.vpc===v.name);
+      if(vSubs.length){
+        L.push(`        subgraph ${id}_subs["Subnets"]`);
+        L.push("          direction LR");
+        vSubs.forEach(s=>{
+          const subId=sid(v.name+"_"+s.name);
+          const isPub=/public|pub|dmz|nat/i.test(s.name+s.purpose);
+          L.push(`          ${subId}["${isPub?"🟢":"🔵"} ${s.name}<br/>${s.cidr||''}"]`);
+        });
+        L.push("        end");
+      }
+      L.push("      end");
     });
-    lines.push("    end");
-  });
+    L.push("    end");
+  }
 
-  lines.push("  end");
+  L.push("  end"); // close CLOUD
 
   // Edge devices
   edges.forEach(e=>{
     const eid=sid("edge_"+e.name);
-    lines.push(`  ${eid}[["Edge: ${e.name}${e.location?" · "+e.location:""}"]]\n`);
+    const ha=e.ha?" HA":"";
+    L.push(`  ${eid}[["⚡ ${e.name}<br/>${e.type||'edge'}${ha}<br/>${e.location||''}"]]\n`);
   });
 
-  // Connections: Internet → transits
-  if(hasInet&&hubs[0])lines.push(`  INET -.-|"Internet GW"| ${sid(hubs[0].name)}`);
+  // External connections
+  extConns.forEach((c,i)=>{
+    if(!c.name)return;
+    const cid=sid("ext_"+c.name);
+    L.push(`  ${cid}(["🔗 ${c.name}<br/>${c.type||''} ${c.bgp_asn?"ASN:"+c.bgp_asn:""}"])`);
+  });
 
-  // Connections: On-Prem → transits
+  // --- Connections ---
+  L.push("");
+
+  // Internet → first transit
+  if(hasInet&&hubs[0]) L.push(`  INET -.->|"Internet Gateway"| ${sid(hubs[0].name)}_gw`);
+
+  // On-Prem → transits (smart targeting)
   if(hasOnPrem&&hubs.length>0){
-    const target=hubs[hubs.length-1]||hubs[0];
-    lines.push(`  ONPREM -.-|"VPN / DX"| ${sid(target.name)}`);
+    const targeted=new Set();
+    extConns.forEach(ec=>{
+      if(ec.local_gw){
+        hubs.forEach(h=>{
+          if(h.name.toLowerCase().includes(ec.local_gw.toLowerCase())||ec.local_gw.toLowerCase().includes(h.name.replace(/-/g,"").toLowerCase()))targeted.add(h.name);
+        });
+      }
+    });
+    const targets=targeted.size>0?hubs.filter(h=>targeted.has(h.name)):[hubs[hubs.length-1]];
+    targets.forEach(t=>L.push(`  ONPREM -.->|"${connType}"| ${sid(t.name)}_gw`));
   }
 
-  // Connections: Transit ↔ Transit peering
+  // Transit ↔ Transit peering
   for(let i=0;i<hubs.length-1;i++){
-    lines.push(`  ${sid(hubs[i].name)} ===|"Transit Peering"| ${sid(hubs[i+1].name)}`);
+    L.push(`  ${sid(hubs[i].name)}_gw <====>|"Transit Peering"| ${sid(hubs[i+1].name)}_gw`);
   }
 
-  // Connections: Spoke → Transit
+  // Spoke → Transit
   spokes.forEach(sv=>{
     const target=sv.connected_transit?hubs.find(h=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
-    if(target)lines.push(`  ${sid(target.name)} -->|"Spoke Attachment"| ${sid(sv.name)}`);
+    if(target) L.push(`  ${sid(target.name)}_gw ==>|"Spoke Attachment"| ${sid(sv.name)}_gw`);
   });
 
-  // Connections: Edge → Transit
+  // Edge → Transit
   edges.forEach(e=>{
     const eid=sid("edge_"+e.name);
     if(e.connected_transit){
-      const targets=e.connected_transit.split(",").map(s=>s.trim());
-      targets.forEach(t=>{
+      e.connected_transit.split(",").map(s=>s.trim()).forEach(t=>{
         const hub=hubs.find(h=>h.name.toLowerCase().includes(t.toLowerCase()))||hubs[0];
-        if(hub)lines.push(`  ${eid} -.-|"Edge Attachment"| ${sid(hub.name)}`);
+        if(hub) L.push(`  ${eid} -.->|"Edge Attachment"| ${sid(hub.name)}_gw`);
       });
-    }else if(hubs[0]){
-      lines.push(`  ${eid} -.-|"Edge Attachment"| ${sid(hubs[0].name)}`);
-    }
+    }else if(hubs[0]) L.push(`  ${eid} -.->|"Edge Attachment"| ${sid(hubs[0].name)}_gw`);
+  });
+
+  // External connections → transit
+  extConns.forEach(c=>{
+    if(!c.name)return;
+    const cid=sid("ext_"+c.name);
+    if(c.local_gw){
+      const hub=hubs.find(h=>h.name.toLowerCase().includes(c.local_gw.toLowerCase()))||hubs[0];
+      if(hub) L.push(`  ${cid} -.->|"${c.type||'BGP'}"| ${sid(hub.name)}_gw`);
+    }else if(hubs[0]) L.push(`  ${cid} -.->| | ${sid(hubs[0].name)}_gw`);
   });
 
   // Styling
-  lines.push("");
-  lines.push("  classDef transit fill:#1E3A5F,stroke:#3B82F6,color:#F0F4FF,stroke-width:2px");
-  lines.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#F0F4FF,stroke-width:1px");
-  lines.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9");
-  lines.push("  classDef onprem fill:#0F1628,stroke:#7C3AED,color:#C4B5FD");
-  lines.push("  classDef edge fill:#1E2D50,stroke:#F97316,color:#FDBA74");
-  hubs.forEach(v=>lines.push(`  class ${sid(v.name)} transit`));
-  spokes.forEach(v=>lines.push(`  class ${sid(v.name)} spoke`));
-  if(hasInet)lines.push("  class INET ext");
-  if(hasOnPrem)lines.push("  class ONPREM onprem");
-  edges.forEach(e=>lines.push(`  class ${sid("edge_"+e.name)} edge`));
+  L.push("");
+  if(dark){
+    L.push("  classDef transit fill:#1E3A5F,stroke:#3B82F6,color:#F0F4FF,stroke-width:2px");
+    L.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#F0F4FF,stroke-width:1px");
+    L.push("  classDef fw fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
+    L.push("  classDef gw fill:#0F2B3D,stroke:#22D3EE,color:#A5F3FC,stroke-width:1px");
+    L.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:2px");
+    L.push("  classDef onprem fill:#1A0F2E,stroke:#7C3AED,color:#C4B5FD,stroke-width:2px");
+    L.push("  classDef edgedev fill:#2D1B00,stroke:#F97316,color:#FDBA74,stroke-width:2px");
+    L.push("  classDef dcfnode fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
+    L.push("  classDef extconn fill:#1A2240,stroke:#6366F1,color:#A5B4FC,stroke-width:1px");
+  }else{
+    L.push("  classDef transit fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
+    L.push("  classDef spoke fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
+    L.push("  classDef fw fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
+    L.push("  classDef gw fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1px");
+    L.push("  classDef ext fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:2px");
+    L.push("  classDef onprem fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px");
+    L.push("  classDef edgedev fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:2px");
+    L.push("  classDef dcfnode fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
+    L.push("  classDef extconn fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:1px");
+  }
+  hubs.forEach(v=>{
+    L.push(`  class ${sid(v.name)} transit`);
+    L.push(`  class ${sid(v.name)}_gw gw`);
+    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fw`);
+    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcfnode`);
+  });
+  spokes.forEach(v=>{
+    L.push(`  class ${sid(v.name)} spoke`);
+    L.push(`  class ${sid(v.name)}_gw gw`);
+  });
+  if(hasInet) L.push("  class INET ext");
+  if(hasOnPrem) L.push("  class ONPREM onprem");
+  edges.forEach(e=>L.push(`  class ${sid("edge_"+e.name)} edgedev`));
+  extConns.forEach(c=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} extconn`);});
 
-  return lines.join("\n");
+  return L.join("\n");
 }
 
 // ── ZIP helpers ────────────────────────────────────────────────────────────
@@ -1281,7 +1378,7 @@ function DocView({doc,selModel,dark,onExport}){
               <button onClick={()=>{
                 setDiagMode("mermaid");
                 if(!mmSvg&&!mmErr){
-                  const code=buildMermaid(doc);
+                  initMermaid(dark);const code=buildMermaid(doc,dark);
                   const tryRender=()=>{
                     if(!window.mermaid){setTimeout(tryRender,300);return;}
                     window.mermaid.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
@@ -1320,7 +1417,7 @@ function DocView({doc,selModel,dark,onExport}){
             <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mmErr}</div>
             <button onClick={()=>{
               setMmSvg("");setMmErr(null);
-              const code=buildMermaid(doc);
+              initMermaid(dark);const code=buildMermaid(doc,dark);
               window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
             }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#22C55E"}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1333,7 +1430,7 @@ function DocView({doc,selModel,dark,onExport}){
               <p className="text-xs" style={{color:AV.tm}}>Rendered with Mermaid.js — flowchart from IDD network data</p>
               <button onClick={()=>{
                 setMmSvg("");setMmErr(null);
-                const code=buildMermaid(doc);
+                initMermaid(dark);const code=buildMermaid(doc,dark);
                 window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
               }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
