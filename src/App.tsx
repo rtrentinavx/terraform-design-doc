@@ -93,22 +93,30 @@ The connected_transit value MUST exactly match the "name" of one of the transit 
 
 FIREWALL — CRITICAL: This is the MOST IMPORTANT section. Search ALL uploaded files thoroughly for ANY mention of firewalls.
 Set firewall_detail.present=true if ANY of these are found ANYWHERE in the code: aviatrix_firewall_instance, aviatrix_firenet, mc-firenet module, enable_firenet=true, firewall_image, firewall_size, fw_amount, or any string containing "Palo Alto", "FortiGate", "CloudGuard", "VM-Series", "Bundle 1", "Bundle 2", "BYOL", "PAYG", "NGFW", "firenet".
-When present=true, you MUST populate EVERY field — do NOT leave any as empty string or null:
-- vendor: Full vendor name (e.g. "Palo Alto Networks", "Fortinet", "Check Point"). Parse from firewall_image variable/string.
-- product: Product name (e.g. "VM-Series", "FortiGate", "CloudGuard"). Parse from firewall_image.
-- instance_size: VM instance type (e.g. "c5.xlarge", "Standard_D3_v2"). Look at firewall_size/instance_size in mc-firenet module or firewall_size in aviatrix_firewall_instance. Default: AWS=c5.xlarge, Azure=Standard_D3_v2, GCP=n1-standard-4.
-- vcpus: Number of vCPUs. Map from instance_size: c5.xlarge=4, c5.2xlarge=8, Standard_D3_v2=4, n1-standard-4=4.
-- memory_gb: Memory in GB. Map: c5.xlarge=8, c5.2xlarge=16, Standard_D3_v2=14, n1-standard-4=15.
-- license_model: BYOL or PAYG. Parse from firewall_image string — "BYOL" in name means BYOL, "Bundle" means PAYG.
-- license_type: Specific license string (e.g. "Bundle 1", "Bundle 2", "BYOL")
-- ha_mode: mc-firenet with fw_amount>=2 → "active-active". Single firewall → "standalone".
-- ha_instances: fw_amount value (default=2 for mc-firenet)
+
+ZERO TOLERANCE FOR "unknown" or "Unknown" — When present=true, you MUST populate EVERY field with a real value. If a value is not explicitly in the code, use the defaults below. NEVER write "unknown", "Unknown", or empty string for ANY firewall_detail field. Infer from context:
+- If you see mc-firenet module but no firewall_image → default to Palo Alto Networks VM-Series BYOL (most common Aviatrix deployment)
+- If you see firewall_image as a variable reference (var.firewall_image) but no value → check .tfvars files and variable defaults. If still not found → default to Palo Alto Networks VM-Series BYOL
+- If vendor is known but product is not → Palo Alto=VM-Series, Fortinet=FortiGate, Check Point=CloudGuard
+
+Field extraction rules (NEVER return "unknown" for any of these):
+- vendor: Full vendor name. Parse from firewall_image string. Look in ALL files including .tfvars for the actual image string value. Default: "Palo Alto Networks"
+- product: Product name. Default: Palo Alto=VM-Series, Fortinet=FortiGate, Check Point=CloudGuard
+- instance_size: Look at firewall_size/instance_size/fw_instance_size in mc-firenet module, or firewall_size in aviatrix_firewall_instance resource. Default: AWS=c5.xlarge, Azure=Standard_D3_v2, GCP=n1-standard-4
+- vcpus: Map from instance_size: c5.xlarge=4, c5.2xlarge=8, c5n.xlarge=4, Standard_D3_v2=4, n1-standard-4=4. Use "4" as default
+- memory_gb: Map: c5.xlarge=8, c5.2xlarge=16, c5n.xlarge=10.5, Standard_D3_v2=14, n1-standard-4=15. Use "8" as default
+- license_model: Parse from firewall_image — "BYOL" in name means BYOL, "Bundle" means PAYG. Default: "BYOL"
+- license_type: Specific license string (e.g. "Bundle 1", "Bundle 2", "BYOL"). Default: "BYOL"
+- ha_mode: mc-firenet with fw_amount>=2 → "active-active". Single firewall → "standalone". Default: "active-active"
+- ha_instances: fw_amount value. Default: 2
 - deployment_mode: "Transit FireNet" if transit+firenet, "FireNet" otherwise
 - interfaces: ["management","egress","lan"] for Transit FireNet
 - version: from firewall_image if version present, else "latest"
-- notes: 2-3 sentence explanation of firewall deployment, inspection mode, and HA strategy. NEVER leave empty.
+- notes: 2-3 sentence explanation. NEVER leave empty.
 
-Image string mapping: "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1"→vendor=Palo Alto Networks,product=VM-Series,license_model=PAYG,license_type=Bundle 1; "...Bundle 2"→Bundle 2; "...(BYOL)"→BYOL; "Fortinet FortiGate (BYOL)..."→vendor=Fortinet,BYOL; "Fortinet FortiGate Next-Generation..."→PAYG; "Check Point CloudGuard...BYOL"→vendor=Check Point,BYOL.
+Image string mapping: "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1"→vendor=Palo Alto Networks,product=VM-Series,license_model=PAYG,license_type=Bundle 1; "...Bundle 2"→Bundle 2; "...(BYOL)"→BYOL; "Fortinet FortiGate (BYOL)..."→vendor=Fortinet,product=FortiGate,BYOL; "Fortinet FortiGate Next-Generation..."→PAYG; "Check Point CloudGuard...BYOL"→vendor=Check Point,product=CloudGuard,BYOL.
+
+VARIABLE RESOLUTION: When firewall_image references var.firewall_image, you MUST search ALL .tfvars files and variable default blocks for its value. Look for: variable "firewall_image" { default = "..." } or firewall_image = "..." in .tfvars. Parse the FULL string to extract vendor, product, and license info.
 
 Firewall instance_size defaults (mc-firenet) — use when instance_size not set:
   AWS: c5.xlarge → 4 vCPU, 8 GB RAM
