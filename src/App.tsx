@@ -831,7 +831,7 @@ function exportDocx(data,customerName){
 }
 
 // ── MockFlow MCP Integration ──────────────────────────────────────────────
-const MOCKFLOW_MCP="https://app.mockflow.com/ideaboard/mcp";
+const MOCKFLOW_MCP="/api/mockflow";
 const MF_COLORS={aws:{cloud:"#FF9900",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF3E0"},azure:{cloud:"#0078D4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#F3E5F5"},gcp:{cloud:"#4285F4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF8E1"}};
 
 function buildMockFlowData(doc){
