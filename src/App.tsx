@@ -92,7 +92,13 @@ SPOKE/MGMT VPC TRANSIT ATTACHMENT — CRITICAL: For every non-transit VPC, you M
 The connected_transit value MUST exactly match the "name" of one of the transit VPCs in the vpcs array. If a spoke connects to multiple transits, comma-separate them. NEVER leave connected_transit empty for spoke/mgmt VPCs.
 
 FIREWALL — CRITICAL: This is the MOST IMPORTANT section. Search ALL uploaded files thoroughly for ANY mention of firewalls.
-Set firewall_detail.present=true if ANY of these are found ANYWHERE in the code: aviatrix_firewall_instance, aviatrix_firenet, mc-firenet module, enable_firenet=true, firewall_image, firewall_size, fw_amount, or any string containing "Palo Alto", "FortiGate", "CloudGuard", "VM-Series", "Bundle 1", "Bundle 2", "BYOL", "PAYG", "NGFW", "firenet".
+Set firewall_detail.present=true if ANY of these are found ANYWHERE in the code: aviatrix_firewall_instance, aviatrix_firewall_instance_association, aviatrix_firenet, aviatrix_transit_firenet_policy, mc-firenet module, enable_firenet=true, firewall_image, firewall_size, fw_amount, firenet_gw_name, firewall_name, lan_interface, management_interface, egress_interface, or any string containing "Palo Alto", "FortiGate", "CloudGuard", "VM-Series", "Bundle 1", "Bundle 2", "BYOL", "PAYG", "NGFW", "firenet", "-fw1", "-fw2".
+
+STATE EXPORT PATTERN: Terraform state exports often have aviatrix_firewall_instance_association (with firewall_name, lan/mgmt/egress interfaces) and aviatrix_firenet (with inspection_enabled, hashing_algorithm) but NO aviatrix_firewall_instance resource. In this case you MUST still set present=true and infer all details:
+- Count firewall_instance_association resources to determine fw_amount and ha_mode
+- Parse firewall_name (e.g. "aws-aviatrix-transit-pri-fw1") to identify the transit gateway
+- Interfaces (lan, management, egress) confirm it is a Transit FireNet deployment
+- Use per-cloud defaults for all missing fields (vendor, product, instance_size, etc.)
 
 ZERO TOLERANCE FOR "unknown" or "Unknown" — When present=true, you MUST populate EVERY field with a real value. NEVER write "unknown", "Unknown", or empty string for ANY firewall_detail field.
 
