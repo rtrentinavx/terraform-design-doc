@@ -1067,14 +1067,14 @@ export default function App(){
   },[]);
 
   const handleFiles=useCallback(async nf=>{
-    setError(null);setExtr(true);const added=[];
+    setError(null);setExtr(true);const added=[];let err=null;
     for(const f of Array.from(nf)){
-      if(f.name.endsWith(".zip")){try{const ex=await extractZip(f);added.push(...ex);}catch(e){setError("ZIP: "+e.message);}}
-      else if(isV(f.name)){try{added.push(await readText(f));}catch(e){setError(e.message);}}
+      if(f.name.endsWith(".zip")){try{const ex=await extractZip(f);added.push(...ex);}catch(e){err="ZIP: "+e.message;setError(err);}}
+      else if(isV(f.name)){try{added.push(await readText(f));}catch(e){err=e.message;setError(err);}}
     }
     setExtr(false);
     if(added.length)setFiles(p=>[...p,...added]);
-    else if(!error)setError("No .tf or .tfvars files found.");
+    else if(!err)setError("No .tf or .tfvars files found.");
   },[extractZip]);
 
   const onDrop=useCallback(e=>{e.preventDefault();setDrag(false);handleFiles(e.dataTransfer.files);},[handleFiles]);
