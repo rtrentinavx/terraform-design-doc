@@ -961,6 +961,133 @@ async function callMockFlowMCP(doc){
   throw new Error("No result from MockFlow");
 }
 
+// ── Mermaid Diagram ───────────────────────────────────────────────────────
+function useMermaid(){
+  useEffect(()=>{
+    if(window.mermaid)return;
+    const s=window.document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+    s.onload=()=>window.mermaid?.initialize({startOnLoad:false,theme:"dark",themeVariables:{primaryColor:"#1A2240",primaryTextColor:"#F0F4FF",primaryBorderColor:"#3B82F6",lineColor:"#FF6B35",secondaryColor:"#0F1628",tertiaryColor:"#1E2D50"}});
+    window.document.head.appendChild(s);
+  },[]);
+}
+
+function buildMermaid(doc){
+  const nd=doc.network_design||{},vpcs=nd.vpcs||[];
+  const fw=doc.firewall_detail||{};
+  const edges=doc.edge_devices||[];
+  const extConns=doc.external_connections||[];
+  const hubs=vpcs.filter(v=>v.type==="transit");
+  const spokes=vpcs.filter(v=>v.type!=="transit");
+  // Sanitize node IDs and labels
+  const sid=s=>s.replace(/[^a-zA-Z0-9]/g,"_");
+  const lines=["flowchart TB"];
+
+  // Internet node
+  const hasInet=hubs.length>0;
+  if(hasInet)lines.push(`  INET((("Internet")))`);
+
+  // On-Prem node
+  const hasOnPrem=extConns.length>0||edges.length>0;
+  if(hasOnPrem)lines.push(`  ONPREM[/"On-Premises"\\]`);
+
+  // Cloud subgraph
+  const provLabel=doc.provider==="azure"?"Azure Cloud":doc.provider==="gcp"?"Google Cloud":"AWS Cloud";
+  lines.push(`  subgraph CLOUD["${provLabel}"]`);
+  lines.push("    direction TB");
+
+  // Transit VPCs
+  hubs.forEach(v=>{
+    const id=sid(v.name);
+    lines.push(`    subgraph ${id}["${v.name}${v.cidr?" · "+v.cidr:""}"]`);
+    lines.push("      direction LR");
+    lines.push(`      ${id}_gw[/"Transit GW${v.gw_size?" · "+v.gw_size:""}"/]`);
+    if(v.firenet===true&&fw.present){
+      const fwV=fw.vendor||doc.firewall_vendor||"NGFW";
+      lines.push(`      ${id}_fw{{"FireNet: ${fwV}"}}`);
+      lines.push(`      ${id}_gw --- ${id}_fw`);
+    }
+    // Subnets in this VPC
+    const vSubs=(nd.subnets||[]).filter(s=>s.vpc===v.name);
+    vSubs.forEach(s=>{
+      const subId=sid(v.name+"_"+s.name);
+      lines.push(`      ${subId}["${s.name}${s.cidr?" · "+s.cidr:""}"]`);
+    });
+    lines.push("    end");
+  });
+
+  // Spoke VPCs
+  spokes.forEach(v=>{
+    const id=sid(v.name);
+    lines.push(`    subgraph ${id}["${v.name}${v.cidr?" · "+v.cidr:""}"]`);
+    lines.push("      direction LR");
+    lines.push(`      ${id}_gw[/"Spoke GW${v.gw_size?" · "+v.gw_size:""}"/]`);
+    const vSubs=(nd.subnets||[]).filter(s=>s.vpc===v.name);
+    vSubs.forEach(s=>{
+      const subId=sid(v.name+"_"+s.name);
+      lines.push(`      ${subId}["${s.name}${s.cidr?" · "+s.cidr:""}"]`);
+    });
+    lines.push("    end");
+  });
+
+  lines.push("  end");
+
+  // Edge devices
+  edges.forEach(e=>{
+    const eid=sid("edge_"+e.name);
+    lines.push(`  ${eid}[["Edge: ${e.name}${e.location?" · "+e.location:""}"]]\n`);
+  });
+
+  // Connections: Internet → transits
+  if(hasInet&&hubs[0])lines.push(`  INET -.-|"Internet GW"| ${sid(hubs[0].name)}`);
+
+  // Connections: On-Prem → transits
+  if(hasOnPrem&&hubs.length>0){
+    const target=hubs[hubs.length-1]||hubs[0];
+    lines.push(`  ONPREM -.-|"VPN / DX"| ${sid(target.name)}`);
+  }
+
+  // Connections: Transit ↔ Transit peering
+  for(let i=0;i<hubs.length-1;i++){
+    lines.push(`  ${sid(hubs[i].name)} ===|"Transit Peering"| ${sid(hubs[i+1].name)}`);
+  }
+
+  // Connections: Spoke → Transit
+  spokes.forEach(sv=>{
+    const target=sv.connected_transit?hubs.find(h=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
+    if(target)lines.push(`  ${sid(target.name)} -->|"Spoke Attachment"| ${sid(sv.name)}`);
+  });
+
+  // Connections: Edge → Transit
+  edges.forEach(e=>{
+    const eid=sid("edge_"+e.name);
+    if(e.connected_transit){
+      const targets=e.connected_transit.split(",").map(s=>s.trim());
+      targets.forEach(t=>{
+        const hub=hubs.find(h=>h.name.toLowerCase().includes(t.toLowerCase()))||hubs[0];
+        if(hub)lines.push(`  ${eid} -.-|"Edge Attachment"| ${sid(hub.name)}`);
+      });
+    }else if(hubs[0]){
+      lines.push(`  ${eid} -.-|"Edge Attachment"| ${sid(hubs[0].name)}`);
+    }
+  });
+
+  // Styling
+  lines.push("");
+  lines.push("  classDef transit fill:#1E3A5F,stroke:#3B82F6,color:#F0F4FF,stroke-width:2px");
+  lines.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#F0F4FF,stroke-width:1px");
+  lines.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9");
+  lines.push("  classDef onprem fill:#0F1628,stroke:#7C3AED,color:#C4B5FD");
+  lines.push("  classDef edge fill:#1E2D50,stroke:#F97316,color:#FDBA74");
+  hubs.forEach(v=>lines.push(`  class ${sid(v.name)} transit`));
+  spokes.forEach(v=>lines.push(`  class ${sid(v.name)} spoke`));
+  if(hasInet)lines.push("  class INET ext");
+  if(hasOnPrem)lines.push("  class ONPREM onprem");
+  edges.forEach(e=>lines.push(`  class ${sid("edge_"+e.name)} edge`));
+
+  return lines.join("\n");
+}
+
 // ── ZIP helpers ────────────────────────────────────────────────────────────
 const VE=[".tf",".tfvars"];
 const isV=n=>VE.some(e=>n.endsWith(e));
@@ -969,12 +1096,16 @@ function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.documen
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
 function DocView({doc,selModel,dark,onExport}){
+  useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
   const [mfLoading,setMfLoading]=useState(false);
   const [mfResult,setMfResult]=useState(null);
   const [mfError,setMfError]=useState(null);
   const [diagMode,setDiagMode]=useState("svg");
+  const [mmSvg,setMmSvg]=useState("");
+  const [mmErr,setMmErr]=useState(null);
+  const mmRef=useRef(null);
   const tabs=[{id:"overview",l:"Overview"},{id:"network",l:"Network"},{id:"security",l:"Security"},{id:"dcf",l:"DCF Policies"},{id:"edge",l:"Edge & Ext"},{id:"components",l:"Components"},{id:"diagram",l:"Diagram"},{id:"flows",l:"Data Flows"},{id:"variables",l:"Variables"}];
   const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
@@ -1148,6 +1279,20 @@ function DocView({doc,selModel,dark,onExport}){
                 SVG Diagram
               </button>
               <button onClick={()=>{
+                setDiagMode("mermaid");
+                if(!mmSvg&&!mmErr){
+                  const code=buildMermaid(doc);
+                  const tryRender=()=>{
+                    if(!window.mermaid){setTimeout(tryRender,300);return;}
+                    window.mermaid.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
+                  };
+                  tryRender();
+                }
+              }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="mermaid"?{background:"#22C55E18",color:"#4ADE80",borderRight:`1px solid ${AV.nb}`}:{background:AV.nl,color:AV.tm,borderRight:`1px solid ${AV.nb}`}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Mermaid
+              </button>
+              <button onClick={()=>{
                 setDiagMode("mockflow");
                 if(!mfResult&&!mfLoading&&!mfError){
                   setMfLoading(true);setMfError(null);
@@ -1161,10 +1306,42 @@ function DocView({doc,selModel,dark,onExport}){
             </div>
           </div>
         </>}
-        {/* SVG diagram — always rendered for DOCX export, hidden when mockflow active */}
-        <div style={diagMode==="mockflow"&&tab==="diagram"?{display:"none"}:{}}>
+        {/* SVG diagram — always rendered for DOCX export, hidden when other mode active */}
+        <div style={diagMode!=="svg"&&tab==="diagram"?{display:"none"}:{}}>
           <Diagram doc={doc} dark={dark}/>
         </div>
+        {/* Mermaid view */}
+        {tab==="diagram"&&diagMode==="mermaid"&&<div>
+          {!mmSvg&&!mmErr&&<div className="rounded-xl p-12 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <svg className="animate-spin w-8 h-8 mx-auto mb-4" style={{color:"#22C55E"}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+            <p className="font-semibold" style={{color:AV.tp}}>Rendering Mermaid diagram...</p>
+          </div>}
+          {mmErr&&<div className="rounded-xl p-6" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mmErr}</div>
+            <button onClick={()=>{
+              setMmSvg("");setMmErr(null);
+              const code=buildMermaid(doc);
+              window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
+            }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#22C55E"}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Retry
+            </button>
+          </div>}
+          {mmSvg&&<div>
+            <div className="rounded-xl overflow-auto p-4" style={{background:dark?"#0D1117":"#FAFBFC",border:`1px solid ${AV.nb}`}} ref={mmRef} dangerouslySetInnerHTML={{__html:mmSvg}}/>
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs" style={{color:AV.tm}}>Rendered with Mermaid.js — flowchart from IDD network data</p>
+              <button onClick={()=>{
+                setMmSvg("");setMmErr(null);
+                const code=buildMermaid(doc);
+                window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
+              }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Regenerate
+              </button>
+            </div>
+          </div>}
+        </div>}
         {/* MockFlow view */}
         {tab==="diagram"&&diagMode==="mockflow"&&<div>
           {mfLoading&&<div className="rounded-xl p-12 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
