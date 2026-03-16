@@ -1643,14 +1643,54 @@ export default function App(){
     setProgress({step:success?100:0,label:success?"Done":""});
   };
 
+  // ── PII Redaction ────────────────────────────────────────────────────
+  const buildRedactionMap=(text,customerName)=>{
+    const map=new Map();const rev=new Map();let ipIdx=0,nameIdx=0,asnIdx=0,domIdx=0;
+    // Public IPs (skip RFC1918: 10.x, 172.16-31.x, 192.168.x)
+    const ips=new Set(text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g)||[]);
+    ips.forEach(ip=>{
+      const o=ip.split(".").map(Number);
+      if(o[0]===10)return;if(o[0]===172&&o[1]>=16&&o[1]<=31)return;if(o[0]===192&&o[1]===168)return;if(o[0]===0||o[0]===127)return;
+      const tok=`REDACTED_IP_${++ipIdx}`;map.set(ip,tok);rev.set(tok,ip);
+    });
+    // Customer name
+    if(customerName?.trim()){
+      const cn=customerName.trim();const tok=`CUSTOMER_NAME`;map.set(cn,tok);rev.set(tok,cn);
+      // Also redact common variants (lowercase, uppercase)
+      [cn.toLowerCase(),cn.toUpperCase()].forEach(v=>{if(v!==cn&&text.includes(v)){map.set(v,tok);}});
+    }
+    // BGP ASNs (private range 64512-65534 are ok, redact others)
+    (text.match(/(?:bgp_remote_as|remote_as_num|bgp_asn)\s*=\s*"?(\d+)"?/g)||[]).forEach(m=>{
+      const n=m.match(/(\d+)/)?.[1];if(!n)return;const v=parseInt(n);
+      if(v>=64512&&v<=65534)return;if(v>=4200000000&&v<=4294967294)return;
+      if(!map.has(n)){const tok=`REDACTED_ASN_${++asnIdx}`;map.set(n,tok);rev.set(tok,n);}
+    });
+    // Domain names in quotes (skip common cloud/provider domains)
+    (text.match(/"[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})*"/g)||[]).forEach(m=>{
+      const d=m.replace(/"/g,"");
+      if(/amazonaws\.com|azure\.com|google\.com|aviatrix\.com|hashicorp\.com|terraform\.io|cloudflare\.com/.test(d))return;
+      if(!map.has(d)){const tok=`REDACTED_DOMAIN_${++domIdx}`;map.set(d,tok);rev.set(tok,d);}
+    });
+    // Email addresses
+    (text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)||[]).forEach(e=>{
+      if(!map.has(e)){const tok=`REDACTED_EMAIL_${++nameIdx}`;map.set(e,tok);rev.set(tok,e);}
+    });
+    return{map,rev};
+  };
+  const redactText=(text,map)=>{let r=text;map.forEach((tok,orig)=>{r=r.split(orig).join(tok);});return r;};
+
   const analyze=async()=>{
     setLoading(true);setError(null);setDoc(null);setDebug(null);
     startProgress();
     const dbg={step:"start",apiStatus:null,stopReason:"",statusMsg:"",apiBody:""};
     try{
       const combined=files.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      // Redact PII before sending to API
+      const{map:redMap,rev:revMap}=buildRedactionMap(combined,custName);
+      const safeCombined=redactText(combined,redMap);
+      const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
       dbg.step="fetch";let resp;
-      try{const custCtx=custName.trim()?`\nCustomer: ${custName.trim()}. Use this as the customer name in the title and throughout the document.`:"";resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${custCtx}\n\n${combined}`}]})});}
+      try{const custCtx=safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:"";resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${custCtx}\n\n${safeCombined}`}]})});}
       catch(fe){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
@@ -1663,6 +1703,8 @@ export default function App(){
       let parsed;
       try{parsed=JSON.parse(raw);}
       catch(pe){try{let f=raw;f=f.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,"").replace(/,\s*"[^"]*$/,"").replace(/"[^"]*$/,'"..."');let ob=(f.match(/\{/g)||[]).length-(f.match(/\}/g)||[]).length,ab=(f.match(/\[/g)||[]).length-(f.match(/\]/g)||[]).length;while(ab-->0)f+="]";while(ob-->0)f+="}";parsed=JSON.parse(f);}catch(re){setDebug({...dbg});setError(`JSON parse failed: ${pe.message}\n${raw.slice(0,400)}`);stopProgress(false);setLoading(false);return;}}
+      // Rehydrate redacted PII back into the parsed document
+      if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
     }catch(e){dbg.statusMsg=e.message;setDebug({...dbg});setError("Unexpected: "+e.message);stopProgress(false);}
     setLoading(false);
