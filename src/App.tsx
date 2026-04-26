@@ -1547,6 +1547,8 @@ export default function App(){
   const [drag,    setDrag]    =useState(false);
   const [progress,setProgress]=useState({step:0,label:""});
   const [custName,setCustName]=useState(()=>sg("tf_doc_cust")||"");
+  const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
+  const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   AV=dark?DARK:LIGHT;
   const toggleDark=()=>{const next=!dark;setDark(next);ss("tf_doc_dark",String(next));};
@@ -1647,7 +1649,7 @@ export default function App(){
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
       dbg.step="fetch";let resp;
-      try{const custCtx=safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:"";resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${custCtx}\n\n${safeCombined}`}]})});}
+      try{const custCtx=safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:"";const extraCtx=extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:"";resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${custCtx}${extraCtx}\n\n${safeCombined}`}]})});}
       catch(fe){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
@@ -1743,7 +1745,18 @@ export default function App(){
               </div>
             </div>}
 
-            <button onClick={analyze} disabled={!files.length||loading||extr} className="mt-6 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
+            <div className="mt-5">
+              <button onClick={()=>setShowExtra(s=>!s)} className="flex items-center gap-2 text-xs font-semibold mb-2" style={{color:AV.tm}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" style={{transition:"transform 0.2s",transform:showExtra?"rotate(90deg)":"rotate(0deg)"}}><polyline points="9 18 15 12 9 6"/></svg>
+                Additional Instructions {extraInstr.trim()&&<span className="px-1.5 py-0.5 rounded-full text-xs" style={{background:`${AV.or}20`,color:AV.or}}>active</span>}
+              </button>
+              {showExtra&&<div>
+                <textarea rows={3} placeholder="e.g. Focus on the FireNet configuration. This is a DR environment, not production. Ignore the dev module." value={extraInstr} onChange={e=>{setExtraInstr(e.target.value);ss("tf_doc_extra",e.target.value);}} className="w-full rounded-xl px-4 py-3 text-sm resize-none" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/>
+                <p className="text-xs mt-1" style={{color:AV.td}}>Appended to the analysis request. Useful for context Claude can't infer from the Terraform alone.</p>
+              </div>}
+            </div>
+
+            <button onClick={analyze} disabled={!files.length||loading||extr} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
               {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate Design Document ✦"}
             </button>
           </div>
