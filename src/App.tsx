@@ -1756,6 +1756,25 @@ export default function App(){
           </div>
         )}
       </div>
+      {/* Security disclaimer */}
+      <div className="max-w-5xl mx-auto mt-10 mb-4 px-2" style={{zIndex:1,position:"relative"}}>
+        <div className="rounded-xl px-5 py-4" style={{background:`${AV.nl}80`,border:`1px solid ${AV.nb}`}}>
+          <div className="flex items-start gap-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 mt-0.5 shrink-0" style={{color:AV.tm}}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <p className="text-xs font-semibold mb-1.5" style={{color:AV.tp}}>Security &amp; Privacy</p>
+              <p className="text-xs leading-5" style={{color:AV.tm}}>
+                Your Anthropic API key is stored only in your browser's local storage and is never sent to or stored on our servers — it is forwarded directly to the Anthropic API per request.
+                Before analysis, all Terraform content is automatically scanned and sensitive data is redacted client-side: public IP addresses are replaced with tokens, customer names are anonymised, BGP ASNs outside private ranges are masked, and domain names and email addresses are scrubbed.
+                Redacted tokens are rehydrated back to their original values locally after the response is received — the actual values never leave your browser.
+                API requests are proxied through a Vercel serverless function protected by an origin allowlist; direct external access is blocked.
+                All pages are served with strict security headers including Content Security Policy, X-Frame-Options, and Referrer-Policy.
+                Anthropic's API does not train on your data and retains inputs for a maximum of 30 days for trust &amp; safety purposes only.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
