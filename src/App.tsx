@@ -1674,7 +1674,7 @@ export default function App(){
       <div style={{position:"fixed",top:"10%",left:"15%",width:400,height:400,background:`radial-gradient(circle,${AV.or}15 0%,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{position:"fixed",bottom:"10%",right:"10%",width:350,height:350,background:`radial-gradient(circle,${AV.pu}18 0%,transparent 70%)`,pointerEvents:"none"}}/>
       <div className="max-w-lg mx-auto relative mt-16">
-        <div className="text-center mb-8"><h1 className="text-4xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Design Doc</span></h1><p style={{color:AV.tm}}>Enter your Anthropic API key to get started</p></div>
+        <div className="text-center mb-8"><h1 className="text-4xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}}>Design Doc</span></h1><p style={{color:AV.tm}}>Enter your Anthropic API key to get started</p></div>
         <div className="rounded-2xl p-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
           <label className="block text-sm font-semibold mb-2" style={{color:AV.tp}}>Anthropic API Key</label>
           <div className="relative mb-4"><input type={showKey?"text":"password"} placeholder="sk-ant-api03-..." value={keyInput} onChange={e=>setKeyInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&keyInput.startsWith("sk-")){ss("tf_doc_apikey",keyInput);setApiKey(keyInput);setKeySet(true);}}} className="w-full rounded-xl px-4 py-3 text-sm font-mono pr-16" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/><button onClick={()=>setShowKey(s=>!s)} className="absolute right-3 top-3 text-xs px-2 py-1 rounded" style={{color:AV.tm,background:AV.nb}}>{showKey?"Hide":"Show"}</button></div>
@@ -1695,7 +1695,7 @@ export default function App(){
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Terraform Design Document Generator
           </div>
-          <h1 className="text-5xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Design Doc</span></h1>
+          <h1 className="text-5xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}}>Design Doc</span></h1>
           <p style={{color:AV.tm}}>Upload Terraform files → formal design document → export as <strong style={{color:AV.or}}>DOCX</strong></p>
           <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
