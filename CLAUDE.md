@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Single-page React app that analyzes Terraform/OpenTofu configurations via the Claude API and generates a formatted Infrastructure Design Document (IDD). Users upload `.tf`/`.tfvars` files (or ZIP archives), the app sends them to Claude with a structured JSON system prompt, and renders the parsed response as a rich document with network diagrams, component tables, firewall details, DCF policies, and DOCX export.
+Single-page React app that analyzes Terraform/OpenTofu configurations via the Claude API and generates a formatted Infrastructure Design Document (IDD). Users upload `.tf`/`.tfvars` files (or ZIP archives), the app redacts PII client-side, sends content to Claude with a structured JSON system prompt, and renders the parsed response as a rich document with network diagrams, component tables, firewall details, DCF policies, and DOCX export.
 
 ## Commands
 
@@ -14,29 +14,41 @@ Single-page React app that analyzes Terraform/OpenTofu configurations via the Cl
 
 ## Architecture
 
-The entire application lives in `src/App.tsx` — a single ~1100-line file. No router or state management library. Key sections in order:
+The entire application lives in `src/App.tsx` — a single ~1800-line file. No router or state management library. Key sections in order:
 
-1. **Constants & config** (top): Model list, API URL (`/api/analyze` proxy)
+1. **Constants & config** (top): Model list, API URLs (`/api/analyze`, `/api/mockflow` proxies)
 2. **Safe storage helpers** (`sg`/`ss`/`sd`): localStorage with in-memory fallback
-3. **Theme** (`DARK`/`LIGHT`/`AV`): Dark/light mode color palettes
-4. **System prompt** (`SYS`): Structured prompt instructing Claude to return JSON matching a specific schema (network design, firewalls, edge devices, DCF, etc.) with Aviatrix Terraform module defaults
+3. **Theme** (`DARK`/`LIGHT`/`AV`): Dark/light mode color palettes. `AV` is a module-level `let` reassigned on every App render — all components read it at render time from module scope
+4. **System prompt** (`SYS`): Structured prompt instructing Claude to return JSON matching a specific schema (network design, firewalls, edge devices, DCF, etc.) with Aviatrix Terraform module defaults and strict anti-hallucination rules
 5. **SVG icon paths** (`IC`): Inline icon definitions for the network diagram
 6. **Cloud provider logos** (`ProvLogo`, `AvxLogo`, `FwLogo`): SVG logo components for AWS, Azure, GCP, Aviatrix, and firewall vendors (Palo Alto, Fortinet, Check Point)
 7. **Diagram component**: SVG-based network topology renderer with theme-aware colors, animated flow dots, conditional Internet/On-Prem nodes, cloud region containers, and provider watermarks
-8. **DOCX export** (`exportDocx`): Generates Word documents with tables, embedded diagram PNG (via canvas), and structured sections. Uses `docx` library loaded from CDN.
-9. **DocView component**: Tabbed document viewer (Overview, Network, Security, DCF, Edge, Components, Diagram, Flows, Variables)
-10. **App component**: API key input, customer name, file upload/ZIP extraction, model selection, dark mode toggle, API calls with progress bar, JSON parsing with truncation recovery
+8. **Mermaid diagram** (`buildMermaid`): Generates Mermaid flowchart syntax (LR layout) from IDD network data. Rendered via Mermaid.js loaded from CDN
+9. **MockFlow MCP integration** (`buildMockFlowData`, `callMockFlowMCP`): Converts IDD data to MockFlow node/link format and calls the IdeaBoard MCP via `/api/mockflow` proxy
+10. **DOCX export** (`exportDocx`): Generates Word documents with tables, embedded diagram PNG (via canvas), and structured sections. Uses `docx` library loaded from CDN
+11. **DocView component**: Tabbed document viewer (Overview, Network, Security, DCF, Edge, Components, Diagram, Flows, Variables). Diagram tab has SVG/Mermaid/MockFlow toggle
+12. **App component**: API key input, customer name, additional instructions, file upload/ZIP extraction, model selection, dark mode toggle, PII redaction, API calls with progress bar, JSON parsing with truncation recovery
 
 ## Deployment
 
-- **Local dev**: Vite proxy in `vite.config.ts` rewrites `/api/analyze` → `https://api.anthropic.com/v1/messages` (strips Origin/Referer headers to avoid CORS)
-- **Vercel**: `api/analyze.js` serverless function proxies to Anthropic. Set `ANTHROPIC_API_KEY` in Vercel environment variables. `vercel.json` rewrites `/api/*` to the serverless function.
+- **Local dev**: Vite proxy in `vite.config.ts` rewrites `/api/analyze` → `https://api.anthropic.com/v1/messages` and `/api/mockflow` → `https://app.mockflow.com/ideaboard/mcp` (strips Origin/Referer headers to avoid CORS)
+- **Vercel**: `api/analyze.js` and `api/mockflow.js` serverless functions proxy to their respective upstreams. No environment variables required — users supply their own API key. `vercel.json` applies security headers and rewrites `/api/*` to serverless functions
+
+## Security
+
+- **PII redaction**: `buildRedactionMap()` scrubs public IPs, customer names, BGP ASNs (non-private ranges), domain names, and emails before sending to Claude. `revMap` rehydrates tokens back after response. Mapping never leaves the browser
+- **Origin allowlist**: `api/_origin.js` checks `Origin`/`Referer` header against `*.vercel.app` and localhost. Both API routes call `checkOrigin()` and return 403 for disallowed origins
+- **Security headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy applied in `vercel.json` and `vite.config.ts`
+- **API key**: forwarded as `x-api-key` header from client; never stored or logged server-side
+- `dangerouslySetInnerHTML` used only for Mermaid SVG output (generated by `buildMermaid` from Claude's structured JSON — low XSS risk, mitigated by CSP)
 
 ## Key Conventions
 
-- Compressed variable names: `AV` (theme), `SYS` (system prompt), `sg`/`ss`/`sd` (storage), `IC` (icons), `PC`/`PC2` (provider colors)
+- Compressed variable names: `AV` (theme), `SYS` (system prompt), `sg`/`ss`/`sd` (storage), `IC` (icons), `PC` (provider colors)
 - All styling: Tailwind CSS utilities + inline `style` props referencing `AV` theme object
+- Claude API called with `temperature: 0` for deterministic JSON output
 - Claude API response must be valid JSON matching the schema in `SYS` — parsed with `JSON.parse` after stripping markdown fences, with auto-repair for truncated responses
 - Network diagram layout is computed procedurally (no layout library) with manual coordinate math
 - Diagram conditionally shows Internet/On-Prem nodes based on data evidence (public subnets, egress rules, external connections, edge devices)
 - SVG `<g>` elements must be used instead of React Fragments (`<>`) inside SVG — fragments crash React in SVG context
+- Gradient text spans (`background-clip: text`) require `display: inline-block` and a `key` prop tied to the theme to force remount on dark/light switch — browsers don't re-apply clip on in-place style updates
