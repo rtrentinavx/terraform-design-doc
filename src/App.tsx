@@ -1039,197 +1039,161 @@ function useMermaid(){
   },[]);
 }
 
-function buildMermaid(doc,dark=true){
-  const nd=doc.network_design||{},vpcs=nd.vpcs||[],subs=nd.subnets||[];
+function buildMermaid(doc:any,dark=true){
+  const nd=doc.network_design||{},vpcs:any[]=nd.vpcs||[];
   const fw=doc.firewall_detail||{};
-  const edges=doc.edge_devices||[];
-  const extConns=doc.external_connections||[];
+  const edges:any[]=doc.edge_devices||[];
+  const extConns:any[]=doc.external_connections||[];
   const dcf=doc.dcf||{};
-  const hubs=vpcs.filter(v=>v.type==="transit");
-  const spokes=vpcs.filter(v=>v.type!=="transit");
-  const sid=s=>s.replace(/[^a-zA-Z0-9]/g,"_");
-  const provLabel=doc.provider==="azure"?"Azure Cloud":doc.provider==="gcp"?"Google Cloud":doc.provider==="multi"?"Multi-Cloud":"AWS Cloud";
-  const connType=doc.provider==="azure"?"VPN / ExpressRoute":doc.provider==="gcp"?"VPN / Interconnect":"VPN / Direct Connect";
+  const hubs=vpcs.filter((v:any)=>v.type==="transit");
+  const spokes=vpcs.filter((v:any)=>v.type==="spoke");
+  const standalone=vpcs.filter((v:any)=>v.type!=="transit"&&v.type!=="spoke");
+  const sid=(s:string)=>"n_"+s.replace(/[^a-zA-Z0-9]/g,"_");
+  const connType=doc.provider==="azure"?"ExpressRoute":doc.provider==="gcp"?"Interconnect":"Direct Connect";
   const vpcLabel=doc.provider==="azure"?"VNet":"VPC";
   const L=[];
 
-  L.push("flowchart TB");
+  // LR layout: OnPrem/Internet → Transits → Spokes
+  L.push("flowchart LR");
 
-  // External nodes
-  const hasInet=hubs.length>0;
+  // Left column: external endpoints
+  const hasInet=vpcs.some((v:any)=>v.type==="transit")||hubs.length>0;
   const hasOnPrem=extConns.length>0||edges.length>0;
-  if(hasInet) L.push(`  INET((("🌐 Internet<br/>Public Network")))`);
-  if(hasOnPrem) L.push(`  ONPREM[("🏢 On-Premises<br/>Corporate Network")]`);
 
-  // Cloud region subgraph
-  const regions=(doc.architecture_overview||{}).regions||[];
-  const regionLabel=regions.length?` — ${regions.join(", ")}`:"";
-  L.push(`  subgraph CLOUD["☁️ ${provLabel}${regionLabel}"]`);
-  L.push("    direction TB");
+  if(hasOnPrem){
+    L.push(`  subgraph EXT_GRP["On-Premises"]`);
+    if(edges.length){
+      edges.forEach((e:any)=>{
+        const eid=sid("edge_"+e.name);
+        const loc=e.location?` | ${e.location}`:"";
+        L.push(`    ${eid}["${e.name}${loc}\\n${e.type||'Edge'}${e.ha?" HA":""}"]`);
+      });
+    }
+    extConns.forEach((c:any)=>{
+      if(!c.name)return;
+      const cid=sid("ext_"+c.name);
+      const asn=c.bgp_asn?` ASN ${c.bgp_asn}`:"";
+      L.push(`    ${cid}["${c.name}\\n${c.type||'BGP'}${asn}"]`);
+    });
+    if(!edges.length&&!extConns.length) L.push(`    ONPREM_NODE["Corporate Network"]`);
+    L.push("  end");
+  }
+  if(hasInet) L.push(`  INET(("Internet"))`);
 
-  // Transit tier subgraph
+  // Middle column: transit VPCs
   if(hubs.length){
-    L.push(`    subgraph TRANSIT_TIER["🔷 Transit Tier"]`);
-    L.push("      direction LR");
-    hubs.forEach(v=>{
+    L.push(`  subgraph TRANSIT_GRP["Transit Layer"]`);
+    hubs.forEach((v:any)=>{
       const id=sid(v.name);
-      const typeIcon=doc.provider==="azure"?"🔷":"🔶";
-      L.push(`      subgraph ${id}["${typeIcon} ${v.name}<br/>${vpcLabel}: ${v.cidr||'—'}"]`);
-      L.push("        direction TB");
-      L.push(`        ${id}_gw{{"🛡️ Transit Gateway<br/>${v.gw_size||'default'}"}}`);
+      const sz=v.gw_size?` | ${v.gw_size}`:"";
+      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel}: ${v.cidr||'—'}"]`);
+      L.push(`      ${id}_gw["Transit GW${sz}"]`);
       if(v.firenet===true&&fw.present){
-        const fwV=fw.vendor||doc.firewall_vendor||"NGFW";
-        const fwP=fw.product||"";
+        const fwV=fw.vendor||"NGFW";
+        const fwSz=fw.instance_size?` | ${fw.instance_size}`:"";
         const fwHA=fw.ha_mode&&fw.ha_mode!=="unknown"?` (${fw.ha_mode})`:"";
-        L.push(`        ${id}_fw[["🔥 FireNet: ${fwV}<br/>${fwP}${fwHA}<br/>${fw.instance_size||''}"]]\n        ${id}_gw --> ${id}_fw`);
+        L.push(`      ${id}_fw["FireNet: ${fwV}${fwHA}${fwSz}"]`);
+        L.push(`      ${id}_gw --> ${id}_fw`);
       }
-      if(dcf.enabled) L.push(`        ${id}_dcf(["🛡️ DCF: ${dcf.default_action||'deny'}"])`);
-      const vSubs=subs.filter(s=>s.vpc===v.name);
-      if(vSubs.length){
-        L.push(`        subgraph ${id}_subs["Subnets"]`);
-        L.push("          direction LR");
-        vSubs.forEach(s=>{
-          const subId=sid(v.name+"_"+s.name);
-          const isPub=/public|pub|dmz|nat/i.test(s.name+s.purpose);
-          L.push(`          ${subId}["${isPub?"🟢":"🔵"} ${s.name}<br/>${s.cidr||''}"]`);
-        });
-        L.push("        end");
-      }
-      L.push("      end");
+      if(dcf.enabled) L.push(`      ${id}_dcf["DCF Policy\\n${dcf.default_action||'deny'}"]`);
+      L.push("    end");
     });
-    L.push("    end");
+    L.push("  end");
   }
 
-  // Spoke tier subgraph
+  // Right column: spoke VPCs
   if(spokes.length){
-    L.push(`    subgraph SPOKE_TIER["🔸 Spoke Tier"]`);
-    L.push("      direction LR");
-    spokes.forEach(v=>{
+    L.push(`  subgraph SPOKE_GRP["Spoke Layer"]`);
+    spokes.forEach((v:any)=>{
       const id=sid(v.name);
-      L.push(`      subgraph ${id}["📦 ${v.name}<br/>${vpcLabel}: ${v.cidr||'—'}"]`);
-      L.push("        direction TB");
-      L.push(`        ${id}_gw(["🔀 Spoke Gateway<br/>${v.gw_size||'default'}"])`);
-      const vSubs=subs.filter(s=>s.vpc===v.name);
-      if(vSubs.length){
-        L.push(`        subgraph ${id}_subs["Subnets"]`);
-        L.push("          direction LR");
-        vSubs.forEach(s=>{
-          const subId=sid(v.name+"_"+s.name);
-          const isPub=/public|pub|dmz|nat/i.test(s.name+s.purpose);
-          L.push(`          ${subId}["${isPub?"🟢":"🔵"} ${s.name}<br/>${s.cidr||''}"]`);
-        });
-        L.push("        end");
-      }
-      L.push("      end");
+      const sz=v.gw_size?` | ${v.gw_size}`:"";
+      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel}: ${v.cidr||'—'}"]`);
+      L.push(`      ${id}_gw["Spoke GW${sz}"]`);
+      L.push("    end");
     });
-    L.push("    end");
+    L.push("  end");
   }
 
-  L.push("  end"); // close CLOUD
+  // Standalone VPCs (no gateway)
+  if(standalone.length){
+    L.push(`  subgraph STANDALONE_GRP["Standalone VPCs"]`);
+    standalone.forEach((v:any)=>{
+      L.push(`    ${sid(v.name)}["${v.name}\\n${v.cidr||'—'}"]`);
+    });
+    L.push("  end");
+  }
 
-  // Edge devices
-  edges.forEach(e=>{
-    const eid=sid("edge_"+e.name);
-    const ha=e.ha?" HA":"";
-    L.push(`  ${eid}[["⚡ ${e.name}<br/>${e.type||'edge'}${ha}<br/>${e.location||''}"]]\n`);
-  });
-
-  // External connections
-  extConns.forEach((c,i)=>{
-    if(!c.name)return;
-    const cid=sid("ext_"+c.name);
-    L.push(`  ${cid}(["🔗 ${c.name}<br/>${c.type||''} ${c.bgp_asn?"ASN:"+c.bgp_asn:""}"])`);
-  });
-
-  // --- Connections ---
+  // ── Connections ──
   L.push("");
 
   // Internet → first transit
-  if(hasInet&&hubs[0]) L.push(`  INET -.->|"Internet Gateway"| ${sid(hubs[0].name)}_gw`);
+  if(hasInet&&hubs[0]) L.push(`  INET -.->|"Public"| ${sid(hubs[0].name)}_gw`);
 
-  // On-Prem → transits (smart targeting)
-  if(hasOnPrem&&hubs.length>0){
-    const targeted=new Set();
-    extConns.forEach(ec=>{
-      if(ec.local_gw){
-        hubs.forEach(h=>{
-          if(h.name.toLowerCase().includes(ec.local_gw.toLowerCase())||ec.local_gw.toLowerCase().includes(h.name.replace(/-/g,"").toLowerCase()))targeted.add(h.name);
-        });
-      }
+  // OnPrem → transits
+  if(hasOnPrem&&hubs.length){
+    const findTarget=(localGw:string)=>{
+      if(!localGw)return hubs[hubs.length-1];
+      return hubs.find((h:any)=>h.name.toLowerCase().includes(localGw.toLowerCase()))||hubs[hubs.length-1];
+    };
+    const linked=new Set();
+    extConns.forEach((c:any)=>{
+      if(!c.name)return;
+      const cid=sid("ext_"+c.name);
+      const hub=findTarget(c.local_gw);
+      L.push(`  ${cid} -.->|"${c.type||connType}"| ${sid(hub.name)}_gw`);
+      linked.add(hub.name);
     });
-    const targets=targeted.size>0?hubs.filter(h=>targeted.has(h.name)):[hubs[hubs.length-1]];
-    targets.forEach(t=>L.push(`  ONPREM -.->|"${connType}"| ${sid(t.name)}_gw`));
+    edges.forEach((e:any)=>{
+      const eid=sid("edge_"+e.name);
+      const hub=findTarget(e.connected_transit);
+      L.push(`  ${eid} -.->|"Edge"| ${sid(hub.name)}_gw`);
+      linked.add(hub.name);
+    });
+    // If no specific links, connect generic on-prem node
+    if(!extConns.length&&!edges.length)
+      L.push(`  ONPREM_NODE -.->|"${connType}"| ${sid(hubs[hubs.length-1].name)}_gw`);
   }
 
   // Transit ↔ Transit peering
   for(let i=0;i<hubs.length-1;i++){
-    L.push(`  ${sid(hubs[i].name)}_gw <====>|"Transit Peering"| ${sid(hubs[i+1].name)}_gw`);
+    L.push(`  ${sid(hubs[i].name)}_gw <-->|"Transit Peering"| ${sid(hubs[i+1].name)}_gw`);
   }
 
   // Spoke → Transit
-  spokes.forEach(sv=>{
-    const target=sv.connected_transit?hubs.find(h=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
-    if(target) L.push(`  ${sid(target.name)}_gw ==>|"Spoke Attachment"| ${sid(sv.name)}_gw`);
+  spokes.forEach((sv:any)=>{
+    const tgt=sv.connected_transit?hubs.find((h:any)=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
+    if(tgt) L.push(`  ${sid(tgt.name)}_gw -->|"Spoke"| ${sid(sv.name)}_gw`);
   });
 
-  // Edge → Transit
-  edges.forEach(e=>{
-    const eid=sid("edge_"+e.name);
-    if(e.connected_transit){
-      e.connected_transit.split(",").map(s=>s.trim()).forEach(t=>{
-        const hub=hubs.find(h=>h.name.toLowerCase().includes(t.toLowerCase()))||hubs[0];
-        if(hub) L.push(`  ${eid} -.->|"Edge Attachment"| ${sid(hub.name)}_gw`);
-      });
-    }else if(hubs[0]) L.push(`  ${eid} -.->|"Edge Attachment"| ${sid(hubs[0].name)}_gw`);
-  });
-
-  // External connections → transit
-  extConns.forEach(c=>{
-    if(!c.name)return;
-    const cid=sid("ext_"+c.name);
-    if(c.local_gw){
-      const hub=hubs.find(h=>h.name.toLowerCase().includes(c.local_gw.toLowerCase()))||hubs[0];
-      if(hub) L.push(`  ${cid} -.->|"${c.type||'BGP'}"| ${sid(hub.name)}_gw`);
-    }else if(hubs[0]) L.push(`  ${cid} -.->| | ${sid(hubs[0].name)}_gw`);
-  });
-
-  // Styling
+  // ── Styles ──
   L.push("");
   if(dark){
-    L.push("  classDef transit fill:#1E3A5F,stroke:#3B82F6,color:#F0F4FF,stroke-width:2px");
-    L.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#F0F4FF,stroke-width:1px");
-    L.push("  classDef fw fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
-    L.push("  classDef gw fill:#0F2B3D,stroke:#22D3EE,color:#A5F3FC,stroke-width:1px");
-    L.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:2px");
-    L.push("  classDef onprem fill:#1A0F2E,stroke:#7C3AED,color:#C4B5FD,stroke-width:2px");
-    L.push("  classDef edgedev fill:#2D1B00,stroke:#F97316,color:#FDBA74,stroke-width:2px");
-    L.push("  classDef dcfnode fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
-    L.push("  classDef extconn fill:#1A2240,stroke:#6366F1,color:#A5B4FC,stroke-width:1px");
+    L.push("  classDef transitGw fill:#1E3A5F,stroke:#3B82F6,color:#BAE6FD,stroke-width:2px");
+    L.push("  classDef spokeGw fill:#1A2240,stroke:#FF6B35,color:#FED7AA,stroke-width:1px");
+    L.push("  classDef fwNode fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
+    L.push("  classDef extNode fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:1px");
+    L.push("  classDef inetNode fill:#1A0F2E,stroke:#6366F1,color:#A5B4FC,stroke-width:2px");
+    L.push("  classDef dcfNode fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
+    L.push("  classDef standalone fill:#0F1628,stroke:#475569,color:#94A3B8,stroke-width:1px");
   }else{
-    L.push("  classDef transit fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
-    L.push("  classDef spoke fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
-    L.push("  classDef fw fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
-    L.push("  classDef gw fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1px");
-    L.push("  classDef ext fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:2px");
-    L.push("  classDef onprem fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px");
-    L.push("  classDef edgedev fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:2px");
-    L.push("  classDef dcfnode fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
-    L.push("  classDef extconn fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:1px");
+    L.push("  classDef transitGw fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
+    L.push("  classDef spokeGw fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
+    L.push("  classDef fwNode fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
+    L.push("  classDef extNode fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:1px");
+    L.push("  classDef inetNode fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:2px");
+    L.push("  classDef dcfNode fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
+    L.push("  classDef standalone fill:#F8FAFC,stroke:#94A3B8,color:#475569,stroke-width:1px");
   }
-  hubs.forEach(v=>{
-    L.push(`  class ${sid(v.name)} transit`);
-    L.push(`  class ${sid(v.name)}_gw gw`);
-    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fw`);
-    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcfnode`);
+  hubs.forEach((v:any)=>{
+    L.push(`  class ${sid(v.name)}_gw transitGw`);
+    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fwNode`);
+    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcfNode`);
   });
-  spokes.forEach(v=>{
-    L.push(`  class ${sid(v.name)} spoke`);
-    L.push(`  class ${sid(v.name)}_gw gw`);
-  });
-  if(hasInet) L.push("  class INET ext");
-  if(hasOnPrem) L.push("  class ONPREM onprem");
-  edges.forEach(e=>L.push(`  class ${sid("edge_"+e.name)} edgedev`));
-  extConns.forEach(c=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} extconn`);});
+  spokes.forEach((v:any)=>L.push(`  class ${sid(v.name)}_gw spokeGw`));
+  standalone.forEach((v:any)=>L.push(`  class ${sid(v.name)} standalone`));
+  extConns.forEach((c:any)=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} extNode`);});
+  edges.forEach((e:any)=>L.push(`  class ${sid("edge_"+e.name)} extNode`));
+  if(hasInet) L.push("  class INET inetNode");
 
   return L.join("\n");
 }
