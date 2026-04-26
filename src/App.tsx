@@ -998,26 +998,27 @@ async function callMockFlowMCP(doc){
   if(result.error)throw new Error(result.error.message||JSON.stringify(result.error));
 
   // Parse result — content array with text items, or direct result object
-  console.log("[MockFlow] Raw response:",JSON.stringify(result).slice(0,1000));
+  const extractUrl=(s:string)=>(s.match(/https?:\/\/[^\s"'<>\]]+/)||[])[0]||"";
   const content=result.result?.content||[];
-  const textItem=content.find(c=>c.type==="text");
+  const textItem=content.find((c:any)=>c.type==="text");
   if(textItem){
+    const raw=textItem.text?.trim()||"";
     try{
-      const parsed=JSON.parse(textItem.text);
-      console.log("[MockFlow] Parsed:",parsed);
-      return{url:parsed.url||parsed.boardUrl||parsed.link||"",thumbnailUrl:parsed.thumbnailUrl||parsed.thumbnail||parsed.imageUrl||"",title:parsed.title||parsed.name||"",success:parsed.success!==false};
+      const p=JSON.parse(raw);
+      const url=p.url||p.boardUrl||p.link||extractUrl(JSON.stringify(p))||"";
+      const thumbnailUrl=p.thumbnailUrl||p.thumbnail||p.imageUrl||"";
+      const title=p.title&&!p.title.startsWith("http")?p.title:(p.name||"Cloud Architecture Diagram");
+      return{url,thumbnailUrl,title,success:p.success!==false&&!!url};
     }catch{
-      // Text might contain a URL (e.g. "URL: https://..." or just the URL)
-      const t=textItem.text.trim();
-      const urlMatch=t.match(/https?:\/\/[^\s"'<>]+/);
-      if(urlMatch)return{url:urlMatch[0],thumbnailUrl:"",title:"Cloud Architecture Diagram",success:true};
-      return{url:"",thumbnailUrl:"",title:t,success:true};
+      const url=extractUrl(raw);
+      return{url,thumbnailUrl:"",title:"Cloud Architecture Diagram",success:!!url};
     }
   }
   // Fallback: check if result itself has the data
   if(result.result?.url||result.result?.boardUrl){
     const r=result.result;
-    return{url:r.url||r.boardUrl||"",thumbnailUrl:r.thumbnailUrl||r.thumbnail||"",title:r.title||"",success:true};
+    const url=r.url||r.boardUrl||"";
+    return{url,thumbnailUrl:r.thumbnailUrl||r.thumbnail||"",title:r.title&&!r.title.startsWith("http")?r.title:"Cloud Architecture Diagram",success:!!url};
   }
   throw new Error("No result from MockFlow. Response: "+JSON.stringify(result).slice(0,300));
 }
@@ -1210,7 +1211,7 @@ function DocView({doc,selModel,dark,onExport}){
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
   const [mfLoading,setMfLoading]=useState(false);
-  const [mfResult,setMfResult]=useState(null);
+  const [mfResult,setMfResult]=useState<{url:string;thumbnailUrl:string;title:string;success:boolean}|null>(null);
   const [mfError,setMfError]=useState(null);
   const [diagMode,setDiagMode]=useState("svg");
   const [mmSvg,setMmSvg]=useState("");
@@ -1470,31 +1471,23 @@ function DocView({doc,selModel,dark,onExport}){
             </button>
           </div>}
           {mfResult&&mfResult.success&&<div className="rounded-xl overflow-hidden" style={{border:`1px solid #3B82F640`}}>
-            {mfResult.thumbnailUrl&&<div className="p-4" style={{background:"#3B82F608"}}><img src={mfResult.thumbnailUrl} alt="MockFlow Cloud Architecture" className="w-full rounded-lg" style={{maxHeight:500,objectFit:"contain"}}/></div>}
-            {!mfResult.thumbnailUrl&&mfResult.url&&<div className="p-8 text-center" style={{background:"#3B82F608"}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-16 h-16 mx-auto mb-4" style={{color:"#3B82F6"}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
-              <p className="font-bold text-lg mb-2" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</p>
-              <p className="text-sm mb-5" style={{color:AV.tm}}>Your diagram is ready on MockFlow IdeaBoard</p>
-              <a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 4px 16px #3B82F630"}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Open in MockFlow
-              </a>
-            </div>}
-            <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-3" style={{background:AV.nm,borderTop:`1px solid #3B82F630`}}>
-              <p className="text-xs" style={{color:AV.tm}}>Interactive diagram — edit, annotate, and share on MockFlow</p>
-              <div className="flex items-center gap-2">
-                <button onClick={()=>{
-                  setMfLoading(true);setMfError(null);setMfResult(null);
-                  callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
-                }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                  Regenerate
-                </button>
-                {mfResult.thumbnailUrl&&mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm text-white" style={{background:"#3B82F6"}}>
+            {mfResult.thumbnailUrl&&<div className="p-4" style={{background:"#3B82F608"}}><img src={mfResult.thumbnailUrl} alt="MockFlow diagram" className="w-full rounded-lg" style={{maxHeight:500,objectFit:"contain"}}/></div>}
+            <div className="p-5 flex items-start gap-4" style={{background:"#3B82F608"}}>
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center mt-0.5" style={{background:"#3B82F620",border:"1px solid #3B82F640"}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="1.5" className="w-5 h-5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold mb-0.5" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</p>
+                <p className="text-xs mb-3 font-mono truncate" style={{color:AV.tm}}>{mfResult.url}</p>
+                {mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2 rounded-lg font-bold text-sm text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 2px 12px #3B82F630"}}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   Open in MockFlow
                 </a>}
               </div>
+              <button onClick={()=>{setMfLoading(true);setMfError(null);setMfResult(null);callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));}} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Regenerate
+              </button>
             </div>
           </div>}
           {!mfLoading&&!mfError&&!mfResult&&<div className="rounded-xl p-8 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
