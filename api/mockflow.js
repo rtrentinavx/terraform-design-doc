@@ -1,5 +1,8 @@
+import { checkOrigin } from "./_origin.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+  if (!checkOrigin(req, res)) return;
 
   try {
     const headers = { "Content-Type": "application/json" };
