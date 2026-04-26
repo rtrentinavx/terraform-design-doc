@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION       = "1.0.0";
+const APP_VERSION       = "1.1.0";
 const APP_MODEL_DEFAULT = "claude-sonnet-4-20250514";
 const AVAILABLE_MODELS  = [
   { label:"Claude Sonnet 4.6 (default)", value:"claude-sonnet-4-20250514"  },
