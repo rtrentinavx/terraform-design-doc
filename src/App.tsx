@@ -1206,7 +1206,7 @@ const isM=n=>n.includes("__MACOSX")||n.includes(".DS_Store");
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport}){
+function DocView({doc,selModel,dark,onExport,redactFn}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,redactFn?:(d:any)=>any}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
@@ -1407,7 +1407,7 @@ function DocView({doc,selModel,dark,onExport}){
                 setDiagMode("mockflow");
                 if(!mfResult&&!mfLoading&&!mfError){
                   setMfLoading(true);setMfError(null);
-                  callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+                  callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
                 }
               }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="mockflow"?{background:"#3B82F618",color:"#60A5FA"}:{background:AV.nl,color:AV.tm}}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
@@ -1464,7 +1464,7 @@ function DocView({doc,selModel,dark,onExport}){
             <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mfError}</div>
             <button onClick={()=>{
               setMfLoading(true);setMfError(null);setMfResult(null);
-              callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+              callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
             }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#3B82F6"}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               Retry
@@ -1484,7 +1484,7 @@ function DocView({doc,selModel,dark,onExport}){
                   Open in MockFlow
                 </a>}
               </div>
-              <button onClick={()=>{setMfLoading(true);setMfError(null);setMfResult(null);callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));}} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+              <button onClick={()=>{setMfLoading(true);setMfError(null);setMfResult(null);callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));}} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 Regenerate
               </button>
@@ -1496,7 +1496,7 @@ function DocView({doc,selModel,dark,onExport}){
             <p className="text-sm mb-4" style={{color:AV.tm}}>Generate an interactive, editable diagram on MockFlow IdeaBoard</p>
             <button onClick={()=>{
               setMfLoading(true);setMfError(null);
-              callMockFlowMCP(doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
+              callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
             }} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 2px 12px #3B82F630"}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
               Generate Diagram
@@ -1554,6 +1554,7 @@ export default function App(){
   const toggleDark=()=>{const next=!dark;setDark(next);ss("tf_doc_dark",String(next));};
   const progTimer=useRef(null);
   const ref=useRef();
+  const redMapRef=useRef<Map<string,string>>(new Map());
 
   const readText=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({name:f.name,path:f.name,content:r.result});r.onerror=()=>rej(new Error("Read failed"));r.readAsText(f);});
 
@@ -1636,16 +1637,31 @@ export default function App(){
     });
     return{map,rev};
   };
-  const redactText=(text,map)=>{let r=text;map.forEach((tok,orig)=>{r=r.split(orig).join(tok);});return r;};
+  const redactText=(text:string,map:Map<string,string>)=>{let r=text;map.forEach((tok,orig)=>{r=r.split(orig).join(tok);});return r;};
+
+  // Strip prompt injection attempts from Terraform content
+  const INJECT_RE=/ignore\s+(previous|all|above|prior)|ignore\s+instructions|new\s+instructions|system\s*:/i;
+  const sanitizeTf=(text:string):string=>{
+    const lines=text.split("\n");
+    let stripped=0;
+    const clean=lines.map(l=>{
+      const bare=l.replace(/#.*$/,"").trim(); // check outside comments too
+      if(INJECT_RE.test(l)||INJECT_RE.test(bare)){stripped++;return`# [line removed by sanitizer]`;}
+      return l;
+    }).join("\n");
+    if(stripped>0)console.warn(`[sanitizer] Removed ${stripped} suspicious line(s) from TF content`);
+    return clean;
+  };
 
   const analyze=async()=>{
     setLoading(true);setError(null);setDoc(null);setDebug(null);
     startProgress();
     const dbg={step:"start",apiStatus:null,stopReason:"",statusMsg:"",apiBody:""};
     try{
-      const combined=files.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      const combined=files.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${sanitizeTf(f.content)}\n\`\`\``).join("\n\n");
       // Redact PII before sending to API
       const{map:redMap,rev:revMap}=buildRedactionMap(combined,custName);
+      redMapRef.current=redMap;
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
       dbg.step="fetch";let resp;
@@ -1765,7 +1781,7 @@ export default function App(){
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={selModel} dark={dark} onExport={()=>exportDocx(doc,custName)}/>
+            <DocView doc={doc} selModel={selModel} dark={dark} onExport={()=>exportDocx(doc,custName)} redactFn={(d:any)=>{if(!redMapRef.current.size)return d;const s=JSON.stringify(d);let r=s;redMapRef.current.forEach((tok,orig)=>{r=r.split(orig).join(tok);});return JSON.parse(r);}}/>
           </div>
         )}
       </div>
