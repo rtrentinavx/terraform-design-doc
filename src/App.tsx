@@ -1653,12 +1653,43 @@ export default function App(){
     return clean;
   };
 
+  // Parse all .tfvars files into a flat variable map
+  const parseTfVars=(content:string):Map<string,string>=>{
+    const m=new Map<string,string>();
+    // key = "string value"
+    (content.match(/^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*"([^"]*)"/gm)||[]).forEach(line=>{
+      const kv=line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*"([^"]*)"/);
+      if(kv)m.set(kv[1],kv[2]);
+    });
+    // key = unquoted (bool/number)
+    (content.match(/^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(true|false|\d[\d.]*)\s*$/gm)||[]).forEach(line=>{
+      const kv=line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(true|false|\d[\d.]*)/);
+      if(kv)m.set(kv[1],kv[2]);
+    });
+    return m;
+  };
+
+  // Inline-replace var.X references in TF content using resolved varMap
+  const resolveVars=(content:string,varMap:Map<string,string>):string=>{
+    return content.replace(/\bvar\.([a-zA-Z_][a-zA-Z0-9_-]*)\b/g,(_,name)=>{
+      const v=varMap.get(name);
+      return v!==undefined?`"${v}" /* var.${name} */`:`var.${name}`;
+    });
+  };
+
   const analyze=async()=>{
     setLoading(true);setError(null);setDoc(null);setDebug(null);
     startProgress();
     const dbg={step:"start",apiStatus:null,stopReason:"",statusMsg:"",apiBody:""};
     try{
-      const combined=files.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${sanitizeTf(f.content)}\n\`\`\``).join("\n\n");
+      // Build variable map from all .tfvars files
+      const varMap=new Map<string,string>();
+      files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
+      // Resolve var.X references inline before sending to Claude
+      const resolvedFiles=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
+      // Prepend a resolved-variables block so Claude has full context
+      const varBlock=varMap.size>0?`### RESOLVED VARIABLES (from tfvars)\n${Array.from(varMap.entries()).map(([k,v])=>`${k} = "${v}"`).join("\n")}\n\n`:"";
+      const combined=varBlock+resolvedFiles.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.name.endsWith(".tfvars")?sanitizeTf(f.content):f.content}\n\`\`\``).join("\n\n");
       // Redact PII before sending to API
       const{map:redMap,rev:revMap}=buildRedactionMap(combined,custName);
       redMapRef.current=redMap;
