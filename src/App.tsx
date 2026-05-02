@@ -1909,6 +1909,8 @@ export default function App(){
             </div>
           </div>
         </div>
+      <div className="text-center py-4" style={{color:AV.td}}>
+        <p className="text-xs">Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.tm}}>rtrentin</a></p>
       </div>
     </div>
   );
