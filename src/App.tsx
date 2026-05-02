@@ -9,6 +9,19 @@ const AVAILABLE_MODELS  = [
   { label:"Claude Haiku 4.5",            value:"claude-haiku-4-5-20251001" },
 ];
 const API_URL = "/api/analyze";
+const OPENAI_PROXY_URL = "/api/openai-proxy";
+
+const PROVIDERS=[
+  {id:"anthropic",label:"Anthropic (Claude)"},
+  {id:"azure",    label:"Azure OpenAI"},
+  {id:"gemini",   label:"Google Gemini"},
+  {id:"custom",   label:"Custom / OpenAI-compatible"},
+];
+const GEMINI_MODELS=[
+  {label:"Gemini 2.0 Flash",  value:"gemini-2.0-flash"},
+  {label:"Gemini 1.5 Pro",    value:"gemini-1.5-pro"},
+  {label:"Gemini 1.5 Flash",  value:"gemini-1.5-flash"},
+];
 
 // ── Safe storage ───────────────────────────────────────────────────────────
 const mem={};
@@ -1538,6 +1551,16 @@ export default function App(){
   const [keySet,  setKeySet]  =useState(true);
   const [keyInput,setKeyInput]=useState(()=>sg("tf_doc_apikey")||"");
   const [showKey, setShowKey] =useState(false);
+  const [provider,setProvider]=useState(()=>sg("tf_doc_provider")||"anthropic");
+  const [azEndpoint,setAzEndpoint]=useState(()=>sg("tf_doc_az_ep")||"");
+  const [azKey,    setAzKey]    =useState(()=>sg("tf_doc_az_key")||"");
+  const [azDeploy, setAzDeploy] =useState(()=>sg("tf_doc_az_dep")||"");
+  const [gemKey,   setGemKey]   =useState(()=>sg("tf_doc_gem_key")||"");
+  const [gemModel, setGemModel] =useState(()=>sg("tf_doc_gem_model")||"gemini-2.0-flash");
+  const [custUrl,  setCustUrl]  =useState(()=>sg("tf_doc_cust_url")||"");
+  const [custKey2, setCustKey2] =useState(()=>sg("tf_doc_cust_key")||"");
+  const [custModel2,setCustModel2]=useState(()=>sg("tf_doc_cust_mod")||"");
+  const [showProvCfg,setShowProvCfg]=useState(false);
   const [files,   setFiles]   =useState([]);
   const [loading, setLoading] =useState(false);
   const [extr,    setExtr]    =useState(false);
@@ -1695,15 +1718,26 @@ export default function App(){
       redMapRef.current=redMap;
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
+      const userMsg=`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
       dbg.step="fetch";let resp;
-      try{const custCtx=safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:"";const extraCtx=extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:"";resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${custCtx}${extraCtx}\n\n${safeCombined}`}]})});}
+      try{
+        if(provider==="anthropic"){
+          resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
+        }else{
+          const provKey=provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
+          const provModel=provider==="azure"?azDeploy:provider==="gemini"?gemModel:custModel2;
+          const provBase=provider==="azure"?azEndpoint:custUrl;
+          resp=await fetch(OPENAI_PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:provKey,model:provModel,baseUrl:provBase,max_tokens:16000,temperature:0,messages:[{role:"system",content:SYS},{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
+        }
+      }
       catch(fe){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
       if(!resp.ok){setDebug({...dbg});setError(`API HTTP ${resp.status}: ${bt.slice(0,300)}`);stopProgress(false);setLoading(false);return;}
       let data;try{data=JSON.parse(bt);}catch(je){setDebug({...dbg});setError("Parse error: "+je.message);stopProgress(false);setLoading(false);return;}
       if(data.error){setDebug({...dbg});setError("API error: "+JSON.stringify(data.error));stopProgress(false);setLoading(false);return;}
-      const raw=(data.content?.map(b=>b.text||"").join("")||"").replace(/```json|```/g,"").trim();
+      // Normalize response: Anthropic uses content[].text; OpenAI uses choices[0].message.content
+      const raw=(provider==="anthropic"?(data.content?.map((b:any)=>b.text||"").join("")||""):(data.choices?.[0]?.message?.content||"")).replace(/```json|```/g,"").trim();
       dbg.stopReason=data.stop_reason||"";
       if(!raw){setDebug({...dbg});setError("Empty response");stopProgress(false);setLoading(false);return;}
       let parsed;
@@ -1748,13 +1782,54 @@ export default function App(){
           <p style={{color:AV.tm}}>Upload Terraform files → formal design document → export as <strong style={{color:AV.or}}>DOCX</strong></p>
           <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
-            <select value={selModel} onChange={e=>{setSelModel(e.target.value);ss("tf_doc_model",e.target.value);}} className="text-xs rounded-full px-3 py-0.5 font-mono cursor-pointer" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC",outline:"none"}}>
+            {provider==="anthropic"&&<select value={selModel} onChange={e=>{setSelModel(e.target.value);ss("tf_doc_model",e.target.value);}} className="text-xs rounded-full px-3 py-0.5 font-mono cursor-pointer" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC",outline:"none"}}>
               {AVAILABLE_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
-            </select>
+            </select>}
+            {provider!=="anthropic"&&<span className="text-xs px-3 py-0.5 rounded-full font-mono" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC"}}>{PROVIDERS.find(p=>p.id===provider)?.label}{provider==="azure"&&azDeploy?` · ${azDeploy}`:provider==="gemini"?` · ${gemModel}`:provider==="custom"&&custModel2?` · ${custModel2}`:""}</span>}
+            <button onClick={()=>setShowProvCfg(s=>!s)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:showProvCfg?`${AV.or}20`:`${AV.tp}10`,border:`1px solid ${showProvCfg?AV.or:AV.nb}`,color:showProvCfg?AV.or:AV.tm}}>⚙ Model</button>
             <button onClick={()=>{sd("tf_doc_apikey");setKeySet(false);setKeyInput("");setApiKey("");}} className="text-xs" style={{color:AV.td}}>🔑 Change API key</button>
             <button onClick={toggleDark} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>{dark?"☀ Light":"🌙 Dark"}</button>
           </div>
         </div>
+
+        {/* Provider configuration panel */}
+        {showProvCfg&&<div className="rounded-2xl p-5 mb-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
+          <p className="text-sm font-bold mb-4" style={{color:AV.tp}}>Model Configuration</p>
+          <div className="grid gap-4">
+            <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Provider</label>
+              <select value={provider} onChange={e=>{setProvider(e.target.value);ss("tf_doc_provider",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
+                {PROVIDERS.map(p=><option key={p.id} value={p.id} style={{background:AV.nm,color:AV.tp}}>{p.label}</option>)}
+              </select></div>
+
+            {provider==="anthropic"&&<div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
+              <select value={selModel} onChange={e=>{setSelModel(e.target.value);ss("tf_doc_model",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
+                {AVAILABLE_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
+              </select></div>}
+
+            {provider==="azure"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Azure Endpoint</label>
+              <input type="text" placeholder="https://your-resource.openai.azure.com" value={azEndpoint} onChange={e=>{setAzEndpoint(e.target.value);ss("tf_doc_az_ep",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
+              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Deployment Name</label>
+              <input type="text" placeholder="e.g. gpt-4o" value={azDeploy} onChange={e=>{setAzDeploy(e.target.value);ss("tf_doc_az_dep",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
+              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
+              <input type="password" placeholder="Azure OpenAI API key" value={azKey} onChange={e=>{setAzKey(e.target.value);ss("tf_doc_az_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
+
+            {provider==="gemini"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
+              <select value={gemModel} onChange={e=>{setGemModel(e.target.value);ss("tf_doc_gem_model",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
+                {GEMINI_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
+              </select></div>
+              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
+              <input type="password" placeholder="Google AI Studio API key" value={gemKey} onChange={e=>{setGemKey(e.target.value);ss("tf_doc_gem_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
+
+            {provider==="custom"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Base URL</label>
+              <input type="text" placeholder="https://your-endpoint.com/v1" value={custUrl} onChange={e=>{setCustUrl(e.target.value);ss("tf_doc_cust_url",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
+              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
+              <input type="text" placeholder="e.g. gpt-4o, llama-3.3-70b" value={custModel2} onChange={e=>{setCustModel2(e.target.value);ss("tf_doc_cust_mod",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
+              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
+              <input type="password" placeholder="sk-..." value={custKey2} onChange={e=>{setCustKey2(e.target.value);ss("tf_doc_cust_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
+
+            <p className="text-xs" style={{color:AV.td}}>Credentials stored in browser localStorage only. The system prompt and JSON schema are the same across all providers — quality may vary.</p>
+          </div>
+        </div>}
 
         {!doc?(
           <div className="rounded-2xl p-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
@@ -1803,7 +1878,7 @@ export default function App(){
               </div>}
             </div>
 
-            <button onClick={analyze} disabled={!files.length||loading||extr} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
+            <button onClick={analyze} disabled={!files.length||loading||extr||(provider==="anthropic"&&!apiKey)||(provider==="azure"&&(!azKey||!azEndpoint||!azDeploy))||(provider==="gemini"&&!gemKey)||(provider==="custom"&&(!custKey2||!custUrl||!custModel2))} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
               {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate Design Document ✦"}
             </button>
           </div>
