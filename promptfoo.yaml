@@ -1,4 +1,4 @@
-description: "Terraform IDD Generator — prompt regression tests"
+description: "Terraform HLD Generator — prompt regression tests"
 
 providers:
   - id: anthropic:claude-sonnet-4-20250514
@@ -7,7 +7,7 @@ providers:
       max_tokens: 16000
 
 prompts:
-  - label: "IDD system prompt"
+  - label: "HLD system prompt"
     raw: "{{system_prompt}}"
 
 defaultTest:

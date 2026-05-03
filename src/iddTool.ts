@@ -18,8 +18,8 @@ const arr = (items: object, description?: string) => ({
 });
 
 export const IDD_TOOL = {
-  name: "generate_idd",
-  description: "Generate a complete Infrastructure Design Document from analyzed Terraform files. Call this tool exactly once with all fields populated.",
+  name: "generate_hld",
+  description: "Generate a complete High Level Design from analyzed Terraform files. Call this tool exactly once with all fields populated.",
   input_schema: obj({
     title: str("Full document title including customer name"),
     version: str("Document version, default 1.0"),

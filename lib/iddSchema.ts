@@ -86,7 +86,7 @@ const IPSProfileSchema = z.object({
   applied_to: z.array(z.string()),
 });
 
-export const IDDSchema = z.object({
+export const HLDSchema = z.object({
   title: z.string(),
   version: z.string(),
   date: z.string(),
@@ -187,4 +187,4 @@ export const IDDSchema = z.object({
   caveats: z.array(z.string()),
 });
 
-export type IDD = z.infer<typeof IDDSchema>;
+export type HLD = z.infer<typeof HLDSchema>;

@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { checkOrigin } from "./_origin.js";
-import { IDDSchema } from "../lib/iddSchema.js";
+import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
 // Anthropic and Bedrock: use generateText (JSON from prompt) to avoid
@@ -67,7 +67,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // Validate with Zod (safe parse — don't crash on extra/missing fields)
-      const result = IDDSchema.safeParse(parsed);
+      const result = HLDSchema.safeParse(parsed);
       const object = result.success ? result.data : parsed;
 
       return res.status(200).json({ object });
@@ -75,7 +75,7 @@ export default async function handler(req: any, res: any) {
       // OpenAI / Gemini / Custom: use generateObject with Zod schema
       const { object, usage } = await generateObject({
         model: mdl,
-        schema: IDDSchema,
+        schema: HLDSchema,
         system: SYS,
         prompt: content,
         temperature: 0,
