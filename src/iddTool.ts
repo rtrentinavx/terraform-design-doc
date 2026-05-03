@@ -155,5 +155,6 @@ export const IDD_TOOL = {
       transit_egress: bool("Transit egress"),
       summary: str("2-3 sentence DCF summary"),
     }, ["enabled","default_action","smart_groups","web_groups","rulesets","ips_profiles","egress_enabled","tls_decryption_enabled","kubernetes_enabled","transit_egress","summary"]),
-  }, ["title","version","date","provider","firewall_vendor","executive_summary","architecture_overview","network_design","compute","security","firewall_detail","firewall_context","components","data_flows","modules_used","variables_and_parameters","outputs","deployment_notes","provider_context","edge_devices","external_connections","dcf"]),
+    caveats: strArr("Plain-English notes about inferred, defaulted, or uncertain fields. Empty array if everything was explicitly defined."),
+  }, ["title","version","date","provider","firewall_vendor","executive_summary","architecture_overview","network_design","compute","security","firewall_detail","firewall_context","components","data_flows","modules_used","variables_and_parameters","outputs","deployment_notes","provider_context","edge_devices","external_connections","dcf","caveats"]),
 };

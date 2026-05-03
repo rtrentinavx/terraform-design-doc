@@ -184,6 +184,7 @@ export const IDDSchema = z.object({
     transit_egress: z.boolean(),
     summary: z.string(),
   }),
+  caveats: z.array(z.string()),
 });
 
 export type IDD = z.infer<typeof IDDSchema>;

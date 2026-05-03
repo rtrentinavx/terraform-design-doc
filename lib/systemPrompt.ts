@@ -78,7 +78,15 @@ FIREWALL IMAGE STRINGS:
 
 VENDOR DETECTION: "check point" → Check Point, "palo" → Palo Alto Networks, "fortinet"/"fortigate" → Fortinet, "aviatrix" → Aviatrix FQDN
 
-FALLBACK: If firewall_image unresolvable and mc-firenet present → default Palo Alto BYOL. vendor=Palo Alto Networks, product=VM-Series, license_model=BYOL.
+FALLBACK: If firewall_image cannot be resolved → set vendor="unknown", product="unknown", license_model="unknown", license_type="unknown". NEVER fabricate a vendor. Populate caveats[] with "Firewall vendor could not be determined — firewall_image variable was not resolved from tfvars".
+
+CAVEATS — MANDATORY: Populate the caveats[] array with plain-English notes about any fields that were inferred, defaulted, or uncertain. Examples:
+- "Gateway sizes use module defaults — gw_size not explicitly set in code"
+- "Firewall vendor inferred from image string — verify against actual deployment"
+- "Spoke-to-transit attachment assumed from module structure — aviatrix_spoke_transit_attachment not found"
+- "Region extracted from variable reference — actual region may differ"
+- "No tfvars provided — variable values could not be resolved"
+If everything was explicitly defined in the code, caveats[] may be empty.
 
 vcpus map: c5.xlarge=4, c5.2xlarge=8, c5n.xlarge=4, Standard_D3_v2=4, n1-standard-4=4
 memory_gb map: c5.xlarge=8, c5.2xlarge=16, c5n.xlarge=10.5, Standard_D3_v2=14, n1-standard-4=15

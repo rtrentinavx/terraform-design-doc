@@ -48,6 +48,10 @@ export default async function handler(req: any, res: any) {
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
+  // Body size limit — prevent abuse via huge uploads
+  const bodySize = JSON.stringify(req.body).length;
+  if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
+
   try {
     const mdl = buildModel(provider, apiKey, model, baseUrl, secretKey);
     const { text } = await generateText({
@@ -57,6 +61,14 @@ export default async function handler(req: any, res: any) {
       temperature: 0,
       maxTokens: 4000,
     });
+
+    // Basic output filtering — reject clearly off-topic or harmful responses
+    const lower = text.toLowerCase();
+    const offTopic = !lower.includes("terraform") && !lower.includes("resource") &&
+      !lower.includes("infrastructure") && !lower.includes("cloud") &&
+      !lower.includes("module") && !lower.includes("provider") && text.length > 200;
+    if (offTopic) return res.status(422).json({ error: "Unexpected response — ensure uploaded files contain Terraform code." });
+
     res.status(200).json({ explanation: text });
   } catch (err: any) {
     const msg = err?.message || String(err);

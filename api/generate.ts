@@ -41,6 +41,10 @@ export default async function handler(req: any, res: any) {
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
+  // Body size limit — 5 MB covers even very large Terraform projects
+  const bodySize = JSON.stringify(req.body).length;
+  if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
+
   try {
     const mdl = buildModel(provider, apiKey, model, baseUrl, secretKey);
 
