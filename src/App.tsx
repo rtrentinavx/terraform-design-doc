@@ -1031,151 +1031,6 @@ function exportDocx(data,customerName){
   });
 }
 
-// ── MockFlow MCP Integration ──────────────────────────────────────────────
-const MOCKFLOW_MCP="/api/mockflow";
-const MF_COLORS={aws:{cloud:"#FF9900",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF3E0"},azure:{cloud:"#0078D4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#F3E5F5"},gcp:{cloud:"#4285F4",pub:"#E8F5E9",priv:"#E3F2FD",data:"#FFF8E1"}};
-
-function buildMockFlowData(doc){
-  const nd=doc.network_design||{},vpcs=nd.vpcs||[],subs=nd.subnets||[];
-  const prov=doc.provider==="azure"?"azure":doc.provider==="gcp"?"gcloud":"aws";
-  const diagramType=prov;
-  const palette=MF_COLORS[prov==="gcloud"?"gcp":prov]||MF_COLORS.aws;
-  const nodes=[],links=[];
-  let nid=1;const id=()=>String(nid++);
-
-  // Cloud group
-  const cloudId=id();
-  nodes.push({key:cloudId,text:prov==="azure"?"Azure Cloud":prov==="gcloud"?"Google Cloud":"AWS Cloud",isGroup:true,category:"cloud",fill:palette.cloud+"15",stroke:palette.cloud,loc:"0 0"});
-
-  // VPC groups inside cloud
-  const vpcMap={};
-  const hubs=vpcs.filter(v=>v.type==="transit");
-  const spokes=vpcs.filter(v=>v.type!=="transit");
-  const allV=[...hubs,...spokes];
-
-  allV.forEach((v,vi)=>{
-    const vid=id();
-    vpcMap[v.name]=vid;
-    const x=vi*320,y=0;
-    nodes.push({key:vid,text:v.name+(v.cidr?` (${v.cidr})`:""),isGroup:true,group:cloudId,category:"vpc",fill:v.type==="transit"?"#E3F2FD":"#F5F5F5",stroke:v.type==="transit"?"#1565C0":"#9E9E9E",loc:`${x} ${y}`});
-
-    // Subnets for this VPC
-    const vSubs=subs.filter(s=>s.vpc===v.name);
-    if(vSubs.length){
-      vSubs.forEach((s,si)=>{
-        const sid=id();
-        const isPub=/public|pub|dmz|nat/i.test(s.name)||/public/i.test(s.purpose||"");
-        const sy=si*80+40;
-        nodes.push({key:sid,text:s.name+(s.cidr?` ${s.cidr}`:""),isGroup:true,group:vid,category:"subnet",fill:isPub?palette.pub:palette.priv,stroke:isPub?"#4CAF50":"#1976D2",loc:`${x+20} ${sy}`});
-      });
-    }
-
-    // Gateway node
-    if(v.type==="transit"||v.gw_size){
-      const gwId=id();
-      const gwY=vSubs.length*80+60;
-      nodes.push({key:gwId,text:(v.type==="transit"?"Transit GW":"Spoke GW")+` (${v.gw_size||"default"})`,group:vid,category:"service",fill:v.type==="transit"?"#BBDEFB":"#C8E6C9",stroke:v.type==="transit"?"#1565C0":"#388E3C",loc:`${x+40} ${gwY}`});
-    }
-
-    // FireNet node
-    if(v.firenet===true&&doc.firewall_detail?.present){
-      const fwId=id();
-      const fwY=(vSubs.length||0)*80+120;
-      const fwVendor=doc.firewall_detail.vendor||doc.firewall_vendor||"NGFW";
-      nodes.push({key:fwId,text:`FireNet: ${fwVendor}`,group:vid,category:"service",fill:"#FFCDD2",stroke:"#E53935",loc:`${x+40} ${fwY}`});
-    }
-  });
-
-  // Links: spoke → transit (spoke attachment)
-  spokes.forEach(sv=>{
-    const svId=vpcMap[sv.name];if(!svId)return;
-    const target=sv.connected_transit?hubs.find(h=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
-    if(target&&vpcMap[target.name]){
-      links.push({from:svId,to:vpcMap[target.name],text:"Spoke Attachment",stroke:"#FF6B35",strokeWidth:2});
-    }
-  });
-
-  // Links: transit ↔ transit (peering)
-  for(let i=0;i<hubs.length-1;i++){
-    const a=vpcMap[hubs[i].name],b=vpcMap[hubs[i+1].name];
-    if(a&&b)links.push({from:a,to:b,text:"Transit Peering",stroke:"#3B82F6",strokeWidth:2,strokeDashArray:"6 3"});
-  }
-
-  // Internet node
-  const hasInet=vpcs.some(v=>v.type==="transit");
-  if(hasInet){
-    const inetId=id();
-    nodes.push({key:inetId,text:"Internet",category:"external",fill:"#E0F7FA",stroke:"#00838F",loc:"-200 -100"});
-    if(hubs[0]&&vpcMap[hubs[0].name])links.push({from:inetId,to:vpcMap[hubs[0].name],text:"Internet GW",stroke:"#0891B2",strokeDashArray:"4 4"});
-  }
-
-  // Edge devices
-  (doc.edge_devices||[]).forEach((e,ei)=>{
-    const eid=id();
-    nodes.push({key:eid,text:`Edge: ${e.name}`,category:"external",fill:"#FFF3E0",stroke:"#F57C00",loc:`${-200} ${ei*100+100}`});
-    if(e.connected_transit){
-      const targets=e.connected_transit.split(",").map(s=>s.trim());
-      targets.forEach(t=>{
-        const hub=hubs.find(h=>h.name.toLowerCase().includes(t.toLowerCase()))||hubs.find(h=>t.toLowerCase().includes(h.name.toLowerCase()));
-        if(hub&&vpcMap[hub.name])links.push({from:eid,to:vpcMap[hub.name],text:"Edge Attachment",stroke:"#F97316",strokeDashArray:"4 4"});
-      });
-    }
-  });
-
-  return{diagramType,nodeDataArray:nodes,linkDataArray:links};
-}
-
-async function callMockFlowMCP(doc){
-  const payload=buildMockFlowData(doc);
-  // Step 1: Initialize session
-  const initResp=await fetch(MOCKFLOW_MCP,{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"terraform-idd",version:"1.0.0"}}})
-  });
-  if(!initResp.ok)throw new Error(`MockFlow init failed: HTTP ${initResp.status}`);
-  // Extract session header
-  const sessionId=initResp.headers.get("mcp-session-id")||"";
-  const headers={"Content-Type":"application/json"};
-  if(sessionId)headers["mcp-session-id"]=sessionId;
-
-  // Step 2: Send initialized notification
-  await fetch(MOCKFLOW_MCP,{method:"POST",headers,body:JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized"})});
-
-  // Step 3: Call render_cloudarchitecture
-  const callResp=await fetch(MOCKFLOW_MCP,{
-    method:"POST",headers,
-    body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"render_cloudarchitecture",arguments:payload}})
-  });
-  if(!callResp.ok)throw new Error(`MockFlow call failed: HTTP ${callResp.status}`);
-  const result=await callResp.json();
-  if(result.error)throw new Error(result.error.message||JSON.stringify(result.error));
-
-  // Parse result — content array with text items, or direct result object
-  const extractUrl=(s:string)=>(s.match(/https?:\/\/[^\s"'<>\]]+/)||[])[0]||"";
-  const content=result.result?.content||[];
-  const textItem=content.find((c:any)=>c.type==="text");
-  if(textItem){
-    const raw=textItem.text?.trim()||"";
-    try{
-      const p=JSON.parse(raw);
-      const url=p.url||p.boardUrl||p.link||extractUrl(JSON.stringify(p))||"";
-      const thumbnailUrl=p.thumbnailUrl||p.thumbnail||p.imageUrl||"";
-      const title=p.title&&!p.title.startsWith("http")?p.title:(p.name||"Cloud Architecture Diagram");
-      return{url,thumbnailUrl,title,success:p.success!==false&&!!url};
-    }catch{
-      const url=extractUrl(raw);
-      return{url,thumbnailUrl:"",title:"Cloud Architecture Diagram",success:!!url};
-    }
-  }
-  // Fallback: check if result itself has the data
-  if(result.result?.url||result.result?.boardUrl){
-    const r=result.result;
-    const url=r.url||r.boardUrl||"";
-    return{url,thumbnailUrl:r.thumbnailUrl||r.thumbnail||"",title:r.title&&!r.title.startsWith("http")?r.title:"Cloud Architecture Diagram",success:!!url};
-  }
-  throw new Error("No result from MockFlow. Response: "+JSON.stringify(result).slice(0,300));
-}
-
 // ── Mermaid Diagram ───────────────────────────────────────────────────────
 const initMermaid=(dark=true)=>{
   window.mermaid?.initialize({startOnLoad:false,theme:dark?"dark":"default",
@@ -1359,13 +1214,10 @@ const isM=n=>n.includes("__MACOSX")||n.includes(".DS_Store");
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport,redactFn}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,redactFn?:(d:any)=>any}){
+function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:boolean,onExport:()=>void}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
-  const [mfLoading,setMfLoading]=useState(false);
-  const [mfResult,setMfResult]=useState<{url:string;thumbnailUrl:string;title:string;success:boolean}|null>(null);
-  const [mfError,setMfError]=useState(null);
   const [diagMode,setDiagMode]=useState("svg");
   const [mmSvg,setMmSvg]=useState("");
   const [mmErr,setMmErr]=useState(null);
@@ -1556,17 +1408,6 @@ function DocView({doc,selModel,dark,onExport,redactFn}:{doc:any,selModel:string,
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 Mermaid
               </button>
-              <button onClick={()=>{
-                setDiagMode("mockflow");
-                if(!mfResult&&!mfLoading&&!mfError){
-                  setMfLoading(true);setMfError(null);
-                  callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
-                }
-              }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="mockflow"?{background:"#3B82F618",color:"#60A5FA"}:{background:AV.nl,color:AV.tm}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                MockFlow
-                <span className="text-xs px-1.5 py-0.5 rounded" style={{background:"#3B82F615",color:"#60A5FA",fontSize:9,fontWeight:700}}>BETA</span>
-              </button>
             </div>
           </div>
         </>}
@@ -1604,56 +1445,6 @@ function DocView({doc,selModel,dark,onExport,redactFn}:{doc:any,selModel:string,
                 Regenerate
               </button>
             </div>
-          </div>}
-        </div>}
-        {/* MockFlow view */}
-        {tab==="diagram"&&diagMode==="mockflow"&&<div>
-          {mfLoading&&<div className="rounded-xl p-12 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
-            <svg className="animate-spin w-8 h-8 mx-auto mb-4" style={{color:"#3B82F6"}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-            <p className="font-semibold" style={{color:AV.tp}}>Generating MockFlow diagram...</p>
-            <p className="text-sm mt-1" style={{color:AV.tm}}>Creating interactive cloud architecture on IdeaBoard</p>
-          </div>}
-          {mfError&&<div className="rounded-xl p-6" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
-            <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mfError}</div>
-            <button onClick={()=>{
-              setMfLoading(true);setMfError(null);setMfResult(null);
-              callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
-            }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#3B82F6"}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Retry
-            </button>
-          </div>}
-          {mfResult&&mfResult.success&&<div className="rounded-xl overflow-hidden" style={{border:`1px solid #3B82F640`}}>
-            {mfResult.thumbnailUrl&&<div className="p-4" style={{background:"#3B82F608"}}><img src={mfResult.thumbnailUrl} alt="MockFlow diagram" className="w-full rounded-lg" style={{maxHeight:500,objectFit:"contain"}}/></div>}
-            <div className="p-5 flex items-start gap-4" style={{background:"#3B82F608"}}>
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center mt-0.5" style={{background:"#3B82F620",border:"1px solid #3B82F640"}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="1.5" className="w-5 h-5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold mb-0.5" style={{color:AV.tp}}>{mfResult.title||"Cloud Architecture Diagram"}</p>
-                <p className="text-xs mb-3 font-mono truncate" style={{color:AV.tm}}>{mfResult.url}</p>
-                {mfResult.url&&<a href={mfResult.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2 rounded-lg font-bold text-sm text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 2px 12px #3B82F630"}}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  Open in MockFlow
-                </a>}
-              </div>
-              <button onClick={()=>{setMfLoading(true);setMfError(null);setMfResult(null);callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));}} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                Regenerate
-              </button>
-            </div>
-          </div>}
-          {!mfLoading&&!mfError&&!mfResult&&<div className="rounded-xl p-8 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-12 h-12 mx-auto mb-3" style={{color:"#3B82F6"}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            <p className="font-semibold mb-1" style={{color:AV.tp}}>MockFlow Cloud Architecture</p>
-            <p className="text-sm mb-4" style={{color:AV.tm}}>Generate an interactive, editable diagram on MockFlow IdeaBoard</p>
-            <button onClick={()=>{
-              setMfLoading(true);setMfError(null);
-              callMockFlowMCP(redactFn?redactFn(doc):doc).then(r=>setMfResult(r)).catch(e=>setMfError(e.message)).finally(()=>setMfLoading(false));
-            }} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white" style={{background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",boxShadow:"0 2px 12px #3B82F630"}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              Generate Diagram
-            </button>
           </div>}
         </div>}
       </div>
@@ -1711,32 +1502,49 @@ export default function App(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  // Fetch Aviatrix module defaults from Terraform Registry (24h cache)
+  // Parse registry-format module sources from TF files
+  const parseModuleSources=(fileList:{content:string}[]):string[]=>{
+    const sources=new Set<string>();
+    const combined=fileList.map(f=>f.content).join("\n");
+    const matches=combined.matchAll(/source\s*=\s*"([^"]+)"/g);
+    for(const m of matches){
+      const src=m[1].replace(/^registry\.terraform\.io\//,"");
+      // Skip local, git, github paths
+      if(/^\.\.?\/|github\.com|git::|bitbucket|hg::/.test(src))continue;
+      // Must be namespace/name/provider (exactly 2 slashes)
+      if(src.split("/").length===3)sources.add(src);
+    }
+    return Array.from(sources);
+  };
+
+  // Fetch module defaults from registry when files change
   useEffect(()=>{
-    const CACHE_KEY="tf_doc_reg_defaults";
-    const CACHE_TTL=86400*1000;
+    if(files.length===0)return;
+    const detected=parseModuleSources(files);
+    const CACHE_KEY="tf_doc_reg_"+detected.sort().join(",");
+    const CACHE_TTL=3600*1000;
     try{
       const cached=localStorage.getItem(CACHE_KEY);
-      if(cached){
-        const{ts,data}=JSON.parse(cached);
-        if(Date.now()-ts<CACHE_TTL){setRegistryDefaults(data);return;}
-      }
+      if(cached){const{ts,data}=JSON.parse(cached);if(Date.now()-ts<CACHE_TTL){setRegistryDefaults(data);return;}}
     }catch{}
-    fetch("/api/registry-defaults").then(r=>r.ok?r.json():null).then(json=>{
-      if(!json?.modules)return;
-      const lines:string[]=["LIVE AVIATRIX MODULE DEFAULTS (fetched from registry.terraform.io):"];
-      json.modules.forEach((m:any)=>{
-        lines.push(`\n${m.key} v${m.version}:`);
-        (m.inputs||[]).forEach((i:any)=>{
-          const def=i.default===null||i.default===""?"(required)":String(i.default).replace(/^"|"$/g,"");
-          lines.push(`  ${i.name} = ${def}`);
+    fetch("/api/registry-defaults",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({modules:detected})})
+      .then(r=>r.ok?r.json():null).then(json=>{
+        if(!json?.modules?.length)return;
+        const lines:string[]=["LIVE MODULE DEFAULTS (from registry.terraform.io):"];
+        json.modules.forEach((m:any)=>{
+          if(!m.inputs?.length)return;
+          lines.push(`\n${m.source} v${m.version}${m.description?` — ${m.description}`:""}:`);
+          m.inputs.forEach((i:any)=>{
+            const def=i.default===null||i.default===""?"(required)":String(i.default).replace(/^"|"$/g,"");
+            lines.push(`  ${i.name} = ${def}${i.description?`  # ${i.description}`:""}`);
+          });
         });
-      });
-      const data=lines.join("\n");
-      setRegistryDefaults(data);
-      try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts:Date.now(),data}));}catch{}
-    }).catch(()=>{});
-  },[]);
+        const data=lines.join("\n");
+        setRegistryDefaults(data);
+        try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts:Date.now(),data}));}catch{}
+      }).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[files]);
 
   // Derive active profile — fall back to first profile if saved id gone
   const activeProfile=profiles.find(p=>p.id===activeId)||profiles[0]||null;
@@ -1764,6 +1572,8 @@ export default function App(){
   const [custName,setCustName]=useState(()=>sg("tf_doc_cust")||"");
   const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
   const [registryDefaults,setRegistryDefaults]=useState<string>("");
+  const [explanation,setExplanation]=useState<string>("");
+  const [explaining,setExplaining]=useState(false);
   const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   AV=dark?DARK:LIGHT;
@@ -1931,6 +1741,24 @@ export default function App(){
     setLoading(false);
   };
 
+  const explain=async()=>{
+    if(!activeProfile||!files.length)return;
+    setExplaining(true);setExplanation("");setError(null);
+    try{
+      const varMap=new Map<string,string>();
+      files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
+      const resolved=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
+      const{map:redMap}=buildRedactionMap(resolved.map(f=>f.content).join("\n"),custName);
+      const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      const safe=redactText(combined,redMap);
+      const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,secretKey:activeProfile.secretKey||undefined,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Explain this Terraform code:\n\n${safe}`})});
+      const d=await r.json();
+      if(!r.ok||d.error){setError("Explain failed: "+(d.error||r.status));}
+      else setExplanation(d.explanation||"");
+    }catch(e:any){setError("Explain error: "+e.message);}
+    setExplaining(false);
+  };
+
   const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
 
   return(
@@ -2004,16 +1832,38 @@ export default function App(){
               </div>}
             </div>
 
-            <button onClick={analyze} disabled={!files.length||loading||extr||!activeProfile} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
-              {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate Design Document ✦"}
-            </button>
+            <div className="mt-4 flex gap-3">
+              <button onClick={analyze} disabled={!files.length||loading||extr||!activeProfile} className="flex-1 py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
+                {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate IDD ✦"}
+              </button>
+              <button onClick={explain} disabled={!files.length||explaining||loading||!activeProfile} className="px-5 py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp}}>
+                {explaining?<span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span>:"Explain Code"}
+              </button>
+            </div>
+
+            {/* Explanation panel */}
+            {explanation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Code Explanation</span>
+                <button onClick={()=>setExplanation("")} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
+              </div>
+              <div className="p-5 text-sm leading-7 whitespace-pre-wrap" style={{color:AV.tp,background:AV.nm,maxHeight:480,overflowY:"auto",fontFamily:"inherit"}}>
+                {explanation.split("\n").map((line,i)=>{
+                  if(line.startsWith("## "))return<p key={i} className="font-bold text-base mt-4 mb-1" style={{color:AV.or}}>{line.slice(3)}</p>;
+                  if(line.startsWith("### "))return<p key={i} className="font-bold mt-3 mb-0.5" style={{color:AV.tp}}>{line.slice(4)}</p>;
+                  if(line.startsWith("- ")||line.startsWith("* "))return<p key={i} className="ml-3" style={{color:AV.tm}}>• {line.slice(2)}</p>;
+                  if(line.trim()==="")return<div key={i} className="h-1"/>;
+                  return<p key={i} style={{color:AV.tm}}>{line}</p>;
+                })}
+              </div>
+            </div>}
           </div>
         ):(
           <div>
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={selModel} dark={dark} onExport={()=>exportDocx(doc,custName)} redactFn={(d:any)=>{if(!redMapRef.current.size)return d;const s=JSON.stringify(d);let r=s;redMapRef.current.forEach((tok,orig)=>{r=r.split(orig).join(tok);});return JSON.parse(r);}}/>
+            <DocView doc={doc} selModel={selModel} dark={dark} onExport={()=>exportDocx(doc,custName)}/>
           </div>
         )}
       </div>
@@ -2068,7 +1918,7 @@ export default function App(){
                 {[
                   ["AI Analysis","Analyzes Terraform/OpenTofu files and generates a structured Infrastructure Design Document using Claude or any OpenAI-compatible model"],
                   ["Multi-Provider Models","Supports Anthropic Claude, Azure OpenAI, Google Gemini, and Custom OpenAI-compatible endpoints with live model fetching"],
-                  ["3 Diagram Modes","SVG topology diagram, Mermaid flowchart (LR layout), and MockFlow IdeaBoard (BETA) interactive diagrams"],
+                  ["2 Diagram Modes","SVG topology diagram and Mermaid flowchart (LR layout)"],
                   ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, and emails are scrubbed before sending to the API and rehydrated after"],
                   ["Prompt Injection Protection","Terraform file content is sanitized to strip injection patterns before analysis"],
                   ["Variable Resolution","Resolves var.X references using .tfvars files client-side so Claude sees actual values, not variable names"],
@@ -2102,7 +1952,6 @@ export default function App(){
                   ["Mermaid Theme Sync","Auto re-render Mermaid diagram when dark/light mode is toggled without requiring manual regeneration"],
                   ["Rate Limiting","Per-IP request throttling on the API proxy to prevent abuse"],
                   ["File Size Limit","Enforce a maximum upload size (5 MB) to prevent timeout abuse"],
-                  ["MockFlow Thumbnail","Display a preview image alongside the MockFlow board URL"],
                   ["Official Aviatrix Icons","Replace current SVG icons with official Aviatrix brand icons in the topology diagram"],
                   ["AWS Bedrock Support","Add AWS Bedrock as a model provider (requires SigV4 signing — planned for a future phase)"],
                 ].map(([title,desc])=>(

@@ -1,44 +1,76 @@
 import { checkOrigin } from "./_origin.js";
 
-const MODULES = [
-  { key: "mc-transit",  name: "mc-transit",  namespace: "terraform-aviatrix-modules", provider: "aviatrix" },
-  { key: "mc-spoke",    name: "mc-spoke",    namespace: "terraform-aviatrix-modules", provider: "aviatrix" },
-  { key: "mc-firenet",  name: "mc-firenet",  namespace: "terraform-aviatrix-modules", provider: "aviatrix" },
+// Fallback Aviatrix modules always included
+const AVIATRIX_MODULES = [
+  "terraform-aviatrix-modules/mc-transit/aviatrix",
+  "terraform-aviatrix-modules/mc-spoke/aviatrix",
+  "terraform-aviatrix-modules/mc-firenet/aviatrix",
 ];
 
-// Variables we care about for each module (skip cosmetic/provider-specific noise)
-const RELEVANT = {
-  "mc-transit": ["gw_size","ha_gw","insane_mode","connected_transit","enable_segmentation",
-    "bgp_ecmp","single_az_ha","bgp_polling_time","tunnel_detection_time","enable_firenet",
-    "enable_transit_firenet","local_as_number"],
-  "mc-spoke":   ["gw_size","ha_gw","insane_mode","attached","single_az_ha","enable_bgp",
-    "tunnel_detection_time","transit_gateway"],
-  "mc-firenet": ["fw_amount","inspection_enabled","egress_enabled","attached","firewall_image",
-    "firewall_image_version","instance_size","hashing_algorithm"],
+// Variables to extract per module (curated list; for unknown modules extract all non-null defaults)
+const CURATED = {
+  "terraform-aviatrix-modules/mc-transit/aviatrix": [
+    "gw_size","ha_gw","insane_mode","connected_transit","enable_segmentation",
+    "bgp_ecmp","single_az_ha","bgp_polling_time","tunnel_detection_time",
+    "enable_firenet","enable_transit_firenet","local_as_number",
+  ],
+  "terraform-aviatrix-modules/mc-spoke/aviatrix": [
+    "gw_size","ha_gw","insane_mode","attached","single_az_ha",
+    "enable_bgp","tunnel_detection_time","transit_gateway",
+  ],
+  "terraform-aviatrix-modules/mc-firenet/aviatrix": [
+    "fw_amount","inspection_enabled","egress_enabled","attached",
+    "firewall_image","firewall_image_version","instance_size","hashing_algorithm",
+  ],
 };
 
+async function fetchModule(source) {
+  const url = `https://registry.terraform.io/v1/modules/${source}`;
+  const r = await fetch(url, {
+    headers: { "User-Agent": "terraform-design-doc/1.0" },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!r.ok) return null;
+  const data = await r.json();
+  if (data.errors) return null;
+
+  const curated = CURATED[source];
+  const allInputs = data.root?.inputs || [];
+
+  const inputs = curated
+    ? allInputs.filter(i => curated.includes(i.name))
+    : allInputs.filter(i => i.default !== null && i.default !== "" && i.default !== undefined);
+
+  return {
+    source,
+    version: data.version || "unknown",
+    description: data.description || "",
+    inputs: inputs.map(i => ({
+      name: i.name,
+      default: i.default ?? null,
+      type: i.type || "string",
+      description: i.description || "",
+    })),
+  };
+}
+
 export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).end();
+  if (req.method !== "POST" && req.method !== "GET") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  try {
-    const results = await Promise.all(
-      MODULES.map(async (m) => {
-        const url = `https://registry.terraform.io/v1/modules/${m.namespace}/${m.name}/${m.provider}`;
-        const r = await fetch(url, { headers: { "User-Agent": "terraform-design-doc/1.0" } });
-        if (!r.ok) return { key: m.key, version: "unknown", inputs: [] };
-        const data = await r.json();
-        const relevant = RELEVANT[m.key] || [];
-        const inputs = (data.root?.inputs || [])
-          .filter(i => relevant.includes(i.name))
-          .map(i => ({ name: i.name, default: i.default ?? null, type: i.type || "string" }));
-        return { key: m.key, version: data.version || "unknown", inputs };
-      })
-    );
+  // Accept dynamic module list from client (POST) or fall back to Aviatrix defaults (GET)
+  const detected = req.method === "POST" ? (req.body?.modules || []) : [];
+  const toFetch = [...new Set([...AVIATRIX_MODULES, ...detected])];
 
-    // Cache for 24 hours at CDN level
-    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
-    res.json({ modules: results, fetchedAt: new Date().toISOString() });
+  try {
+    const results = await Promise.allSettled(toFetch.map(fetchModule));
+
+    const modules = results
+      .map((r, i) => r.status === "fulfilled" && r.value ? r.value : null)
+      .filter(Boolean);
+
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
+    res.json({ modules, fetchedAt: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
