@@ -188,8 +188,16 @@ let AV=DARK;
 
 // ── Shared UI helpers (function declarations = hoisted, immune to TDZ) ─────
 function UISec({title,children}:{title:string,children:any}){return<div className="mb-8"><div className="flex items-center gap-3 mb-4"><h2 className="text-xl font-black" style={{color:AV.tp}}>{title}</h2><div className="flex-1 h-px" style={{background:`linear-gradient(90deg,${AV.or}40,transparent)`}}/></div>{children}</div>;}
-function UIPr({t}:{t:string}){return t?<p className="text-sm leading-7" style={{color:AV.tm}}>{t}</p>:null;}
-function UIKV({label,val}:{label:string,val:string}){return val?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{val}</span></div>:null;}
+// Safely coerce any value to a string — handles cases where the model
+// returns {description:"..."} instead of a plain string
+function toStr(v:any):string{
+  if(!v)return"";
+  if(typeof v==="string")return v;
+  if(typeof v==="object")return v.description||v.text||v.value||v.summary||JSON.stringify(v);
+  return String(v);
+}
+function UIPr({t}:{t:any}){const s=toStr(t);return s?<p className="text-sm leading-7" style={{color:AV.tm}}>{s}</p>:null;}
+function UIKV({label,val}:{label:string,val:any}){const s=toStr(val);return s?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{s}</span></div>:null;}
 function UItr(s:string,n:number){return s&&s.length>n?s.slice(0,n-1)+"…":(s||"");}
 // Short aliases used throughout
 const Sec=UISec,Pr=UIPr,KV=UIKV,tr=UItr;
@@ -380,12 +388,12 @@ function buildMermaid(doc:any,dark=true):string{
     L.push(`  subgraph EXT["On-Premises / Edge"]`);
     edges.forEach((e:any)=>{
       const ha=e.ha?" HA":"";
-      L.push(`    ${sid("edge_"+e.name)}["⚡ ${e.name}\\n${e.type||"edge"}${ha}${e.location?`\\n${e.location}`:""}"]`);
+      L.push(`    ${sid("edge_"+e.name)}["⚡ ${toStr(e.name)}\\n${e.type||"edge"}${ha}${e.location?`\\n${e.location}`:""}"]`);
     });
     extConns.forEach((c:any)=>{
       if(!c.name)return;
       const asn=c.bgp_asn?` ASN ${c.bgp_asn}`:"";
-      L.push(`    ${sid("ext_"+c.name)}["🔗 ${c.name}\\n${c.type||"BGP"}${asn}"]`);
+      L.push(`    ${sid("ext_"+c.name)}["🔗 ${toStr(c.name)}\\n${c.type||"BGP"}${asn}"]`);
     });
     if(!edges.length&&!extConns.length) L.push(`    ONPREM["🏢 Corporate Network"]`);
     L.push("  end");
@@ -397,7 +405,7 @@ function buildMermaid(doc:any,dark=true):string{
     hubs.forEach((v:any)=>{
       const id=sid(v.name);
       const sz=v.gw_size?v.gw_size:"default";
-      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel} ${v.cidr||"—"}"]`);
+      L.push(`    subgraph ${id}["${toStr(v.name)}\\n${vpcLabel} ${v.cidr||"—"}"]`);
       L.push(`      ${id}_gw["🔷 Transit GW\\n${sz}"]`);
       if(v.firenet===true&&fw.present){
         const fwV=fw.vendor||"NGFW";
@@ -421,18 +429,18 @@ function buildMermaid(doc:any,dark=true):string{
     spokes.forEach((v:any)=>{
       const id=sid(v.name);
       const sz=v.gw_size?`\\n${v.gw_size}`:"";
-      L.push(`    ${id}["📦 ${v.name}\\n${v.cidr||"—"}${sz}"]`);
+      L.push(`    ${id}["📦 ${toStr(v.name)}\\n${v.cidr||"—"}${sz}"]`);
     });
     mgmt.forEach((v:any)=>{
       const id=sid(v.name);
-      L.push(`    ${id}["⚙ ${v.name}\\n${v.cidr||"—"}"]`);
+      L.push(`    ${id}["⚙ ${toStr(v.name)}\\n${v.cidr||"—"}"]`);
     });
     L.push("  end");
   }
 
   if(standalone.length){
     L.push(`  subgraph STANDALONE["Standalone"]`);
-    standalone.forEach((v:any)=>L.push(`    ${sid(v.name)}["${v.name}\\n${v.cidr||"—"}"]`));
+    standalone.forEach((v:any)=>L.push(`    ${sid(v.name)}["${toStr(v.name)}\\n${v.cidr||"—"}"]`));
     L.push("  end");
   }
 
@@ -635,7 +643,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
       {tab==="network"&&<div className="space-y-6">
         <TabIntro text="Network topology extracted from your Terraform configuration, including VPCs/VNets, CIDR allocations, subnet layout, gateway instance sizes, routing model, and Network Domains."/>
         {nd.description&&<Sec title="Network Topology"><Pr t={nd.description}/></Sec>}
-        {nd.vpcs?.length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{v.name}</div><div className="grid grid-cols-2 gap-1"><KV label="CIDR" val={v.cidr}/><KV label="Type" val={v.type}/><KV label="Gateway Size" val={v.gw_size}/></div><Pr t={v.purpose}/></div>)}</div></Sec>}
+        {nd.vpcs?.length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{toStr(v.name)}</div><div className="grid grid-cols-2 gap-1"><KV label="CIDR" val={v.cidr}/><KV label="Type" val={v.type}/><KV label="Gateway Size" val={v.gw_size}/></div><Pr t={toStr(v.purpose)}/></div>)}</div></Sec>}
         {nd.subnets?.length>0&&<Sec title="Subnets"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","CIDR","AZ","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{nd.subnets.map((s,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono text-xs" style={{color:AV.or}}>{s.name}</td><td className="px-4 py-2 font-mono text-xs" style={{color:"#60A5FA"}}>{s.cidr||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.az||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.purpose}</td></tr>)}</tbody></table></div></Sec>}
         {nd.routing&&<Sec title="Routing"><Pr t={nd.routing}/></Sec>}
         {nd.network_domains&&<Sec title="Network Domains"><Pr t={nd.network_domains}/></Sec>}
@@ -724,12 +732,12 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
 
       {tab==="edge"&&<div className="space-y-6">
         <TabIntro text="Edge gateways deployed at on-premises or colocation sites, and external BGP/IPsec connections to third-party networks. Edge devices connect to transit gateways to extend the cloud fabric to physical locations."/>
-        {edgeDevs.length>0&&<Sec title={`Edge Devices (${edgeDevs.length})`}><div className="grid gap-3 sm:grid-cols-2">{edgeDevs.map((e,i)=>{const ec=edTC[e.type]||AV.or;return(<div key={i} className="rounded-xl overflow-hidden" style={{border:`1px solid ${ec}40`}}><div className="px-4 py-3 flex items-center gap-3" style={{background:`${ec}10`,borderBottom:`1px solid ${ec}30`}}><div className="w-8 h-8 rounded-lg flex items-center justify-center text-base" style={{background:`${ec}20`}}>⚡</div><div><div className="font-bold text-sm" style={{color:ec}}>{e.name}</div><div className="text-xs" style={{color:AV.tm}}>{e.type}{e.ha?" · HA":""}</div></div></div><div className="px-4 py-3 space-y-1" style={{background:AV.nm}}><KV label="Location" val={e.location}/><KV label="Size" val={e.size}/><KV label="WAN" val={e.wan}/><KV label="LAN" val={e.lan}/><KV label="Connected Transit" val={e.connected_transit}/><KV label="BGP ASN" val={e.bgp_asn}/></div></div>);})}</div></Sec>}
-        {extConns.length>0&&<Sec title={`External Connections (${extConns.length})`}><div className="grid gap-3">{extConns.map((c,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-2" style={{color:AV.or}}>{c.name}</div><div className="grid grid-cols-2 gap-1"><KV label="Type" val={c.type}/><KV label="Tunnel" val={c.tunnel_protocol}/><KV label="Local GW" val={c.local_gw}/><KV label="Remote IP" val={c.remote_ip}/><KV label="BGP ASN" val={c.bgp_asn}/></div></div>)}</div></Sec>}
+        {edgeDevs.length>0&&<Sec title={`Edge Devices (${edgeDevs.length})`}><div className="grid gap-3 sm:grid-cols-2">{edgeDevs.map((e,i)=>{const ec=edTC[e.type]||AV.or;return(<div key={i} className="rounded-xl overflow-hidden" style={{border:`1px solid ${ec}40`}}><div className="px-4 py-3 flex items-center gap-3" style={{background:`${ec}10`,borderBottom:`1px solid ${ec}30`}}><div className="w-8 h-8 rounded-lg flex items-center justify-center text-base" style={{background:`${ec}20`}}>⚡</div><div><div className="font-bold text-sm" style={{color:ec}}>{toStr(e.name)}</div><div className="text-xs" style={{color:AV.tm}}>{e.type}{e.ha?" · HA":""}</div></div></div><div className="px-4 py-3 space-y-1" style={{background:AV.nm}}><KV label="Location" val={e.location}/><KV label="Size" val={e.size}/><KV label="WAN" val={e.wan}/><KV label="LAN" val={e.lan}/><KV label="Connected Transit" val={e.connected_transit}/><KV label="BGP ASN" val={e.bgp_asn}/></div></div>);})}</div></Sec>}
+        {extConns.length>0&&<Sec title={`External Connections (${extConns.length})`}><div className="grid gap-3">{extConns.map((c,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-2" style={{color:AV.or}}>{toStr(c.name)}</div><div className="grid grid-cols-2 gap-1"><KV label="Type" val={toStr(c.type)}/><KV label="Tunnel" val={c.tunnel_protocol}/><KV label="Local GW" val={c.local_gw}/><KV label="Remote IP" val={c.remote_ip}/><KV label="BGP ASN" val={c.bgp_asn}/></div></div>)}</div></Sec>}
         {edgeDevs.length===0&&extConns.length===0&&<div className="rounded-xl px-4 py-6 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="text-4xl mb-3">📡</div><p className="font-semibold" style={{color:AV.tp}}>No edge devices or external connections detected</p></div>}
       </div>}
 
-      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${doc.components?.length||0})`}><div className="space-y-3">{(doc.components||[]).map((c,i)=>{const ct=CAT_TW[c.category]||CAT_TW.other;return(<div key={i} className={`rounded-xl border ${ct.bd} ${ct.bg} px-4 py-4`}><div className="flex flex-wrap items-center gap-2 mb-2"><span className={`font-bold ${ct.tx}`}>{c.name}</span><code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{c.type}</code><span className={`text-xs px-2 py-0.5 rounded-full capitalize border ${ct.bd} ${ct.tx}`}>{c.category}</span></div><Pr t={c.purpose}/>{c.configuration&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {c.configuration}</p>}{c.dependencies?.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {c.dependencies.join(", ")}</p>}</div>);})}</div></Sec></div>}
+      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${doc.components?.length||0})`}><div className="space-y-3">{(doc.components||[]).map((c,i)=>{const ct=CAT_TW[c.category]||CAT_TW.other;return(<div key={i} className={`rounded-xl border ${ct.bd} ${ct.bg} px-4 py-4`}><div className="flex flex-wrap items-center gap-2 mb-2"><span className={`font-bold ${ct.tx}`}>{toStr(c.name)}</span><code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{toStr(c.type)}</code><span className={`text-xs px-2 py-0.5 rounded-full capitalize border ${ct.bd} ${ct.tx}`}>{toStr(c.category)}</span></div><Pr t={c.purpose}/>{c.configuration&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {toStr(c.configuration)}</p>}{c.dependencies?.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {c.dependencies.join(", ")}</p>}</div>);})}</div></Sec></div>}
 
       {/* Always render diagram so SVG is in DOM for DOCX export */}
       <div style={tab==="diagram"?{}:{position:"absolute",left:"-9999px",top:0,opacity:0,pointerEvents:"none"}}>
@@ -759,13 +767,13 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         </div>}
       </div>
 
-      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{(doc.data_flows||[]).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{f.name}</div><Pr t={f.description}/>{f.path?.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{f.path.map((p,j)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<f.path.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
+      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{(doc.data_flows||[]).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{toStr(f.name)}</div><Pr t={toStr(f.description)}/>{f.path?.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{f.path.map((p,j)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<f.path.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
 
       {tab==="variables"&&<div className="space-y-6">
         <TabIntro text="Terraform variables, outputs, and modules used in the configuration. Variables control the deployment parameters, outputs expose values for consumption by other configurations or CI/CD pipelines."/>
-        {doc.variables_and_parameters?.length>0&&<Sec title="Variables"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","Type","Required","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{doc.variables_and_parameters.map((v,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono font-semibold text-xs" style={{color:AV.or}}>{v.name}</td><td className="px-4 py-2 text-xs"><code style={{color:"#C084FC"}}>{v.value_or_type}</code></td><td className="px-4 py-2 text-xs"><span style={v.required?{color:"#F472B6"}:{color:"#4ADE80"}}>{v.required?"Required":"Optional"}</span></td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{v.purpose}</td></tr>)}</tbody></table></div></Sec>}
-        {doc.outputs?.length>0&&<Sec title="Outputs"><div className="grid gap-3">{doc.outputs.map((o,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><code className="text-sm font-bold" style={{color:AV.or}}>{o.name}</code><p className="text-sm mt-1" style={{color:AV.tm}}>{o.description}</p>{o.consumed_by&&<p className="text-xs mt-1" style={{color:AV.td}}>Consumed by: {o.consumed_by}</p>}</div>)}</div></Sec>}
-        {doc.modules_used?.length>0&&<Sec title="Modules"><div className="space-y-3">{doc.modules_used.map((m,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:`${AV.pu}10`,border:`1px solid ${AV.pu}30`}}><div className="font-bold text-sm" style={{color:"#C084FC"}}>{m.name}</div><code className="text-xs" style={{color:AV.tm}}>{m.source}{m.version&&m.version!=="unknown"?` @ ${m.version}`:""}</code><Pr t={m.purpose}/></div>)}</div></Sec>}
+        {doc.variables_and_parameters?.length>0&&<Sec title="Variables"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","Type","Required","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{doc.variables_and_parameters.map((v,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono font-semibold text-xs" style={{color:AV.or}}>{toStr(v.name)}</td><td className="px-4 py-2 text-xs"><code style={{color:"#C084FC"}}>{v.value_or_type}</code></td><td className="px-4 py-2 text-xs"><span style={v.required?{color:"#F472B6"}:{color:"#4ADE80"}}>{v.required?"Required":"Optional"}</span></td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{toStr(v.purpose)}</td></tr>)}</tbody></table></div></Sec>}
+        {doc.outputs?.length>0&&<Sec title="Outputs"><div className="grid gap-3">{doc.outputs.map((o,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><code className="text-sm font-bold" style={{color:AV.or}}>{toStr(o.name)}</code><p className="text-sm mt-1" style={{color:AV.tm}}>{toStr(o.description)}</p>{o.consumed_by&&<p className="text-xs mt-1" style={{color:AV.td}}>Consumed by: {toStr(o.consumed_by)}</p>}</div>)}</div></Sec>}
+        {doc.modules_used?.length>0&&<Sec title="Modules"><div className="space-y-3">{doc.modules_used.map((m,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:`${AV.pu}10`,border:`1px solid ${AV.pu}30`}}><div className="font-bold text-sm" style={{color:"#C084FC"}}>{toStr(m.name)}</div><code className="text-xs" style={{color:AV.tm}}>{m.source}{m.version&&m.version!=="unknown"?` @ ${m.version}`:""}</code><Pr t={toStr(m.purpose)}/></div>)}</div></Sec>}
       </div>}
 
     </div>
@@ -1135,7 +1143,7 @@ export default function App(){
               {Object.entries(grouped).map(([folder,fls])=>(
                 <div key={folder} className="rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
                   <div className="px-4 py-2 text-xs font-bold uppercase tracking-wider" style={{background:AV.nl,color:AV.tm}}>📁 {folder}</div>
-                  {fls.map((f,i)=><div key={i} className="flex items-center gap-3 px-4 py-2 text-sm" style={{borderTop:`1px solid ${AV.nb}`}}><span style={{color:AV.or}}>📄</span><span className="font-mono" style={{color:AV.tp}}>{f.name}</span><span className="ml-auto text-xs" style={{color:AV.tm}}>{(f.content.length/1024).toFixed(1)} KB</span><button onClick={()=>setFiles(fs=>fs.filter(x=>x.path!==f.path))} style={{color:AV.tm}}>✕</button></div>)}
+                  {fls.map((f,i)=><div key={i} className="flex items-center gap-3 px-4 py-2 text-sm" style={{borderTop:`1px solid ${AV.nb}`}}><span style={{color:AV.or}}>📄</span><span className="font-mono" style={{color:AV.tp}}>{toStr(f.name)}</span><span className="ml-auto text-xs" style={{color:AV.tm}}>{(f.content.length/1024).toFixed(1)} KB</span><button onClick={()=>setFiles(fs=>fs.filter(x=>x.path!==f.path))} style={{color:AV.tm}}>✕</button></div>)}
                 </div>
               ))}
             </div>}
@@ -1200,7 +1208,7 @@ export default function App(){
                           <span className="text-xs px-1.5 py-0.5 rounded font-mono uppercase" style={{background:`${AV.tp}10`,color:AV.td}}>{f.category}</span>
                           {f.resource&&<span className="text-xs font-mono" style={{color:AV.or}}>{f.resource}</span>}
                         </div>
-                        <p className="text-xs mb-1" style={{color:AV.tm}}>{f.description}</p>
+                        <p className="text-xs mb-1" style={{color:AV.tm}}>{toStr(f.description)}</p>
                         {f.recommendation&&<p className="text-xs" style={{color:AV.td}}>→ {f.recommendation}</p>}
                       </div>
                     </div>
