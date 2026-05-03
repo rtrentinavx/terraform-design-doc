@@ -808,6 +808,7 @@ export default function App(){
   const [explanation,setExplanation]=useState<string>("");
   const [validation,setValidation]=useState<any>(null);
   const [validating,setValidating]=useState(false);
+  const [explaining,setExplaining]=useState(false);
   const [profiles,setProfiles]=useState<ModelProfile[]>(()=>{
     // Migrate legacy single-key storage to profile system on first load
     const existing=loadProfiles();
