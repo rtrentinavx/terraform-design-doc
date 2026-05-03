@@ -20,17 +20,15 @@ export default async function handler(req, res) {
         });
         if (r.ok) {
           const d = await r.json();
-          if (d.data?.length) return res.json(d);
+          // Exclude Anthropic models — use the Anthropic provider directly
+          const filtered = (d.data || []).filter(m => !m.id?.startsWith("anthropic."));
+          if (filtered.length) return res.json({ data: filtered });
         }
       } catch {}
-      // Fallback: curated list — Anthropic/Amazon use direct IDs;
+      // Fallback: curated list — Amazon use direct IDs;
       // Meta/Mistral/Cohere require cross-region inference profile IDs (us. prefix)
+      // Anthropic excluded — use the Anthropic provider directly instead
       return res.json({ data: [
-        { id: "anthropic.claude-sonnet-4-5" },
-        { id: "anthropic.claude-opus-4-5" },
-        { id: "anthropic.claude-3-7-sonnet-20250219-v1:0" },
-        { id: "anthropic.claude-3-5-sonnet-20241022-v2:0" },
-        { id: "anthropic.claude-3-5-haiku-20241022-v1:0" },
         { id: "amazon.nova-pro-v1:0" },
         { id: "amazon.nova-lite-v1:0" },
         { id: "amazon.nova-micro-v1:0" },
