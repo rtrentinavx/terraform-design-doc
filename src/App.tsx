@@ -230,6 +230,7 @@ function UISec({title,children}:{title:string,children:any}){return<div classNam
 function toStr(v:any):string{
   if(!v)return"";
   if(typeof v==="string")return v;
+  if(Array.isArray(v))return v.map(toStr).join(", ");
   if(typeof v==="object")return v.description||v.text||v.value||v.summary||JSON.stringify(v);
   return String(v);
 }
@@ -609,7 +610,19 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
     if(tab==="diagram"){setMmSvg("");setMmErr(null);renderMermaid();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab,dark]);
-  const tabs=[{id:"overview",l:"Overview"},{id:"network",l:"Network"},{id:"security",l:"Security"},{id:"dcf",l:"DCF Policies"},{id:"edge",l:"Edge & Ext"},{id:"components",l:"Components"},{id:"diagram",l:"Diagram"},{id:"flows",l:"Data Flows"},{id:"variables",l:"Variables"}];
+  const hasDCF=dcf.enabled===true||(dcf.rulesets?.length>0)||(dcf.smart_groups?.length>0);
+  const hasEdge=edgeDevs.length>0||extConns.length>0;
+  const tabs=[
+    {id:"overview",l:"Overview"},
+    {id:"network",l:"Network"},
+    {id:"security",l:"Security"},
+    ...(hasDCF?[{id:"dcf",l:"DCF Policies"}]:[]),
+    ...(hasEdge?[{id:"edge",l:"Edge & Ext"}]:[]),
+    {id:"components",l:"Components"},
+    {id:"diagram",l:"Diagram"},
+    {id:"flows",l:"Data Flows"},
+    {id:"variables",l:"Variables"},
+  ];
   const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
   const PC={aws:"#FF9900",azure:"#0078D4",gcp:"#34A853",multi:AV.pu,unknown:AV.tm}[doc.provider]||AV.tm;
@@ -804,7 +817,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         </div>}
       </div>
 
-      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{(doc.data_flows||[]).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{toStr(f.name)}</div><Pr t={toStr(f.description)}/>{f.path?.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{f.path.map((p,j)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<f.path.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
+      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{(doc.data_flows||[]).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{toStr(f.name)}</div><Pr t={toStr(f.description)}/>{toArr(f.path).length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{toArr(f.path).map((p,j,arr)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<arr.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
 
       {tab==="variables"&&<div className="space-y-6">
         <TabIntro text="Terraform variables, outputs, and modules used in the configuration. Variables control the deployment parameters, outputs expose values for consumption by other configurations or CI/CD pipelines."/>
