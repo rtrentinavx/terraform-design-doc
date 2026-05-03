@@ -610,6 +610,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
     if(tab==="diagram"){setMmSvg("");setMmErr(null);renderMermaid();}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab,dark]);
+  const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
+  const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
   const hasDCF=dcf.enabled===true||(dcf.rulesets?.length>0)||(dcf.smart_groups?.length>0);
   const hasEdge=edgeDevs.length>0||extConns.length>0;
   const tabs=[
@@ -623,8 +625,6 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
     {id:"flows",l:"Data Flows"},
     {id:"variables",l:"Variables"},
   ];
-  const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
-  const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
   const PC={aws:"#FF9900",azure:"#0078D4",gcp:"#34A853",multi:AV.pu,unknown:AV.tm}[doc.provider]||AV.tm;
   const fwColor={palo_alto:"#FA582D",fortinet:"#EE2722",checkpoint:"#E2002A",cisco:"#1BA0D7"}[doc.firewall_vendor]||AV.or;
   const fwLabel={palo_alto:"Palo Alto Networks",fortinet:"Fortinet",checkpoint:"Check Point",cisco:"Cisco",none:"No Firewall",unknown:"Unknown"}[doc.firewall_vendor]||"Firewall";
@@ -978,7 +978,7 @@ export default function App(){
 
   const progSteps=[
     {at:0,label:"Preparing files…"},
-    {at:5,label:"Sending to Claude…"},
+    {at:5,label:"Sending to AI model…"},
     {at:15,label:"Analyzing Terraform configuration…"},
     {at:35,label:"Mapping network topology…"},
     {at:55,label:"Evaluating security policies…"},
