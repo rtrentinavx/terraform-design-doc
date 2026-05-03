@@ -8,8 +8,22 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
 
   try {
-    // Bedrock: return well-known model IDs (no public list-models API without SDK)
+    // Bedrock: use Mantle OpenAI-compatible /v1/models endpoint (accepts Bearer token)
+    // Falls back to curated list if the live fetch fails or region not provided
     if (provider === "bedrock") {
+      const region = baseUrl || "us-east-1";
+      try {
+        const mantleUrl = `https://bedrock-mantle.${region}.api.aws/v1/models`;
+        const r = await fetch(mantleUrl, {
+          headers: { "Authorization": `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.data?.length) return res.json(d);
+        }
+      } catch {}
+      // Fallback: curated list of commonly available models
       return res.json({ data: [
         { id: "anthropic.claude-sonnet-4-5" },
         { id: "anthropic.claude-opus-4-5" },
@@ -18,8 +32,11 @@ export default async function handler(req, res) {
         { id: "anthropic.claude-3-5-haiku-20241022-v1:0" },
         { id: "amazon.nova-pro-v1:0" },
         { id: "amazon.nova-lite-v1:0" },
+        { id: "amazon.nova-micro-v1:0" },
         { id: "meta.llama3-3-70b-instruct-v1:0" },
+        { id: "meta.llama3-1-8b-instruct-v1:0" },
         { id: "mistral.mistral-large-2402-v1:0" },
+        { id: "cohere.command-r-plus-v1:0" },
       ]});
     }
 
