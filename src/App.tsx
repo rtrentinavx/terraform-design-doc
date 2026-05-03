@@ -2,32 +2,175 @@ import { useState, useRef, useCallback, useEffect } from "react";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION       = "1.1.0";
-const APP_MODEL_DEFAULT = "claude-sonnet-4-20250514";
-const AVAILABLE_MODELS  = [
-  { label:"Claude Sonnet 4.6 (default)", value:"claude-sonnet-4-20250514"  },
-  { label:"Claude Opus 4.6",             value:"claude-opus-4-20250514"    },
-  { label:"Claude Haiku 4.5",            value:"claude-haiku-4-5-20251001" },
-];
+const APP_VERSION  = "1.2.0";
 const GENERATE_URL = "/api/generate";
 
+type ModelProfile = {
+  id: string;
+  name: string;
+  provider: "anthropic"|"azure"|"gemini"|"custom";
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+};
+
 const PROVIDERS=[
-  {id:"anthropic",label:"Anthropic (Claude)"},
-  {id:"azure",    label:"Azure OpenAI"},
-  {id:"gemini",   label:"Google Gemini"},
-  {id:"custom",   label:"Custom / OpenAI-compatible"},
+  {id:"anthropic", label:"Anthropic",  hint:"sk-ant-api03-..."},
+  {id:"azure",     label:"Azure OpenAI", hint:"Azure API key"},
+  {id:"gemini",    label:"Google Gemini", hint:"Google AI Studio key"},
+  {id:"custom",    label:"Custom / OpenAI-compatible", hint:"API key"},
 ];
-const GEMINI_MODELS=[
-  {label:"Gemini 2.0 Flash",  value:"gemini-2.0-flash"},
-  {label:"Gemini 1.5 Pro",    value:"gemini-1.5-pro"},
-  {label:"Gemini 1.5 Flash",  value:"gemini-1.5-flash"},
-];
+
+const PROVIDER_COLORS:Record<string,string>={
+  anthropic:"#D97706", azure:"#0078D4", gemini:"#4285F4", custom:"#6366F1"
+};
+
+const autoName=(provider:string,model:string)=>{
+  const short=model.split("/").pop()||model;
+  const pLabel=PROVIDERS.find(p=>p.id===provider)?.label||provider;
+  return `${pLabel} · ${short}`;
+};
+
+const newProfile=():ModelProfile=>({id:crypto.randomUUID(),name:"",provider:"anthropic",apiKey:"",model:"",baseUrl:""});
+
+const loadProfiles=():ModelProfile[]=>{
+  try{return JSON.parse(localStorage.getItem("tf_doc_profiles")||"[]");}catch{return [];}
+};
+const saveProfiles=(ps:ModelProfile[])=>{
+  try{localStorage.setItem("tf_doc_profiles",JSON.stringify(ps));}catch{}
+};
 
 // ── Safe storage ───────────────────────────────────────────────────────────
 const mem={};
 const sg=k=>{try{return localStorage.getItem(k);}catch{return mem[k]||null;}};
 const ss=(k,v)=>{try{localStorage.setItem(k,v);}catch{mem[k]=v;}};
 const sd=k=>{try{localStorage.removeItem(k);}catch{delete mem[k];}};
+
+// ── Profile Editor ─────────────────────────────────────────────────────────
+function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p:ModelProfile)=>void,onCancel:()=>void}){
+  const [p,setP]=useState<ModelProfile>({...initial});
+  const [models,setModels]=useState<string[]>([]);
+  const [fetching,setFetching]=useState(false);
+  const [fetchErr,setFetchErr]=useState("");
+  const up=(k:keyof ModelProfile,v:string)=>setP(prev=>{
+    const next={...prev,[k]:v};
+    if((k==="provider"||k==="model")&&!prev.name||prev.name===autoName(prev.provider,prev.model))
+      next.name=autoName(next.provider,next.model||prev.model);
+    return next;
+  });
+  const canFetch=p.apiKey.trim()&&(p.provider!=="azure"||(p.baseUrl||"").trim())&&(p.provider!=="custom"||(p.baseUrl||"").trim());
+  const canSave=p.apiKey.trim()&&p.model.trim()&&p.name.trim()&&(p.provider!=="azure"||(p.baseUrl||"").trim())&&(p.provider!=="custom"||(p.baseUrl||"").trim());
+  const fetchModels=async()=>{
+    setFetching(true);setFetchErr("");setModels([]);
+    try{
+      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,baseUrl:p.baseUrl||""})});
+      const d=await r.json();
+      const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
+      if(ids.length)setModels(ids);else setFetchErr(d.error||"No models returned");
+    }catch(e:any){setFetchErr(e.message);}
+    setFetching(false);
+  };
+  const inp="w-full rounded-xl px-4 py-2.5 text-sm font-mono";
+  const inpS={background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"};
+  const lbl="block text-xs font-semibold mb-1.5 uppercase tracking-wider";
+  const pc=PROVIDER_COLORS[p.provider]||AV.or;
+  return(
+    <div className="rounded-2xl overflow-hidden" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
+      <div className="flex items-center justify-between px-5 py-4" style={{borderBottom:`1px solid ${AV.nb}`}}>
+        <p className="font-bold text-sm" style={{color:AV.tp}}>Configure Model Profile</p>
+        <button onClick={onCancel} className="w-7 h-7 rounded-lg flex items-center justify-center text-xs" style={{background:AV.nl,color:AV.tm}}>✕</button>
+      </div>
+      <div className="p-5 space-y-4">
+        {/* Provider tabs */}
+        <div>
+          <label className={lbl} style={{color:AV.tm}}>Provider</label>
+          <div className="flex flex-wrap gap-2">
+            {PROVIDERS.map(pv=>(
+              <button key={pv.id} onClick={()=>{up("provider",pv.id);setModels([]);}} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={p.provider===pv.id?{background:`${PROVIDER_COLORS[pv.id]}20`,border:`1px solid ${PROVIDER_COLORS[pv.id]}`,color:PROVIDER_COLORS[pv.id]}:{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+                {pv.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Base URL for Azure/Custom */}
+        {(p.provider==="azure"||p.provider==="custom")&&(
+          <div><label className={lbl} style={{color:AV.tm}}>{p.provider==="azure"?"Azure Endpoint":"Base URL"}</label>
+            <input type="text" placeholder={p.provider==="azure"?"https://your-resource.openai.azure.com":"https://your-endpoint.com/v1"} value={p.baseUrl||""} onChange={e=>up("baseUrl",e.target.value)} className={inp} style={inpS}/>
+          </div>
+        )}
+        {/* API Key */}
+        <div><label className={lbl} style={{color:AV.tm}}>API Key</label>
+          <input type="password" placeholder={PROVIDERS.find(pv=>pv.id===p.provider)?.hint||"API key"} value={p.apiKey} onChange={e=>up("apiKey",e.target.value)} className={inp} style={inpS}/>
+        </div>
+        {/* Model fetch + select */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className={lbl} style={{color:AV.tm}}>Model</label>
+            <button disabled={!canFetch||fetching} onClick={fetchModels} className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-lg font-semibold disabled:opacity-40" style={{background:`${pc}15`,border:`1px solid ${pc}40`,color:pc}}>
+              {fetching?<svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>}
+              {fetching?"Fetching…":"Fetch models"}
+            </button>
+          </div>
+          {models.length>0?(
+            <select value={p.model} onChange={e=>up("model",e.target.value)} className={inp} style={inpS}>
+              <option value="">Select a model…</option>
+              {models.map(m=><option key={m} value={m} style={{background:AV.nm}}>{m}</option>)}
+            </select>
+          ):(
+            <input type="text" placeholder="e.g. claude-sonnet-4-20250514 or fetch above" value={p.model} onChange={e=>up("model",e.target.value)} className={inp} style={inpS}/>
+          )}
+          {fetchErr&&<p className="text-xs mt-1" style={{color:"#F9A8D4"}}>{fetchErr}</p>}
+        </div>
+        {/* Profile name */}
+        <div><label className={lbl} style={{color:AV.tm}}>Profile Name</label>
+          <input type="text" placeholder="e.g. Claude Sonnet (Work)" value={p.name} onChange={e=>up("name",e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={inpS}/>
+        </div>
+        {/* Actions */}
+        <div className="flex gap-3 pt-1">
+          <button disabled={!canSave} onClick={()=>onSave(p)} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-40" style={{background:`linear-gradient(135deg,${pc},${AV.pu})`}}>Save Profile</button>
+          <button onClick={onCancel} className="px-5 py-2.5 rounded-xl text-sm font-semibold" style={{background:AV.nl,color:AV.tm}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Profile Switcher ────────────────────────────────────────────────────────
+function ProfileSwitcher({profiles,activeId,onSelect,onAdd,onEdit,onDelete,onClose}:{profiles:ModelProfile[],activeId:string,onSelect:(id:string)=>void,onAdd:()=>void,onEdit:(p:ModelProfile)=>void,onDelete:(id:string)=>void,onClose:()=>void}){
+  return(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{background:"rgba(0,0,0,0.6)"}} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{background:AV.nm,border:`1px solid ${AV.nb}`}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4" style={{borderBottom:`1px solid ${AV.nb}`}}>
+          <p className="font-bold text-sm" style={{color:AV.tp}}>Model Profiles</p>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-xs" style={{background:AV.nl,color:AV.tm}}>✕</button>
+        </div>
+        <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
+          {profiles.length===0&&<p className="text-center text-sm py-6" style={{color:AV.tm}}>No profiles yet. Add one to get started.</p>}
+          {profiles.map(pr=>{
+            const pc=PROVIDER_COLORS[pr.provider]||AV.or;
+            const isActive=pr.id===activeId;
+            return(
+              <div key={pr.id} onClick={()=>{onSelect(pr.id);onClose();}} className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all" style={{background:isActive?`${pc}12`:AV.nl,border:`1px solid ${isActive?pc:AV.nb}`}}>
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:isActive?pc:AV.td}}/>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{color:isActive?pc:AV.tp}}>{pr.name||pr.model}</p>
+                  <p className="text-xs truncate" style={{color:AV.tm}}>{PROVIDERS.find(p=>p.id===pr.provider)?.label} · {pr.model}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0" onClick={e=>e.stopPropagation()}>
+                  <button onClick={()=>onEdit(pr)} className="p-1.5 rounded-lg text-xs" style={{color:AV.tm}}>✏</button>
+                  <button onClick={()=>onDelete(pr.id)} className="p-1.5 rounded-lg text-xs" style={{color:AV.tm}}>✕</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-3 pb-3">
+          <button onClick={onAdd} className="w-full py-2.5 rounded-xl text-sm font-bold" style={{background:AV.nl,border:`2px dashed ${AV.nb}`,color:AV.tm}}>+ Add Profile</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 const DARK={or:"#FF6B35",pu:"#7B2FBE",nv:"#0A0E1A",nm:"#0F1628",nl:"#1A2240",nb:"#1E2D50",tp:"#F0F4FF",tm:"#7A8AAD",td:"#3A4A6A"};
@@ -1527,24 +1670,46 @@ function DocView({doc,selModel,dark,onExport,redactFn}:{doc:any,selModel:string,
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App(){
   useJSZip(); useDocx();
-  const [selModel,setSelModel]=useState(()=>sg("tf_doc_model")||APP_MODEL_DEFAULT);
-  const [apiKey,  setApiKey]  =useState(()=>sg("tf_doc_apikey")||"");
-  const [keySet,  setKeySet]  =useState(true);
-  const [keyInput,setKeyInput]=useState(()=>sg("tf_doc_apikey")||"");
-  const [showKey, setShowKey] =useState(false);
-  const [provider,setProvider]=useState(()=>sg("tf_doc_provider")||"anthropic");
-  const [azEndpoint,setAzEndpoint]=useState(()=>sg("tf_doc_az_ep")||"");
-  const [azKey,    setAzKey]    =useState(()=>sg("tf_doc_az_key")||"");
-  const [azDeploy, setAzDeploy] =useState(()=>sg("tf_doc_az_dep")||"");
-  const [gemKey,   setGemKey]   =useState(()=>sg("tf_doc_gem_key")||"");
-  const [gemModel, setGemModel] =useState(()=>sg("tf_doc_gem_model")||"gemini-2.0-flash");
-  const [custUrl,  setCustUrl]  =useState(()=>sg("tf_doc_cust_url")||"");
-  const [custKey2, setCustKey2] =useState(()=>sg("tf_doc_cust_key")||"");
-  const [custModel2,setCustModel2]=useState(()=>sg("tf_doc_cust_mod")||"");
-  const [showProvCfg,setShowProvCfg]=useState(false);
+  const [profiles,setProfiles]=useState<ModelProfile[]>(()=>{
+    // Migrate legacy single-key storage to profile system on first load
+    const existing=loadProfiles();
+    if(existing.length>0)return existing;
+    const legacyKey=sg("tf_doc_apikey");
+    const legacyModel=sg("tf_doc_model")||"claude-sonnet-4-20250514";
+    if(legacyKey){
+      const p:ModelProfile={id:crypto.randomUUID(),name:autoName("anthropic",legacyModel),provider:"anthropic",apiKey:legacyKey,model:legacyModel};
+      saveProfiles([p]);
+      return[p];
+    }
+    return[];
+  });
+  const [activeId,setActiveId]=useState<string>(()=>sg("tf_doc_active")||"");
+  const [showSwitcher,setShowSwitcher]=useState(false);
+  const [showEditor,setShowEditor]=useState(false);
+  const [editingProfile,setEditingProfile]=useState<ModelProfile|null>(null);
   const [showAbout,setShowAbout]=useState(false);
-  const [fetchedModels,setFetchedModels]=useState<string[]>([]);
-  const [fetchingModels,setFetchingModels]=useState(false);
+
+  // Auto-open editor on first visit (no profiles)
+  useEffect(()=>{
+    if(profiles.length===0){setEditingProfile(newProfile());setShowEditor(true);}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  // Derive active profile — fall back to first profile if saved id gone
+  const activeProfile=profiles.find(p=>p.id===activeId)||profiles[0]||null;
+
+  const upsertProfile=(p:ModelProfile)=>{
+    const next=profiles.some(x=>x.id===p.id)?profiles.map(x=>x.id===p.id?p:x):[...profiles,p];
+    setProfiles(next);saveProfiles(next);
+    setActiveId(p.id);ss("tf_doc_active",p.id);
+    setShowEditor(false);setEditingProfile(null);
+  };
+  const deleteProfile=(id:string)=>{
+    const next=profiles.filter(p=>p.id!==id);
+    setProfiles(next);saveProfiles(next);
+    if(activeId===id){const nid=next[0]?.id||"";setActiveId(nid);ss("tf_doc_active",nid);}
+  };
+  const selectProfile=(id:string)=>{setActiveId(id);ss("tf_doc_active",id);};
   const [files,   setFiles]   =useState([]);
   const [loading, setLoading] =useState(false);
   const [extr,    setExtr]    =useState(false);
@@ -1703,11 +1868,9 @@ export default function App(){
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
       const userMsg=`Generate a formal Infrastructure Design Document from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
-      const activeKey=provider==="anthropic"?apiKey:provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
-      const activeModel=provider==="anthropic"?selModel:provider==="azure"?azDeploy:provider==="gemini"?gemModel:custModel2;
-      const activeBase=provider==="azure"?azEndpoint:provider==="custom"?custUrl:undefined;
+      if(!activeProfile){setError("No model profile configured. Click the model chip in the header to add one.");stopProgress(false);setLoading(false);return;}
       dbg.step="fetch";let resp:Response;
-      try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:activeKey,model:activeModel,baseUrl:activeBase,content:`${userMsg}\n\n${safeCombined}`})});}
+      try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`${userMsg}\n\n${safeCombined}`})});}
       catch(fe:any){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
@@ -1726,22 +1889,6 @@ export default function App(){
 
   const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
 
-  if(!keySet)return(
-    <div className="min-h-screen p-4 sm:p-8" style={{background:AV.nv}}>
-      <div style={{position:"fixed",top:"10%",left:"15%",width:400,height:400,background:`radial-gradient(circle,${AV.or}15 0%,transparent 70%)`,pointerEvents:"none"}}/>
-      <div style={{position:"fixed",bottom:"10%",right:"10%",width:350,height:350,background:`radial-gradient(circle,${AV.pu}18 0%,transparent 70%)`,pointerEvents:"none"}}/>
-      <div className="max-w-lg mx-auto relative mt-16">
-        <div className="text-center mb-8"><h1 className="text-4xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}} key={dark?"d":"l"}>Design Doc</span></h1><p style={{color:AV.tm}}>Enter your Anthropic API key to get started</p></div>
-        <div className="rounded-2xl p-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
-          <label className="block text-sm font-semibold mb-2" style={{color:AV.tp}}>Anthropic API Key</label>
-          <div className="relative mb-4"><input type={showKey?"text":"password"} placeholder="sk-ant-api03-..." value={keyInput} onChange={e=>setKeyInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&keyInput.startsWith("sk-")){ss("tf_doc_apikey",keyInput);setApiKey(keyInput);setKeySet(true);}}} className="w-full rounded-xl px-4 py-3 text-sm font-mono pr-16" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/><button onClick={()=>setShowKey(s=>!s)} className="absolute right-3 top-3 text-xs px-2 py-1 rounded" style={{color:AV.tm,background:AV.nb}}>{showKey?"Hide":"Show"}</button></div>
-          <p className="text-xs mb-5" style={{color:AV.tm}}>Key stored in memory only. Get yours at <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>console.anthropic.com</a>.</p>
-          <button onClick={()=>{if(keyInput.startsWith("sk-")){ss("tf_doc_apikey",keyInput);setApiKey(keyInput);setKeySet(true);}}} disabled={!keyInput.startsWith("sk-")} className="w-full py-3 rounded-xl font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`}}>Continue →</button>
-        </div>
-      </div>
-    </div>
-  );
-
   return(
     <div className="min-h-screen p-4 sm:p-8" style={{background:AV.nv}}>
       <div style={{position:"fixed",top:"10%",left:"15%",width:400,height:400,background:`radial-gradient(circle,${AV.or}15 0%,transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
@@ -1756,87 +1903,15 @@ export default function App(){
           <p style={{color:AV.tm}}>Upload Terraform files → formal design document → export as <strong style={{color:AV.or}}>DOCX</strong></p>
           <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
-            {provider==="anthropic"&&<select value={selModel} onChange={e=>{setSelModel(e.target.value);ss("tf_doc_model",e.target.value);}} className="text-xs rounded-full px-3 py-0.5 font-mono cursor-pointer" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC",outline:"none"}}>
-              {AVAILABLE_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
-            </select>}
-            {provider!=="anthropic"&&<span className="text-xs px-3 py-0.5 rounded-full font-mono" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC"}}>{PROVIDERS.find(p=>p.id===provider)?.label}{provider==="azure"&&azDeploy?` · ${azDeploy}`:provider==="gemini"?` · ${gemModel}`:provider==="custom"&&custModel2?` · ${custModel2}`:""}</span>}
-            <button onClick={()=>setShowProvCfg(s=>!s)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:showProvCfg?`${AV.or}20`:`${AV.tp}10`,border:`1px solid ${showProvCfg?AV.or:AV.nb}`,color:showProvCfg?AV.or:AV.tm}}>⚙ Model</button>
+            {/* Active profile chip */}
+            <button onClick={()=>setShowSwitcher(true)} className="flex items-center gap-2 text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+              {activeProfile?<><div className="w-1.5 h-1.5 rounded-full" style={{background:PROVIDER_COLORS[activeProfile.provider]||AV.or}}/><span className="font-mono" style={{color:AV.tm}}>{activeProfile.name||activeProfile.model}</span></>:<span style={{color:AV.or}}>⚙ Configure model</span>}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
             <button onClick={()=>setShowAbout(true)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>About</button>
-            <button onClick={()=>{sd("tf_doc_apikey");setKeySet(false);setKeyInput("");setApiKey("");}} className="text-xs" style={{color:AV.td}}>🔑 Change API key</button>
             <button onClick={toggleDark} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>{dark?"☀ Light":"🌙 Dark"}</button>
           </div>
         </div>
-
-        {/* Provider configuration panel */}
-        {showProvCfg&&<div className="rounded-2xl p-5 mb-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
-          <p className="text-sm font-bold mb-4" style={{color:AV.tp}}>Model Configuration</p>
-          <div className="grid gap-4">
-            <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Provider</label>
-              <select value={provider} onChange={e=>{setProvider(e.target.value);ss("tf_doc_provider",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
-                {PROVIDERS.map(p=><option key={p.id} value={p.id} style={{background:AV.nm,color:AV.tp}}>{p.label}</option>)}
-              </select></div>
-
-            {provider==="anthropic"&&<div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
-              <select value={selModel} onChange={e=>{setSelModel(e.target.value);ss("tf_doc_model",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
-                {AVAILABLE_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
-              </select></div>}
-
-            {provider==="azure"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Azure Endpoint</label>
-              <input type="text" placeholder="https://your-resource.openai.azure.com" value={azEndpoint} onChange={e=>{setAzEndpoint(e.target.value);ss("tf_doc_az_ep",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
-              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Deployment Name</label>
-              <input type="text" placeholder="e.g. gpt-4o" value={azDeploy} onChange={e=>{setAzDeploy(e.target.value);ss("tf_doc_az_dep",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
-              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
-              <input type="password" placeholder="Azure OpenAI API key" value={azKey} onChange={e=>{setAzKey(e.target.value);ss("tf_doc_az_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
-
-            {provider==="gemini"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
-              <select value={gemModel} onChange={e=>{setGemModel(e.target.value);ss("tf_doc_gem_model",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}>
-                {GEMINI_MODELS.map(m=><option key={m.value} value={m.value} style={{background:AV.nm,color:AV.tp}}>{m.label}</option>)}
-              </select></div>
-              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
-              <input type="password" placeholder="Google AI Studio API key" value={gemKey} onChange={e=>{setGemKey(e.target.value);ss("tf_doc_gem_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
-
-            {provider==="custom"&&<><div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Base URL</label>
-              <input type="text" placeholder="https://your-endpoint.com/v1" value={custUrl} onChange={e=>{setCustUrl(e.target.value);ss("tf_doc_cust_url",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
-              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Model</label>
-              <input type="text" placeholder="e.g. gpt-4o, llama-3.3-70b" value={custModel2} onChange={e=>{setCustModel2(e.target.value);ss("tf_doc_cust_mod",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
-              <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
-              <input type="password" placeholder="sk-..." value={custKey2} onChange={e=>{setCustKey2(e.target.value);ss("tf_doc_cust_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
-
-            {/* Fetch models button — available for all providers once key is set */}
-            {((provider==="anthropic"&&apiKey)||(provider==="azure"&&azKey&&azEndpoint)||(provider==="gemini"&&gemKey)||(provider==="custom"&&custKey2&&custUrl))&&
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button disabled={fetchingModels} onClick={async()=>{
-                    setFetchingModels(true);setFetchedModels([]);
-                    try{
-                      const pk=provider==="anthropic"?apiKey:provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
-                      const pb=provider==="azure"?azEndpoint:provider==="custom"?custUrl:"";
-                      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:pk,baseUrl:pb})});
-                      const d=await r.json();
-                      // Anthropic: data.data[].id; OpenAI-compat: data.data[].id
-                      const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
-                      setFetchedModels(ids);
-                    }catch(e:any){setFetchedModels(["Error: "+e.message]);}
-                    setFetchingModels(false);
-                  }} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm,opacity:fetchingModels?0.6:1}}>
-                    {fetchingModels?<svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>}
-                    {fetchingModels?"Fetching…":"Fetch models"}
-                  </button>
-                  {fetchedModels.length>0&&<span className="text-xs" style={{color:AV.tm}}>{fetchedModels.filter(m=>!m.startsWith("Error")).length} models available</span>}
-                </div>
-                {fetchedModels.length>0&&!fetchedModels[0].startsWith("Error")&&<div className="mt-2 rounded-lg overflow-hidden" style={{border:`1px solid ${AV.nb}`,maxHeight:160,overflowY:"auto"}}>
-                  {fetchedModels.map(m=><button key={m} onClick={()=>{
-                    if(provider==="anthropic"){setSelModel(m);ss("tf_doc_model",m);}
-                    else if(provider==="azure"){setAzDeploy(m);ss("tf_doc_az_dep",m);}
-                    else if(provider==="gemini"){setGemModel(m);ss("tf_doc_gem_model",m);}
-                    else{setCustModel2(m);ss("tf_doc_cust_mod",m);}
-                  }} className="w-full text-left px-3 py-1.5 text-xs font-mono hover:opacity-80" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`,color:AV.tp}}>{m}</button>)}
-                </div>}
-                {fetchedModels[0]?.startsWith("Error")&&<p className="text-xs mt-1" style={{color:"#F9A8D4"}}>{fetchedModels[0]}</p>}
-              </div>}
-            <p className="text-xs" style={{color:AV.td}}>Credentials stored in browser localStorage only. The system prompt and JSON schema are the same across all providers — quality may vary.</p>
-          </div>
-        </div>}
 
         {!doc?(
           <div className="rounded-2xl p-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
@@ -1885,7 +1960,7 @@ export default function App(){
               </div>}
             </div>
 
-            <button onClick={analyze} disabled={!files.length||loading||extr||(provider==="anthropic"&&!apiKey)||(provider==="azure"&&(!azKey||!azEndpoint||!azDeploy))||(provider==="gemini"&&!gemKey)||(provider==="custom"&&(!custKey2||!custUrl||!custModel2))} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
+            <button onClick={analyze} disabled={!files.length||loading||extr||!activeProfile} className="mt-4 w-full py-4 rounded-xl font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 24px ${AV.or}30`}}>
               {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate Design Document ✦"}
             </button>
           </div>
@@ -1920,6 +1995,15 @@ export default function App(){
       <div className="max-w-5xl mx-auto text-center py-6" style={{zIndex:1,position:"relative"}}>
         <p className="text-xs" style={{color:AV.tm}}>Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.or}}>rtrentin</a></p>
       </div>
+
+      {/* Profile switcher */}
+      {showSwitcher&&!showEditor&&<ProfileSwitcher profiles={profiles} activeId={activeProfile?.id||""} onSelect={selectProfile} onAdd={()=>{setEditingProfile(newProfile());setShowEditor(true);}} onEdit={p=>{setEditingProfile({...p});setShowEditor(true);}} onDelete={deleteProfile} onClose={()=>setShowSwitcher(false)}/>}
+      {/* Profile editor */}
+      {showEditor&&editingProfile&&<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.6)"}} onClick={()=>{setShowEditor(false);setEditingProfile(null);}}>
+        <div className="w-full max-w-md" onClick={e=>e.stopPropagation()}>
+          <ProfileEditor initial={editingProfile} onSave={upsertProfile} onCancel={()=>{setShowEditor(false);setEditingProfile(null);}}/>
+        </div>
+      </div>}
 
       {/* About modal */}
       {showAbout&&<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.7)"}} onClick={()=>setShowAbout(false)}>
