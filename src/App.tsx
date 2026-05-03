@@ -572,7 +572,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
   const fwLabel={palo_alto:"Palo Alto Networks",fortinet:"Fortinet",checkpoint:"Check Point",cisco:"Cisco",none:"No Firewall",unknown:"Unknown"}[doc.firewall_vendor]||"Firewall";
   const noFw=!doc.firewall_vendor||doc.firewall_vendor==="none"||doc.firewall_vendor==="unknown";
   const acC={allow:"#22C55E",deny:"#EC4899","force-drop":"#EF4444",unknown:AV.tm};
-  const mL=AVAILABLE_MODELS.find(m=>m.value===selModel)?.label||selModel;
+  const mL=selModel||"Unknown model";
   const edTC={selfmanaged:"#F97316",equinix:"#EF4444",zscaler:"#3B82F6",platform:"#22C55E",megaport:"#EC4899",csp:"#A855F7",spoke:"#FF6B35"};
 
   function TabIntro({text}:{text:string}){return<p className="text-sm mb-6 leading-relaxed" style={{color:AV.tm,borderLeft:`3px solid ${AV.or}30`,paddingLeft:12}}>{text}</p>;}
@@ -1231,7 +1231,7 @@ export default function App(){
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={selModel} dark={dark} onExport={()=>exportDocx(doc,custName)}/>
+            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)}/>
           </div>
         )}
       </div>
