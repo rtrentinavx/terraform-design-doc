@@ -23,7 +23,7 @@ export default async function handler(req, res) {
           // Exclude Anthropic models — use the Anthropic provider directly
           const filtered = (d.data || []).filter(m => {
             const id = m.id || "";
-            return !id.startsWith("anthropic.") && !id.startsWith("openai.") && !id.startsWith("microsoft.");
+            return !id.startsWith("anthropic.") && !id.startsWith("openai.") && !id.startsWith("microsoft.") && !id.startsWith("google.");
           });
           if (filtered.length) return res.json({ data: filtered });
         }
