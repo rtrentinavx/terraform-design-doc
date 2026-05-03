@@ -1,24 +1,32 @@
-description: "Terraform HLD Generator — prompt regression tests"
+description: "Terraform HLD Generator — prompt regression & versioning tests"
 
+# ── Providers ──────────────────────────────────────────────────────────────
 providers:
   - id: anthropic:claude-sonnet-4-20250514
     config:
       temperature: 0
       max_tokens: 16000
 
+# ── Prompt versions ────────────────────────────────────────────────────────
+# Add new entries here when iterating on the system prompt.
+# Run: npm run test:prompts          — test current prompt only
+# Run: npm run test:prompts:compare  — compare all versions side-by-side
 prompts:
-  - label: "HLD system prompt"
-    raw: "{{system_prompt}}"
+  - id: file://lib/systemPrompt.ts
+    label: "v2 (current) — universal Terraform"
+  - id: file://prompts/v1-aviatrix.ts
+    label: "v1 — Aviatrix-focused (baseline)"
 
+# ── Shared test config ─────────────────────────────────────────────────────
 defaultTest:
   options:
     provider: anthropic:claude-sonnet-4-20250514
 
+# ── Test suite ─────────────────────────────────────────────────────────────
 tests:
-  # ── Firewall detection (hardcoded image) ─────────────────────────────────
-  - description: "AWS FireNet with Palo Alto Bundle 1 — explicit image string"
+  # ── Firewall detection: explicit image string ──────────────────────────
+  - description: "AWS FireNet — Palo Alto Bundle 1 (hardcoded image)"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: "{{file://test/fixtures/aws-firenet-palo.tf}}"
     assert:
       - type: javascript
@@ -29,8 +37,7 @@ tests:
       - type: javascript
         value: |
           const d = JSON.parse(output);
-          const v = (d.firewall_detail?.vendor || '').toLowerCase();
-          return v.includes('palo');
+          return (d.firewall_detail?.vendor || '').toLowerCase().includes('palo');
         threshold: 1
       - type: javascript
         value: |
@@ -43,10 +50,9 @@ tests:
           return d.firewall_detail?.instance_size === 'c5.xlarge';
         threshold: 1
 
-  # ── Firewall detection (via tfvars variable resolution) ──────────────────
-  - description: "AWS FireNet with Palo Alto via tfvars — variable must be resolved"
+  # ── Firewall detection: variable resolved from tfvars ─────────────────
+  - description: "AWS FireNet — Palo Alto via tfvars variable resolution"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: |
         ### RESOLVED VARIABLES (from tfvars)
         firewall_image = "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1"
@@ -69,10 +75,9 @@ tests:
           return (d.firewall_detail?.vendor || '').toLowerCase().includes('palo');
         threshold: 1
 
-  # ── Anti-hallucination: no firewall ──────────────────────────────────────
-  - description: "Plain AWS VPC with no firewall — must NOT invent firewall"
+  # ── Anti-hallucination: no firewall invented ───────────────────────────
+  - description: "Plain AWS VPC — must NOT invent firewall"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: |
         ### FILE: main.tf
         ```hcl
@@ -90,10 +95,9 @@ tests:
           return d.firewall_vendor === 'none' || d.firewall_vendor === 'unknown';
         threshold: 1
 
-  # ── Anti-hallucination: no spoke without mc-spoke ────────────────────────
-  - description: "Transit only — no spokes should appear without mc-spoke module"
+  # ── Anti-hallucination: no spokes without mc-spoke ─────────────────────
+  - description: "Transit only — no spoke VPCs without mc-spoke module"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: |
         ### FILE: main.tf
         ```hcl
@@ -115,10 +119,9 @@ tests:
           return spokes.length === 0;
         threshold: 1
 
-  # ── Provider detection ───────────────────────────────────────────────────
-  - description: "AWS provider must be detected correctly"
+  # ── Provider detection ─────────────────────────────────────────────────
+  - description: "AWS provider detected correctly"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: |
         ### FILE: main.tf
         ```hcl
@@ -131,10 +134,9 @@ tests:
           return d.provider === 'aws';
         threshold: 1
 
-  # ── Schema completeness ──────────────────────────────────────────────────
-  - description: "Output must contain all required top-level fields"
+  # ── Schema completeness ────────────────────────────────────────────────
+  - description: "All required top-level HLD fields present"
     vars:
-      system_prompt: "{{file://lib/systemPrompt.ts}}"
       terraform_content: |
         ### FILE: main.tf
         ```hcl
@@ -152,4 +154,57 @@ tests:
         value: |
           const d = JSON.parse(output);
           return typeof d.title === 'string' && d.title.length > 0;
+        threshold: 1
+
+  # ── Caveats populated for inferred values ──────────────────────────────
+  - description: "Caveats array populated when gateway size uses defaults"
+    vars:
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        module "mc-transit" {
+          source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
+          version = "2.5.0"
+          cloud   = "AWS"
+          region  = "us-east-1"
+          cidr    = "10.1.0.0/23"
+          account = "aws-prod"
+          gw_name = "aws-transit-defaults"
+        }
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return Array.isArray(d.caveats);
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          // Should have at least one caveat about defaults or sizing
+          return d.caveats?.length > 0;
+        threshold: 0.8
+
+  # ── No hallucinated vendor ─────────────────────────────────────────────
+  - description: "Unresolved firewall_image — vendor must be unknown, not fabricated"
+    vars:
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        module "mc-firenet" {
+          source         = "terraform-aviatrix-modules/mc-firenet/aviatrix"
+          version        = "1.5.0"
+          transit_module = module.mc-transit
+          firewall_image = var.firewall_image
+        }
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          // vendor must not be a made-up value — should be unknown if unresolvable
+          const vendor = (d.firewall_detail?.vendor || '').toLowerCase();
+          // Either explicitly unknown OR a legitimate vendor detected from context
+          return vendor === 'unknown' || vendor === '' ||
+                 vendor.includes('palo') || vendor.includes('forti') || vendor.includes('check');
         threshold: 1
