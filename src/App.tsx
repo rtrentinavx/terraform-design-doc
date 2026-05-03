@@ -1329,27 +1329,24 @@ export default function App(){
               <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>What's included in v{APP_VERSION}</h3>
               <div className="space-y-2">
                 {[
-                  ["AI Analysis","Analyzes Terraform/OpenTofu files and generates a structured High Level Design (HLD) with network design, security, firewall, DCF, edge devices, and more"],
-                  ["Multi-Provider Models","Named model profiles — configure Anthropic Claude, AWS Bedrock, Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; fetch available models live; switch profiles in one click"],
-                  ["Explain Code","Plain-English explanation of any Terraform code: summary, resources, architecture, security, variables, dependencies, and potential issues"],
-                  ["Validate Code","AI-powered code review with scored findings (0–100) categorised by severity and type: security, best-practice, cost, reliability, Aviatrix-specific, and syntax"],
-                  ["Mermaid Diagram","Auto-rendered network topology diagram (LR layout) with transit gateways, spoke/mgmt VPCs, FireNet, DCF, edge devices, and external connections; re-renders on theme switch"],
-                  ["Dynamic Registry Defaults","Fetches live module defaults from registry.terraform.io for any module detected in uploaded files; cached 1 hour; always uses current published values"],
-                  ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, and emails scrubbed before API call and rehydrated after; redaction map never leaves the browser"],
-                  ["Prompt Injection Protection","Terraform content and Additional Instructions field sanitized against injection patterns before sending to any provider"],
-                  ["Variable Resolution","Resolves var.X references client-side using .tfvars files so the model sees actual values, not variable names"],
-                  ["Anti-Hallucination Rules","Strict prompt rules prevent invented spoke attachments, VPN/DX connections, or data flows not present in the Terraform code"],
-                  ["AI Transparency","AI-generated disclaimer banner in the HLD and DOCX export; caveats field lists inferred or uncertain values; unknown vendor stays unknown — no fabrication"],
-                  ["Firewall Detection","Detects Palo Alto, Fortinet, and Check Point firewalls including HA mode, instance sizing, and license model from tfvars variable resolution"],
-                  ["DCF Policies","Extracts Distributed Cloud Firewall rulesets, smart groups, web groups, IPS profiles, and egress policies"],
-                  ["Edge Devices","Identifies edge devices (Equinix, Zscaler, self-managed, Megaport) and their transit connections"],
-                  ["DOCX Export","One-click Word document export with AI disclaimer, caveats section, and all HLD sections"],
-                  ["ZIP Support","Upload entire Terraform project as ZIP; auto-extracts .tf and .tfvars files"],
-                  ["Body Size Limit","5 MB cap on all API endpoints prevents timeout abuse"],
-                  ["Dark / Light Mode","Full theme support; Mermaid diagram re-renders automatically on switch"],
-                  ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy on all routes"],
-                  ["Origin Allowlist","API proxy endpoints reject requests from outside *.vercel.app and localhost"],
-                  ["promptfoo Tests","Regression test suite (npm run test:prompts) covering firewall detection, anti-hallucination, schema completeness, and variable resolution"],
+                  ["HLD Generation","Analyzes any Terraform/OpenTofu files and generates a structured High Level Design with network design, security, firewall, DCF, edge devices, components, and data flows"],
+                  ["Multi-Provider Models","Named profiles for Anthropic Claude, AWS Bedrock (API key), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; live model fetch; switch in one click"],
+                  ["Explain Code","Plain-English explanation: summary, resources, architecture, security, variables, dependencies, and potential issues"],
+                  ["Validate Code","Scored code review (0–100) with findings by severity and category: security, best-practice, cost, reliability, Aviatrix-specific, syntax"],
+                  ["Mermaid Diagram","Auto-rendered LR network topology; re-renders on dark/light switch; shows transit/spoke/firenet/DCF/edge/external connections"],
+                  ["Dynamic Registry Defaults","Live module defaults from registry.terraform.io for every detected module; 1h cache; Aviatrix modules hardcoded as fallback"],
+                  ["Universal Terraform Support","System prompt covers any provider — AWS, Azure, GCP, Aviatrix, plus AWS Network Firewall, Azure Firewall, GCP Interconnect, and more"],
+                  ["Key Persistence Opt-in","API keys stored in sessionStorage by default (cleared on tab close); explicit opt-in required to store in localStorage with security notice"],
+                  ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, emails scrubbed before API call and rehydrated after; redaction map never leaves the browser"],
+                  ["Prompt Injection Protection","TF content and Additional Instructions sanitized against injection patterns before sending"],
+                  ["Variable Resolution","Resolves var.X references from .tfvars client-side so the model sees actual values"],
+                  ["Anti-Hallucination Rules","Strict prompt rules prevent invented attachments, VPN connections, or data flows not in the code"],
+                  ["AI Transparency","Disclaimer in HLD and DOCX; caveats field lists inferred values; unknown vendor stays unknown"],
+                  ["Responsible AI","Body size limits, output content filtering, sanitized user instructions, no server-side key storage"],
+                  ["DOCX Export","Word document with AI disclaimer, caveats, and all HLD sections"],
+                  ["ZIP Support","Auto-extracts .tf/.tfvars from uploaded ZIP archives"],
+                  ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy; origin allowlist on API endpoints"],
+                  ["promptfoo Tests","Regression suite: npm run test:prompts — covers firewall detection, anti-hallucination, schema completeness"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
@@ -1364,11 +1361,10 @@ export default function App(){
               <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Roadmap</h3>
               <div className="space-y-2">
                 {[
-                  ["DOCX Export Quality","Validate all new fields (caveats, edge devices, DCF, modules) are correctly exported to Word"],
-                  ["Rate Limiting","Per-IP request throttling on the API proxy using Upstash Redis or similar"],
-                  ["Official Aviatrix Icons","Replace placeholder icons with official Aviatrix brand icons in the Mermaid diagram"],
-                  ["MockFlow Thumbnail","If MockFlow support is re-added, display preview image alongside the board URL"],
+                  ["DOCX Export Quality","Validate all fields (caveats, edge devices, DCF, modules) exported correctly to Word"],
+                  ["Rate Limiting","Per-IP throttling on API proxy via Upstash Redis"],
                   ["Prompt Versioning","Version and A/B test system prompt changes with promptfoo"],
+                  ["Official Aviatrix Icons","Replace current icons with official Aviatrix brand assets in the Mermaid diagram"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
