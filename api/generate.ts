@@ -11,10 +11,11 @@ import { SYS } from "../lib/systemPrompt.js";
 // "compiled grammar too large" error from Anthropic's tool-use enforcement.
 const TEXT_PROVIDERS = new Set(["anthropic", "bedrock"]);
 
-function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string, secretKey?: string) {
+function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
   if (provider === "bedrock") return createAmazonBedrock({
-    region: baseUrl || "us-east-1", accessKeyId: apiKey, secretAccessKey: secretKey || "",
+    region: baseUrl || "us-east-1",
+    apiKey,  // Bedrock API key (Bearer token — simpler than IAM Access Key + Secret)
   })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({
@@ -37,7 +38,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, secretKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
@@ -45,7 +46,7 @@ export default async function handler(req: any, res: any) {
   if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
   try {
-    const mdl = buildModel(provider, apiKey, model, baseUrl, secretKey);
+    const mdl = buildModel(provider, apiKey, model, baseUrl);
 
     if (TEXT_PROVIDERS.has(provider)) {
       // Anthropic / Bedrock: prompt for JSON, parse + validate manually

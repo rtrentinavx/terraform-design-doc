@@ -40,9 +40,9 @@ below 40 = critical errors
 
 Be specific: reference the actual resource name or module block from the code.`;
 
-function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string, secretKey?: string) {
+function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
-  if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl||"us-east-1", accessKeyId: apiKey, secretAccessKey: secretKey||"" })(model);
+  if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl||"us-east-1", apiKey })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model);
   return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
@@ -52,7 +52,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, secretKey, model, baseUrl, content } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, content } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
@@ -61,7 +61,7 @@ export default async function handler(req: any, res: any) {
   if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
   try {
-    const mdl = buildModel(provider, apiKey, model, baseUrl, secretKey);
+    const mdl = buildModel(provider, apiKey, model, baseUrl);
     const { object } = await generateObject({
       model: mdl,
       schema: ValidationSchema,
