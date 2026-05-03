@@ -23,7 +23,8 @@ export default async function handler(req, res) {
           if (d.data?.length) return res.json(d);
         }
       } catch {}
-      // Fallback: curated list of commonly available models
+      // Fallback: curated list — Anthropic/Amazon use direct IDs;
+      // Meta/Mistral/Cohere require cross-region inference profile IDs (us. prefix)
       return res.json({ data: [
         { id: "anthropic.claude-sonnet-4-5" },
         { id: "anthropic.claude-opus-4-5" },
@@ -33,10 +34,10 @@ export default async function handler(req, res) {
         { id: "amazon.nova-pro-v1:0" },
         { id: "amazon.nova-lite-v1:0" },
         { id: "amazon.nova-micro-v1:0" },
-        { id: "meta.llama3-3-70b-instruct-v1:0" },
-        { id: "meta.llama3-1-8b-instruct-v1:0" },
-        { id: "mistral.mistral-large-2402-v1:0" },
-        { id: "cohere.command-r-plus-v1:0" },
+        { id: "us.meta.llama3-3-70b-instruct-v1:0" },
+        { id: "us.meta.llama3-1-8b-instruct-v1:0" },
+        { id: "us.mistral.mistral-large-2402-v1:0" },
+        { id: "us.cohere.command-r-plus-v1:0" },
       ]});
     }
 
