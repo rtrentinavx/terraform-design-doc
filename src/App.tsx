@@ -551,10 +551,19 @@ function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
 function isM(fileName:string){return fileName.includes("__MACOSX")||fileName.includes(".DS_Store");}
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
 function useDocx(){useEffect(()=>{if((window as any).docx)return;const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js";document.head.appendChild(s);},[]);}
+function waitForDocx(maxMs=15000):Promise<any>{
+  return new Promise((res,rej)=>{
+    if((window as any).docx)return res((window as any).docx);
+    const start=Date.now();
+    const poll=setInterval(()=>{
+      if((window as any).docx){clearInterval(poll);res((window as any).docx);}
+      else if(Date.now()-start>maxMs){clearInterval(poll);rej(new Error("docx library failed to load — check your internet connection"));}
+    },100);
+  });
+}
 
 async function exportDocx(data:any,customerName:string){
-  const D=(window as any).docx;
-  if(!D)throw new Error("docx library not loaded");
+  const D=await waitForDocx();
   const h1=(t:string)=>new D.Paragraph({children:[new D.TextRun({text:t,bold:true,size:36,color:"FF6B35"})],spacing:{after:120}});
   const h2=(t:string)=>new D.Paragraph({children:[new D.TextRun({text:t,bold:true,size:28,color:"333333"})],spacing:{before:200,after:80}});
   const p=(t:string)=>t?new D.Paragraph({children:[new D.TextRun({text:t,size:22})],spacing:{after:80}}):null;
