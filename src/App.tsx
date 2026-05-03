@@ -245,7 +245,19 @@ function UIKV({label,val}:{label:string,val:any}){const s=toStr(val);return s?<d
 function UItr(s:string,n:number){return s&&s.length>n?s.slice(0,n-1)+"…":(s||"");}
 // Short aliases used throughout
 const Sec=UISec,Pr=UIPr,KV=UIKV,tr=UItr;
-const CAT_TW:Record<string,{bg:string,bd:string,tx:string}> = {compute:{bg:"bg-blue-950/30",bd:"border-blue-500/30",tx:"text-blue-300"},network:{bg:"bg-indigo-950/30",bd:"border-indigo-500/30",tx:"text-indigo-300"},storage:{bg:"bg-yellow-950/30",bd:"border-yellow-500/30",tx:"text-yellow-300"},database:{bg:"bg-purple-950/30",bd:"border-purple-500/30",tx:"text-purple-300"},security:{bg:"bg-rose-950/30",bd:"border-rose-500/30",tx:"text-rose-300"},monitoring:{bg:"bg-green-950/30",bd:"border-green-500/30",tx:"text-green-300"},other:{bg:"bg-slate-900/30",bd:"border-slate-500/30",tx:"text-slate-300"}};
+// CAT colors use hex inline styles — Tailwind JIT can't scan dynamic class names
+const CAT_COLORS:{[k:string]:{c:string}}={
+  compute:{c:"#3B82F6"},network:{c:"#6366F1"},storage:{c:"#F59E0B"},
+  database:{c:"#A855F7"},security:{c:"#F43F5E"},monitoring:{c:"#22C55E"},other:{c:"#94A3B8"}
+};
+function catStyle(category:string):{card:any,text:any,badge:any}{
+  const c=(CAT_COLORS[category]||CAT_COLORS.other).c;
+  return{
+    card:{background:`${c}10`,border:`1px solid ${c}30`},
+    text:{color:c,fontWeight:700},
+    badge:{background:`${c}15`,border:`1px solid ${c}35`,color:c}
+  };
+}
 
 // ── System prompt ──────────────────────────────────────────────────────────
 const SYS=`You are a senior cloud infrastructure architect writing a formal High Level Design (HLD). You will be given a tool called generate_hld — call it exactly once with all fields populated.
@@ -403,116 +415,133 @@ function useMermaid(){
 // ── Mermaid diagram builder ────────────────────────────────────────────────
 function buildMermaid(doc:any,dark=true):string{
   const nd=doc.network_design||{};
-  const vpcs:any[]=nd.vpcs||[];
+  const vpcs:any[]=toArr(nd.vpcs);
+  const subs:any[]=toArr(nd.subnets);
+  const comps:any[]=toArr(doc.components);
+  const flows:any[]=toArr(doc.data_flows);
+  const edges:any[]=toArr(doc.edge_devices);
+  const extConns:any[]=toArr(doc.external_connections);
   const fw=doc.firewall_detail||{};
   const dcf=doc.dcf||{};
-  const edges:any[]=doc.edge_devices||[];
-  const extConns:any[]=doc.external_connections||[];
-  const prov=doc.provider||"aws";
 
-  const hubs=vpcs.filter((v:any)=>v.type==="transit");
-  const spokes=vpcs.filter((v:any)=>v.type==="spoke");
-  const mgmt=vpcs.filter((v:any)=>v.type==="mgmt"||v.type==="shared");
-  const standalone=vpcs.filter((v:any)=>v.type==="unknown"&&v.name);
-  const vpcLabel=prov==="azure"?"VNet":"VPC";
-  const connLabel=prov==="azure"?"ExpressRoute":prov==="gcp"?"Interconnect":"Direct Connect";
-
-  // Safe Mermaid node id
-  const sid=(s:string)=>"n_"+s.replace(/[^a-zA-Z0-9]/g,"_");
+  const sid=(s:string)=>"n_"+String(s||"x").replace(/[^a-zA-Z0-9]/g,"_").slice(0,30);
+  const lbl=(s:string)=>String(s||"").replace(/"/g,"'").slice(0,40);
   const L:string[]=[];
 
-  L.push("flowchart LR");
+  L.push("flowchart TD");
 
-  // ── Left: external endpoints ──────────────────────────────────────────────
-  const hasInet=hubs.length>0;
+  // ── External nodes ────────────────────────────────────────────────────────
+  const hasInet=vpcs.some((v:any)=>/(public|igw|nat|internet)/i.test(toStr(v.purpose)+toStr(v.name)))||
+    subs.some((s:any)=>/(public|dmz)/i.test(toStr(s.name)+toStr(s.purpose)))||
+    comps.some((c:any)=>/(internet_gateway|igw|nat_gateway|load_balancer|alb|nlb|elb)/i.test(toStr(c.type)+toStr(c.name)));
   const hasOnPrem=extConns.length>0||edges.length>0;
 
-  if(hasInet) L.push(`  INET(["🌐 Internet"])`)
+  if(hasInet) L.push(`  INET(["🌐 Internet"])`);
   if(hasOnPrem){
     L.push(`  subgraph EXT["On-Premises / Edge"]`);
-    edges.forEach((e:any)=>{
-      const ha=e.ha?" HA":"";
-      L.push(`    ${sid("edge_"+e.name)}["⚡ ${toStr(e.name)}\\n${e.type||"edge"}${ha}${e.location?`\\n${e.location}`:""}"]`);
-    });
-    extConns.forEach((c:any)=>{
-      if(!c.name)return;
-      const asn=c.bgp_asn?` ASN ${c.bgp_asn}`:"";
-      L.push(`    ${sid("ext_"+c.name)}["🔗 ${toStr(c.name)}\\n${c.type||"BGP"}${asn}"]`);
-    });
-    if(!edges.length&&!extConns.length) L.push(`    ONPREM["🏢 Corporate Network"]`);
+    extConns.forEach((c:any)=>{if(c.name)L.push(`    ${sid("ec_"+c.name)}["🔗 ${lbl(c.name)}\\n${lbl(c.type||'')}"${c.bgp_asn?`\\nASN ${c.bgp_asn}`:""}]`);});
+    edges.forEach((e:any)=>{if(e.name)L.push(`    ${sid("ed_"+e.name)}["⚡ ${lbl(e.name)}\\n${lbl(e.type||'')}${e.ha?" HA":""}"]`);});
     L.push("  end");
   }
 
-  // ── Middle: transit layer ─────────────────────────────────────────────────
-  if(hubs.length){
-    L.push(`  subgraph TRANSIT["Transit Layer"]`);
-    hubs.forEach((v:any)=>{
-      const id=sid(v.name);
-      const sz=v.gw_size?v.gw_size:"default";
-      L.push(`    subgraph ${id}["${toStr(v.name)}\\n${vpcLabel} ${v.cidr||"—"}"]`);
-      L.push(`      ${id}_gw["🔷 Transit GW\\n${sz}"]`);
-      if(v.firenet===true&&fw.present){
-        const fwV=fw.vendor||"NGFW";
-        const fwSz=fw.instance_size?` ${fw.instance_size}`:"";
-        const fwHA=fw.ha_mode==="active-active"?" AA":fw.ha_mode==="active-passive"?" AP":"";
-        L.push(`      ${id}_fw["🔥 FireNet\\n${fwV}${fwSz}${fwHA}"]`);
-        L.push(`      ${id}_gw --> ${id}_fw`);
-      }
-      if(dcf.enabled){
-        const act=dcf.default_action||"deny";
-        L.push(`      ${id}_dcf{{"🛡 DCF\\n${act}"}}`);
-      }
-      L.push("    end");
-    });
-    L.push("  end");
-  }
+  // ── VPCs with subnets and key components ─────────────────────────────────
+  const catIcon:Record<string,string>={compute:"🖥",storage:"🗄",database:"🗃",security:"🔒",monitoring:"📊",network:"🔀",other:"📦"};
 
-  // ── Right: spoke + mgmt layers ────────────────────────────────────────────
-  if(spokes.length||mgmt.length){
-    L.push(`  subgraph WORKLOAD["Workload Layer"]`);
-    spokes.forEach((v:any)=>{
-      const id=sid(v.name);
-      const sz=v.gw_size?`\\n${v.gw_size}`:"";
-      L.push(`    ${id}["📦 ${toStr(v.name)}\\n${v.cidr||"—"}${sz}"]`);
+  vpcs.forEach((v:any)=>{
+    const vid=sid(v.name||"vpc");
+    const vSubs=subs.filter((s:any)=>toStr(s.vpc)===toStr(v.name));
+    const vComps=comps.filter((c:any)=>{
+      const cn=toStr(c.name).toLowerCase(),ct=toStr(c.type).toLowerCase();
+      return /vpc|subnet|security_group|route_table|internet_gateway|nat_gateway/.test(ct)?false:
+        vSubs.some((s:any)=>cn.includes(toStr(s.name).toLowerCase().split("_")[0]))||
+        toStr(c.configuration).toLowerCase().includes(toStr(v.name).toLowerCase())||
+        (vpcs.length===1); // single VPC: all components belong to it
     });
-    mgmt.forEach((v:any)=>{
-      const id=sid(v.name);
-      L.push(`    ${id}["⚙ ${toStr(v.name)}\\n${v.cidr||"—"}"]`);
-    });
-    L.push("  end");
-  }
+    const vLabel=`${lbl(v.name||"vpc")}${v.cidr?`\\n${v.cidr}`:""}`;
+    const isTransit=v.type==="transit",isSpoke=v.type==="spoke";
+    L.push(`  subgraph ${vid}["${isTransit?"🔷":"isSpoke"===v.type?"📦":"☁"} ${vLabel}"]`);
+    L.push("    direction TB");
 
-  if(standalone.length){
-    L.push(`  subgraph STANDALONE["Standalone"]`);
-    standalone.forEach((v:any)=>L.push(`    ${sid(v.name)}["${toStr(v.name)}\\n${v.cidr||"—"}"]`));
+    // Transit gateway node (Aviatrix)
+    if(isTransit){
+      L.push(`    ${vid}_gw["🔷 Transit GW${v.gw_size?`\\n${v.gw_size}`:""}"]`);
+      if(v.firenet===true&&fw.present) L.push(`    ${vid}_fw["🔥 FireNet: ${lbl(fw.vendor||'NGFW')}${fw.instance_size?`\\n${fw.instance_size}`:""}"]`);
+      if(dcf.enabled) L.push(`    ${vid}_dcf{{"🛡 DCF\\n${dcf.default_action||'deny'}"}}`);
+    }
+
+    // Subnet subgraphs
+    if(vSubs.length>0){
+      vSubs.slice(0,4).forEach((s:any)=>{ // limit to avoid huge diagrams
+        const sn=lbl(s.name||"subnet");
+        const cidr=s.cidr?`\\n${s.cidr}`:"";
+        const isPub=/(public|dmz|nat|igw)/i.test(sn);
+        L.push(`    subgraph ${sid(v.name+"_"+s.name)}["${isPub?"🟢":"🔵"} ${sn}${cidr}"]`);
+        L.push("      direction LR");
+        L.push("    end");
+      });
+    }
+
+    // Key components inside VPC
+    const shown=new Set<string>();
+    vComps.slice(0,6).forEach((c:any)=>{
+      const cat=toStr(c.category)||"other";
+      const icon=catIcon[cat]||"📦";
+      const cid=sid("c_"+c.name);
+      if(shown.has(cid))return;shown.add(cid);
+      const cfg=toStr(c.configuration)?`\\n${toStr(c.configuration).slice(0,20)}`:"";
+      L.push(`    ${cid}["${icon} ${lbl(c.name||c.type)}${cfg}"]`);
+    });
+
     L.push("  end");
+  });
+
+  // Standalone VPCs (no gateway)
+  const standalones=vpcs.filter((v:any)=>v.type==="unknown"||!v.type);
+  if(standalones.length===0&&vpcs.length===0){
+    // No VPCs — show components directly
+    const shown=new Set<string>();
+    comps.slice(0,8).forEach((c:any)=>{
+      const cat=toStr(c.category)||"other";
+      const icon=catIcon[cat]||"📦";
+      const cid=sid("c_"+c.name);
+      if(shown.has(cid))return;shown.add(cid);
+      L.push(`  ${cid}["${icon} ${lbl(c.name||c.type)}"]`);
+    });
   }
 
   // ── Connections ────────────────────────────────────────────────────────────
   L.push("");
-  if(hasInet&&hubs[0]) L.push(`  INET -.->|"public"| ${sid(hubs[0].name)}_gw`);
 
-  const findHub=(name:string)=>hubs.find((h:any)=>name&&h.name.toLowerCase().includes(name.toLowerCase()))||hubs[hubs.length-1];
+  // Internet → first public component or VPC
+  if(hasInet){
+    const igwComp=comps.find((c:any)=>/(internet_gateway|igw)/i.test(toStr(c.type)+toStr(c.name)));
+    const lbComp=comps.find((c:any)=>/(load_balancer|alb|nlb|elb)/i.test(toStr(c.type)+toStr(c.name)));
+    const target=igwComp||lbComp||(vpcs[0]?null:comps[0]);
+    if(target) L.push(`  INET -->|"public"| ${sid("c_"+target.name)}`);
+    else if(vpcs[0]) L.push(`  INET -->|"public"| ${sid(vpcs[0].name)}`);
+  }
 
-  extConns.forEach((c:any)=>{
-    if(!c.name)return;
-    const hub=findHub(c.local_gw);
-    if(hub) L.push(`  ${sid("ext_"+c.name)} -.->|"${c.type||connLabel}"| ${sid(hub.name)}_gw`);
-  });
-  edges.forEach((e:any)=>{
-    const hub=findHub(e.connected_transit)||hubs[0];
-    if(hub) L.push(`  ${sid("edge_"+e.name)} -.->|"edge"| ${sid(hub.name)}_gw`);
-  });
-  if(hasOnPrem&&!extConns.length&&!edges.length&&hubs.length)
-    L.push(`  ONPREM -.->|"${connLabel}"| ${sid(hubs[hubs.length-1].name)}_gw`);
-
-  for(let i=0;i<hubs.length-1;i++)
-    L.push(`  ${sid(hubs[i].name)}_gw <-->|"transit peering"| ${sid(hubs[i+1].name)}_gw`);
-
-  [...spokes,...mgmt].forEach((v:any)=>{
+  // Aviatrix: transit ↔ transit peering
+  const hubs=vpcs.filter((v:any)=>v.type==="transit");
+  const spokes=vpcs.filter((v:any)=>v.type==="spoke");
+  for(let i=0;i<hubs.length-1;i++) L.push(`  ${sid(hubs[i].name)}_gw <-->|"peering"| ${sid(hubs[i+1].name)}_gw`);
+  spokes.forEach((v:any)=>{
     const tgt=v.connected_transit?hubs.find((h:any)=>h.name===v.connected_transit)||hubs[0]:hubs[0];
     if(tgt) L.push(`  ${sid(tgt.name)}_gw -->|"spoke"| ${sid(v.name)}`);
   });
+
+  // Data flow paths as connections
+  flows.slice(0,5).forEach((f:any)=>{
+    const path=toArr(f.path);
+    for(let i=0;i<path.length-1;i++){
+      const a=sid("c_"+path[i]),b=sid("c_"+path[i+1]);
+      if(a!==b) L.push(`  ${a} -->|"${lbl(f.name||'')}"| ${b}`);
+    }
+  });
+
+  // External connections
+  extConns.forEach((c:any)=>{if(!c.name)return;const hub=hubs[hubs.length-1]||vpcs[0];if(hub)L.push(`  ${sid("ec_"+c.name)} -.->|"${lbl(c.type||'BGP')}"| ${sid(hub.name)}${hubs.length?"_gw":""}`);});
+  edges.forEach((e:any)=>{if(!e.name)return;const hub=hubs[0]||vpcs[0];if(hub)L.push(`  ${sid("ed_"+e.name)} -.->|"edge"| ${sid(hub.name)}${hubs.length?"_gw":""}`);});
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   L.push("");
@@ -520,26 +549,21 @@ function buildMermaid(doc:any,dark=true):string{
     L.push("  classDef tgw fill:#1E3A5F,stroke:#3B82F6,color:#BAE6FD,stroke-width:2px");
     L.push("  classDef fw fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
     L.push("  classDef dcf fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
-    L.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#FED7AA,stroke-width:1px");
+    L.push("  classDef comp fill:#1A2240,stroke:#475569,color:#CBD5E1,stroke-width:1px");
     L.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:1px");
     L.push("  classDef inet fill:#1A0F2E,stroke:#6366F1,color:#A5B4FC,stroke-width:2px");
   }else{
     L.push("  classDef tgw fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
     L.push("  classDef fw fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
     L.push("  classDef dcf fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
-    L.push("  classDef spoke fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
+    L.push("  classDef comp fill:#F8FAFC,stroke:#94A3B8,color:#334155,stroke-width:1px");
     L.push("  classDef ext fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:1px");
     L.push("  classDef inet fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:2px");
   }
-
-  hubs.forEach((v:any)=>{
-    L.push(`  class ${sid(v.name)}_gw tgw`);
-    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fw`);
-    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcf`);
-  });
-  [...spokes,...mgmt].forEach((v:any)=>L.push(`  class ${sid(v.name)} spoke`));
-  extConns.forEach((c:any)=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} ext`);});
-  edges.forEach((e:any)=>L.push(`  class ${sid("edge_"+e.name)} ext`));
+  hubs.forEach((v:any)=>{L.push(`  class ${sid(v.name)}_gw tgw`);if(v.firenet===true&&fw.present)L.push(`  class ${sid(v.name)}_fw fw`);if(dcf.enabled)L.push(`  class ${sid(v.name)}_dcf dcf`);});
+  comps.forEach((c:any)=>{L.push(`  class ${sid("c_"+c.name)} comp`);});
+  extConns.forEach((c:any)=>{if(c.name)L.push(`  class ${sid("ec_"+c.name)} ext`);});
+  edges.forEach((e:any)=>{if(e.name)L.push(`  class ${sid("ed_"+e.name)} ext`);});
   if(hasInet) L.push("  class INET inet");
 
   return L.join("\n");
@@ -802,7 +826,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         {edgeDevs.length===0&&extConns.length===0&&<div className="rounded-xl px-4 py-6 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="text-4xl mb-3">📡</div><p className="font-semibold" style={{color:AV.tp}}>No edge devices or external connections detected</p></div>}
       </div>}
 
-      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toArr(doc.components).length||0})`}><div className="space-y-3">{toArr(doc.components).map((c,i)=>{const ct=CAT_TW[c.category]||CAT_TW.other;return(<div key={i} className={`rounded-xl border ${ct.bd} ${ct.bg} px-4 py-4`}><div className="flex flex-wrap items-center gap-2 mb-2"><span className={`font-bold ${ct.tx}`}>{toStr(c.name)}</span><code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{toStr(c.type)}</code><span className={`text-xs px-2 py-0.5 rounded-full capitalize border ${ct.bd} ${ct.tx}`}>{toStr(c.category)}</span></div><Pr t={c.purpose}/>{c.configuration&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {toStr(c.configuration)}</p>}{c.dependencies?.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {c.dependencies.join(", ")}</p>}</div>);})}</div></Sec></div>}
+      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toArr(doc.components).length||0})`}><div className="space-y-3">{toArr(doc.components).map((c,i)=>{const ct=catStyle(c.category);return(<div key={i} className="rounded-xl px-4 py-4" style={ct.card}><div className="flex flex-wrap items-center gap-2 mb-2"><span style={ct.text}>{toStr(c.name)}</span><code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{toStr(c.type)}</code><span className="text-xs px-2 py-0.5 rounded-full capitalize" style={ct.badge}>{toStr(c.category)}</span></div><Pr t={c.purpose}/>{c.configuration&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {toStr(c.configuration)}</p>}{c.dependencies?.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {c.dependencies.join(", ")}</p>}</div>);})}</div></Sec></div>}
 
       {/* Always render diagram so SVG is in DOM for DOCX export */}
       <div style={tab==="diagram"?{}:{position:"absolute",left:"-9999px",top:0,opacity:0,pointerEvents:"none"}}>
@@ -832,7 +856,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         </div>}
       </div>
 
-      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toArr(doc.data_flows).map((f,i)=><div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{toStr(f.name)}</div><Pr t={toStr(f.description)}/>{toArr(f.path).length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{toArr(f.path).map((p,j,arr)=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<arr.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>)}</div></Sec></div>}
+      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toArr(doc.data_flows).filter((f:any)=>toStr(f.name)||toStr(f.description)||toArr(f.path).length>0).map((f:any,i:number)=>{const name=toStr(f.name)||`Flow ${i+1}`;const desc=toStr(f.description);const path=toArr(f.path);return(<div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{name}</div>{desc&&<Pr t={desc}/>}{path.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{path.map((p:string,j:number,arr:string[])=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<arr.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>);})}</div></Sec></div>}
 
       {tab==="variables"&&<div className="space-y-6">
         <TabIntro text="Terraform variables, outputs, and modules used in the configuration. Variables control the deployment parameters, outputs expose values for consumption by other configurations or CI/CD pipelines."/>
@@ -1127,9 +1151,9 @@ export default function App(){
       // Rehydrate redacted PII back into the parsed document
       if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
       // Capture usage metrics (Anthropic: input_tokens/output_tokens; OpenAI: prompt_tokens/completion_tokens)
-      const u=data.usage||{};
-      const inp=u.input_tokens||u.prompt_tokens||0;
-      const out=u.output_tokens||u.completion_tokens||0;
+      const u=data.usage||data.meta?.usage||data.usageMetadata||{};
+      const inp=u.input_tokens||u.prompt_tokens||u.inputTokens||u.promptTokenCount||0;
+      const out=u.output_tokens||u.completion_tokens||u.outputTokens||u.candidatesTokenCount||0;
       const elapsed=Date.now()-t0;
       setMetrics(prev=>({inputTokens:inp,outputTokens:out,elapsedMs:elapsed,sessionTokens:(prev?.sessionTokens||0)+inp+out}));
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
