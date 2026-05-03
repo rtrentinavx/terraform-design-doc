@@ -1346,7 +1346,7 @@ export default function App(){
                   ["DOCX Export","Word document with AI disclaimer, caveats, and all HLD sections"],
                   ["ZIP Support","Auto-extracts .tf/.tfvars from uploaded ZIP archives"],
                   ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy; origin allowlist on API endpoints"],
-                  ["promptfoo Tests","Regression suite: npm run test:prompts — covers firewall detection, anti-hallucination, schema completeness"],
+                  ["Prompt Versioning & Testing","promptfoo regression suite with versioned prompts — npm run test:prompts (current) or test:prompts:compare (all versions side-by-side); v1 Aviatrix baseline archived in prompts/"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
@@ -1363,7 +1363,6 @@ export default function App(){
                 {[
                   ["DOCX Export Quality","Validate all fields (caveats, edge devices, DCF, modules) exported correctly to Word"],
                   ["Rate Limiting","Per-IP throttling on API proxy via Upstash Redis"],
-                  ["Prompt Versioning","Version and A/B test system prompt changes with promptfoo"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

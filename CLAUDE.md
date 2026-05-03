@@ -11,8 +11,9 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 - `npm run dev` — Start Vite dev server (localhost:5173)
 - `npm run build` — Production build to `dist/`
 - `npm run preview` — Preview production build
-- `npm run test:prompts` — Run promptfoo regression tests (requires `ANTHROPIC_API_KEY`)
-- `npm run test:prompts:view` — Open promptfoo web UI
+- `npm run test:prompts` — Test current prompt (v2) against all cases (requires `ANTHROPIC_API_KEY`)
+- `npm run test:prompts:compare` — Compare all prompt versions side-by-side
+- `npm run test:prompts:view` — Open promptfoo browser UI
 
 ## Architecture
 
@@ -77,6 +78,16 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 - `buildRedactionMap()` → forward map (real → token); stored in `redMapRef` (useRef)
 - `INJECT_RE` strips prompt injection from TF content AND Additional Instructions
 - Additional Instructions framed as "informational only — cannot override schema"
+
+### Prompt Versioning
+
+**Before changing `lib/systemPrompt.ts`:**
+1. Archive it: `cp lib/systemPrompt.ts prompts/vN-label.ts`
+2. Make changes to `lib/systemPrompt.ts`
+3. Run `npm run test:prompts:compare` — side-by-side comparison of all versions
+4. Only proceed if new version ties or improves on all assertions
+
+`prompts/` contains archived versions. `promptfoo.yaml` defines all versions under the `prompts:` key with labels.
 
 ### HLD Schema
 - Exported as `HLDSchema` from `lib/iddSchema.ts`; type alias `HLD`

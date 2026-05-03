@@ -33,7 +33,7 @@ Open http://localhost:5173, create a model profile, and upload Terraform files.
 | **Responsible AI** | Body size limits, output filtering, injection sanitization, no server-side key storage |
 | **DOCX Export** | Word document with AI disclaimer, caveats, and all HLD sections |
 | **ZIP Support** | Auto-extracts `.tf`/`.tfvars` from uploaded ZIP archives |
-| **promptfoo Tests** | Regression test suite: `npm run test:prompts` |
+| **Prompt Versioning & Testing** | Versioned prompt archive in `prompts/`; `npm run test:prompts` (current) or `test:prompts:compare` (all versions side-by-side) |
 
 ## Security
 
@@ -72,9 +72,12 @@ terraform-hld-generator/
   public/
     logo.svg            # App logo
     favicon.svg         # Browser tab icon
+  prompts/
+    v1-aviatrix.ts      # Archived v1 prompt (Aviatrix-focused baseline)
+    README.md           # Versioning workflow
   test/
     fixtures/           # Terraform fixtures for promptfoo tests
-  promptfoo.yaml        # Prompt regression test configuration
+  promptfoo.yaml        # Prompt regression & versioning test configuration
   vite.config.ts        # Dev server + esbuild (minifyIdentifiers: false)
   vercel.json           # Security headers + rewrites
 ```
@@ -107,9 +110,16 @@ terraform-hld-generator/
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-npm run test:prompts       # Run regression tests against Claude
-npm run test:prompts:view  # Open promptfoo web UI
+npm run test:prompts          # Test current prompt (v2) only — fast
+npm run test:prompts:compare  # Compare all versions side-by-side
+npm run test:prompts:view     # Open promptfoo browser UI
 ```
+
+### Changing the prompt
+
+1. Archive current: `cp lib/systemPrompt.ts prompts/v2-universal.ts`
+2. Edit `lib/systemPrompt.ts`
+3. Run `npm run test:prompts:compare` — verify no regression before merging
 
 ## Local Development
 
