@@ -640,8 +640,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
             <span style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}} className="text-xs font-bold rounded-full px-3 py-1">v{doc.version||"1.0"}</span>
             <span style={{background:"#ffffff10",border:`1px solid ${AV.nb}`,color:AV.tm}} className="text-xs rounded-full px-3 py-1">{new Date().toLocaleDateString("en-CA")}</span>
           </div>
-          <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{doc.title}</h1>
-          <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{doc.executive_summary}</p>
+          <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
+          <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
         </div>
         <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
           {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
@@ -714,8 +714,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
                     <div className="text-sm mt-0.5" style={{color:AV.tm}}>{fw.product||"—"}</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {fw.license_model&&fw.license_model!=="unknown"&&<span className="text-xs px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide" style={{background:`${fwColor}18`,border:`1px solid ${fwColor}40`,color:fwColor}}>{fw.license_model}</span>}
-                    {fw.ha_mode&&fw.ha_mode!=="unknown"&&<span className="text-xs px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide" style={{background:"#22C55E12",border:"1px solid #22C55E35",color:"#4ADE80"}}>{fw.ha_mode}</span>}
+                    {fw.license_model&&fw.license_model!=="unknown"&&<span className="text-xs px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide" style={{background:`${fwColor}18`,border:`1px solid ${fwColor}40`,color:fwColor}}>{toStr(fw.license_model)}</span>}
+                    {fw.ha_mode&&fw.ha_mode!=="unknown"&&<span className="text-xs px-3 py-1.5 rounded-lg font-bold uppercase tracking-wide" style={{background:"#22C55E12",border:"1px solid #22C55E35",color:"#4ADE80"}}>{toStr(fw.ha_mode)}</span>}
                   </div>
                 </div>
               </div>
@@ -743,7 +743,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
                 <span className="font-semibold" style={{color:AV.td}}>Notes: </span>{fw.notes}
               </div>}
               {/* Firewall context */}
-              {doc.firewall_context&&<div className="px-6 py-3 text-sm italic" style={{background:`${fwColor}06`,borderTop:`1px solid ${fwColor}15`,color:AV.tm}}>{doc.firewall_context}</div>}
+              {doc.firewall_context&&<div className="px-6 py-3 text-sm italic" style={{background:`${fwColor}06`,borderTop:`1px solid ${fwColor}15`,color:AV.tm}}>{toStr(doc.firewall_context)}</div>}
             </div>);
           })():<Pr t={sec.firewall||"No dedicated firewall deployed."}/>}
         </Sec>
@@ -755,7 +755,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
       {tab==="dcf"&&<div className="space-y-6">
         <TabIntro text="Aviatrix Distributed Cloud Firewall (DCF) configuration — microsegmentation policies that control east-west and egress traffic using SmartGroups, WebGroups, and rule-based enforcement across your multi-cloud network."/>
         <div className="rounded-xl px-5 py-4 flex flex-wrap items-center gap-4" style={{background:`${AV.or}08`,border:`1px solid ${AV.or}25`}}>
-          <div><div className="flex items-center gap-2 mb-1"><span className="text-lg">🛡️</span><span className="font-black text-lg" style={{color:AV.tp}}>Aviatrix DCF</span><span className="text-xs px-2 py-0.5 rounded-full font-bold" style={dcf.enabled?{background:"#22C55E15",border:"1px solid #22C55E40",color:"#4ADE80"}:{background:"#EC489915",border:"1px solid #EC489940",color:"#F472B6"}}>{dcf.enabled?"ENABLED":"NOT DETECTED"}</span></div>{dcf.summary&&<p className="text-sm" style={{color:AV.tm}}>{dcf.summary}</p>}</div>
+          <div><div className="flex items-center gap-2 mb-1"><span className="text-lg">🛡️</span><span className="font-black text-lg" style={{color:AV.tp}}>Aviatrix DCF</span><span className="text-xs px-2 py-0.5 rounded-full font-bold" style={dcf.enabled?{background:"#22C55E15",border:"1px solid #22C55E40",color:"#4ADE80"}:{background:"#EC489915",border:"1px solid #EC489940",color:"#F472B6"}}>{dcf.enabled?"ENABLED":"NOT DETECTED"}</span></div>{dcf.summary&&<p className="text-sm" style={{color:AV.tm}}>{toStr(dcf.summary)}</p>}</div>
           <div className="ml-auto flex flex-wrap gap-2">
             {[["Default Action",dcf.default_action,dcf.default_action==="deny"?"#22C55E":dcf.default_action==="allow"?"#EAB308":"#EC4899"],dcf.egress_enabled&&["Egress","On","#3B82F6"],dcf.tls_decryption_enabled&&["TLS","On","#A855F7"],dcf.kubernetes_enabled&&["K8s","On","#F97316"]].filter(Boolean).map(([l,v,c])=><div key={l} className="flex flex-col items-center rounded-lg px-3 py-2" style={{background:`${c}15`,border:`1px solid ${c}35`}}><span className="text-xs uppercase font-bold tracking-wider" style={{color:AV.tm}}>{l}</span><span className="text-sm font-bold capitalize" style={{color:c}}>{v||"—"}</span></div>)}
           </div>
@@ -1241,9 +1241,9 @@ export default function App(){
                       <span>{sc.ic}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <span className="text-xs font-bold" style={{color:sc.tx}}>{f.title}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded font-mono uppercase" style={{background:`${AV.tp}10`,color:AV.td}}>{f.category}</span>
-                          {f.resource&&<span className="text-xs font-mono" style={{color:AV.or}}>{f.resource}</span>}
+                          <span className="text-xs font-bold" style={{color:sc.tx}}>{toStr(f.title)}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-mono uppercase" style={{background:`${AV.tp}10`,color:AV.td}}>{toStr(f.category)}</span>
+                          {f.resource&&<span className="text-xs font-mono" style={{color:AV.or}}>{toStr(f.resource)}</span>}
                         </div>
                         <p className="text-xs mb-1" style={{color:AV.tm}}>{toStr(f.description)}</p>
                         {f.recommendation&&<p className="text-xs" style={{color:AV.td}}>→ {f.recommendation}</p>}
@@ -1364,7 +1364,6 @@ export default function App(){
                   ["DOCX Export Quality","Validate all fields (caveats, edge devices, DCF, modules) exported correctly to Word"],
                   ["Rate Limiting","Per-IP throttling on API proxy via Upstash Redis"],
                   ["Prompt Versioning","Version and A/B test system prompt changes with promptfoo"],
-                  ["Official Aviatrix Icons","Replace current icons with official Aviatrix brand assets in the Mermaid diagram"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
