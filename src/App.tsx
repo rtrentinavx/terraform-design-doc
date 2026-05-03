@@ -1288,12 +1288,12 @@ export default function App(){
             <div>
               <p className="text-xs font-semibold mb-1.5" style={{color:AV.tp}}>Security &amp; Privacy</p>
               <p className="text-xs leading-5" style={{color:AV.tm}}>
-                Your Anthropic API key is stored only in your browser's local storage and is never sent to or stored on our servers — it is forwarded directly to the Anthropic API per request.
-                Before analysis, all Terraform content is automatically scanned and sensitive data is redacted client-side: public IP addresses are replaced with tokens, customer names are anonymised, BGP ASNs outside private ranges are masked, and domain names and email addresses are scrubbed.
-                Redacted tokens are rehydrated back to their original values locally after the response is received — the actual values never leave your browser.
-                API requests are proxied through a Vercel serverless function protected by an origin allowlist; direct external access is blocked.
+                API keys are stored in browser session memory by default and cleared automatically when you close this tab. Persistent storage requires explicit opt-in and is scoped to your browser only — keys are never sent to or stored on our servers.
+                Keys are forwarded directly to your chosen AI provider (Anthropic, AWS Bedrock, Azure OpenAI, Google Gemini, or custom endpoint) per request only.
+                Before analysis, all Terraform content is automatically scanned and sensitive data is redacted client-side: public IP addresses, customer names, BGP ASNs, domain names, and email addresses are replaced with tokens. Redacted tokens are rehydrated locally after the response — actual values never leave your browser.
+                API requests are proxied through Vercel serverless functions protected by an origin allowlist; direct external access is blocked.
                 All pages are served with strict security headers including Content Security Policy, X-Frame-Options, and Referrer-Policy.
-                Anthropic's API does not train on your data and retains inputs for a maximum of 30 days for trust &amp; safety purposes only.
+                AI providers do not train on API data. Anthropic retains inputs for a maximum of 30 days for trust &amp; safety purposes only.
               </p>
             </div>
           </div>
