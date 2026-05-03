@@ -44,9 +44,9 @@ const saveProfiles=(ps:ModelProfile[])=>{
 
 // ── Safe storage ───────────────────────────────────────────────────────────
 const mem={};
-const sg=k=>{try{return localStorage.getItem(k);}catch{return mem[k]||null;}};
-const ss=(k,v)=>{try{localStorage.setItem(k,v);}catch{mem[k]=v;}};
-const sd=k=>{try{localStorage.removeItem(k);}catch{delete mem[k];}};
+function sg(storKey:any){try{return localStorage.getItem(storKey);}catch{return (mem as any)[storKey]||null;}}
+function ss(storKey:any,storVal:any){try{localStorage.setItem(storKey,storVal);}catch{(mem as any)[storKey]=storVal;}}
+function sd(storKey:any){try{localStorage.removeItem(storKey);}catch{delete (mem as any)[storKey];}}
 
 // ── Profile Editor ─────────────────────────────────────────────────────────
 function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p:ModelProfile)=>void,onCancel:()=>void}){
@@ -339,7 +339,7 @@ DCF: aviatrix_distributed_firewalling_policy_list policies{}→rules (PERMIT→a
 
 
 // ── Mermaid Diagram ───────────────────────────────────────────────────────
-const initMermaid=(dark=true)=>{
+function initMermaid(dark=true){
   window.mermaid?.initialize({startOnLoad:false,theme:dark?"dark":"default",
     themeVariables:dark?{primaryColor:"#1A2240",primaryTextColor:"#F0F4FF",primaryBorderColor:"#3B82F6",lineColor:"#FF6B35",secondaryColor:"#0F1628",tertiaryColor:"#1E2D50",background:"#0D1117",mainBkg:"#1A2240",nodeBorder:"#3B82F6",clusterBkg:"#0F162880",clusterBorder:"#3B82F640",titleColor:"#F0F4FF",edgeLabelBackground:"#1A2240"}
     :{primaryColor:"#DBEAFE",primaryTextColor:"#1E3A5F",primaryBorderColor:"#2563EB",lineColor:"#EA580C",secondaryColor:"#FFF7ED",tertiaryColor:"#EDE9FE",background:"#FAFBFC",mainBkg:"#FFFFFF",nodeBorder:"#2563EB",clusterBkg:"#F8FAFC",clusterBorder:"#E2E8F0",titleColor:"#0F172A",edgeLabelBackground:"#FFFFFF"}
@@ -502,8 +502,8 @@ function buildMermaid(doc:any,dark=true):string{
 
 // ── ZIP helpers ────────────────────────────────────────────────────────────
 const VE=[".tf",".tfvars"];
-const isV=n=>VE.some(e=>n.endsWith(e));
-const isM=n=>n.includes("__MACOSX")||n.includes(".DS_Store");
+function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
+function isM(fileName:string){return fileName.includes("__MACOSX")||fileName.includes(".DS_Store");}
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
 function useDocx(){useEffect(()=>{if((window as any).docx)return;const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js";document.head.appendChild(s);},[]);}
 
@@ -582,7 +582,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
   const mL=AVAILABLE_MODELS.find(m=>m.value===selModel)?.label||selModel;
   const edTC={selfmanaged:"#F97316",equinix:"#EF4444",zscaler:"#3B82F6",platform:"#22C55E",megaport:"#EC4899",csp:"#A855F7",spoke:"#FF6B35"};
 
-  const TabIntro=({text})=><p className="text-sm mb-6 leading-relaxed" style={{color:AV.tm,borderLeft:`3px solid ${AV.or}30`,paddingLeft:12}}>{text}</p>;
+  function TabIntro({text}:{text:string}){return<p className="text-sm mb-6 leading-relaxed" style={{color:AV.tm,borderLeft:`3px solid ${AV.or}30`,paddingLeft:12}}>{text}</p>;}
 
   const doExport=async()=>{
     setExporting(true);
