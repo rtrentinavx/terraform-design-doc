@@ -946,6 +946,7 @@ export default function App(){
   const selectProfile=(id:string)=>{setActiveId(id);ss("tf_doc_active",id);};
   const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
+  const [metrics, setMetrics] =useState<{inputTokens:number,outputTokens:number,elapsedMs:number,sessionTokens:number}|null>(null);
   AV=dark?DARK:LIGHT;
   const toggleDark=()=>{const next=!dark;setDark(next);ss("tf_doc_dark",String(next));};
   const progTimer=useRef(null);
@@ -1075,6 +1076,7 @@ export default function App(){
 
   const analyze=async()=>{
     setLoading(true);setError(null);setDoc(null);setDebug(null);
+    const t0=Date.now();
     startProgress();
     const dbg={step:"start",apiStatus:null,stopReason:"",statusMsg:"",apiBody:""};
     try{
@@ -1108,6 +1110,12 @@ export default function App(){
       if(!parsed){setDebug({...dbg});setError("Empty response object");stopProgress(false);setLoading(false);return;}
       // Rehydrate redacted PII back into the parsed document
       if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
+      // Capture usage metrics (Anthropic: input_tokens/output_tokens; OpenAI: prompt_tokens/completion_tokens)
+      const u=data.usage||{};
+      const inp=u.input_tokens||u.prompt_tokens||0;
+      const out=u.output_tokens||u.completion_tokens||0;
+      const elapsed=Date.now()-t0;
+      setMetrics(prev=>({inputTokens:inp,outputTokens:out,elapsedMs:elapsed,sessionTokens:(prev?.sessionTokens||0)+inp+out}));
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
     }catch(e){dbg.statusMsg=e.message;setDebug({...dbg});setError("Unexpected: "+e.message);stopProgress(false);}
     setLoading(false);
@@ -1171,6 +1179,9 @@ export default function App(){
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <button onClick={()=>setShowAbout(true)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>About</button>
+            {metrics&&<span title={`↑ ${metrics.inputTokens.toLocaleString()} input  ↓ ${metrics.outputTokens.toLocaleString()} output  ⏱ ${(metrics.elapsedMs/1000).toFixed(1)}s  Session: ${metrics.sessionTokens.toLocaleString()} tokens`} className="text-xs px-3 py-0.5 rounded-full font-mono cursor-default" style={{background:`${AV.pu}12`,border:`1px solid ${AV.pu}30`,color:"#C084FC"}}>
+              ⚡ {((metrics.inputTokens+metrics.outputTokens)/1000).toFixed(1)}k tokens · {(metrics.elapsedMs/1000).toFixed(1)}s
+            </span>}
             <button onClick={toggleDark} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>{dark?"☀ Light":"🌙 Dark"}</button>
           </div>
         </div>
