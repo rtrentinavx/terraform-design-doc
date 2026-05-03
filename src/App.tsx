@@ -794,6 +794,20 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App(){
   useJSZip();useDocx();
+  const [files,   setFiles]   =useState([]);
+  const [loading, setLoading] =useState(false);
+  const [extr,    setExtr]    =useState(false);
+  const [doc,     setDoc]     =useState(null);
+  const [error,   setError]   =useState(null);
+  const [debug,   setDebug]   =useState(null);
+  const [drag,    setDrag]    =useState(false);
+  const [progress,setProgress]=useState({step:0,label:""});
+  const [custName,setCustName]=useState(()=>sg("tf_doc_cust")||"");
+  const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
+  const [registryDefaults,setRegistryDefaults]=useState<string>("");
+  const [explanation,setExplanation]=useState<string>("");
+  const [validation,setValidation]=useState<any>(null);
+  const [validating,setValidating]=useState(false);
   const [profiles,setProfiles]=useState<ModelProfile[]>(()=>{
     // Migrate legacy single-key storage to profile system on first load
     const existing=loadProfiles();
@@ -878,21 +892,6 @@ export default function App(){
     if(activeId===id){const nid=next[0]?.id||"";setActiveId(nid);ss("tf_doc_active",nid);}
   };
   const selectProfile=(id:string)=>{setActiveId(id);ss("tf_doc_active",id);};
-  const [files,   setFiles]   =useState([]);
-  const [loading, setLoading] =useState(false);
-  const [extr,    setExtr]    =useState(false);
-  const [doc,     setDoc]     =useState(null);
-  const [error,   setError]   =useState(null);
-  const [debug,   setDebug]   =useState(null);
-  const [drag,    setDrag]    =useState(false);
-  const [progress,setProgress]=useState({step:0,label:""});
-  const [custName,setCustName]=useState(()=>sg("tf_doc_cust")||"");
-  const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
-  const [registryDefaults,setRegistryDefaults]=useState<string>("");
-  const [explanation,setExplanation]=useState<string>("");
-  const [explaining,setExplaining]=useState(false);
-  const [validation,setValidation]=useState<any>(null);
-  const [validating,setValidating]=useState(false);
   const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   AV=dark?DARK:LIGHT;
