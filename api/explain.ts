@@ -18,6 +18,20 @@ Bulleted list of the key infrastructure resources and services being provisioned
 ## Architecture
 How the components connect and interact. Include topology, traffic flow, and any hub-spoke or multi-cloud patterns.
 
+After the architecture description, include a Mermaid diagram showing the key resources and their relationships. Use `flowchart LR` layout. Keep it concise — show the main resources and connections only. Example:
+
+```mermaid
+flowchart LR
+  subgraph VPC["aws_vpc (10.0.0.0/16)"]
+    pub["public subnet"]
+    priv["private subnet"]
+  end
+  igw["Internet Gateway"] --> pub
+  pub --> ec2["EC2 Instance"]
+  ec2 --> priv
+  priv --> rds["RDS Database"]
+```
+
 ## Security
 Key security configurations: firewall rules, encryption, access controls, network segmentation, compliance considerations.
 

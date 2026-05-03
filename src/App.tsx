@@ -863,6 +863,7 @@ export default function App(){
   const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
   const [registryDefaults,setRegistryDefaults]=useState<string>("");
   const [explanation,setExplanation]=useState<string>("");
+  const [explainMmSvg,setExplainMmSvg]=useState<string>("");
   const [validation,setValidation]=useState<any>(null);
   const [validating,setValidating]=useState(false);
   const [explaining,setExplaining]=useState(false);
@@ -1129,7 +1130,7 @@ export default function App(){
 
   const explain=async()=>{
     if(!activeProfile||!files.length)return;
-    setExplaining(true);setExplanation("");setError(null);
+    setExplaining(true);setExplanation("");setExplainMmSvg("");setError(null);
     try{
       const varMap=new Map<string,string>();
       files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
@@ -1140,7 +1141,23 @@ export default function App(){
       const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Explain this Terraform code:\n\n${safe}`})});
       const d=await r.json();
       if(!r.ok||d.error){setError("Explain failed: "+(d.error||r.status));}
-      else setExplanation(d.explanation||"");
+      else{
+        const raw=d.explanation||"";
+        setExplanation(raw);
+        // Extract and render any Mermaid diagram block
+        const mmMatch=raw.match(/```mermaid\s*([\s\S]*?)```/);
+        if(mmMatch){
+          const code=mmMatch[1].trim();
+          initMermaid(dark);
+          const tryRender=()=>{
+            if(!window.mermaid){setTimeout(tryRender,300);return;}
+            window.mermaid.render("expl-mm-"+Date.now(),code)
+              .then(({svg}:any)=>setExplainMmSvg(svg))
+              .catch(()=>{});
+          };
+          tryRender();
+        }
+      }
     }catch(e:any){setError("Explain error: "+e.message);}
     setExplaining(false);
   };
@@ -1288,9 +1305,10 @@ export default function App(){
             {explanation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
               <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Code Explanation</span>
-                <button onClick={()=>setExplanation("")} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
+                <button onClick={()=>{setExplanation("");setExplainMmSvg("");}} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
               </div>
-              <div className="p-5 text-sm leading-7 whitespace-pre-wrap" style={{color:AV.tp,background:AV.nm,maxHeight:480,overflowY:"auto",fontFamily:"inherit"}}>
+              {explainMmSvg&&<div className="p-4" style={{background:dark?"#0D1117":"#FAFBFC",borderBottom:`1px solid ${AV.nb}`}} dangerouslySetInnerHTML={{__html:explainMmSvg}}/>}
+              <div className="p-5 text-sm" style={{color:AV.tp,background:AV.nm,maxHeight:480,overflowY:"auto",fontFamily:"inherit"}}>
                 {(()=>{
                   // Inline formatter: handles **bold**, `code`, _italic_
                   const fmt=(text:string)=>{
@@ -1307,7 +1325,12 @@ export default function App(){
                     }
                     return parts;
                   };
-                  return explanation.split("\n").map((line,i)=>{
+                  // Strip mermaid block from text (rendered separately above)
+                  const textOnly=explanation.replace(/```mermaid[\s\S]*?```/g,"").trim();
+                  let inCode=false;
+                  return textOnly.split("\n").map((line,i)=>{
+                    if(line.startsWith("```")){inCode=!inCode;return<div key={i} className="my-1"/>;}
+                    if(inCode)return<pre key={i} className="text-xs font-mono px-3 py-0.5" style={{color:AV.or,background:`${AV.tp}06`}}>{line}</pre>;
                     if(line.startsWith("# "))return<h2 key={i} className="font-black text-lg mt-5 mb-2" style={{color:AV.or}}>{fmt(line.slice(2))}</h2>;
                     if(line.startsWith("## "))return<h3 key={i} className="font-bold text-base mt-4 mb-1.5" style={{color:AV.or}}>{fmt(line.slice(3))}</h3>;
                     if(line.startsWith("### "))return<h4 key={i} className="font-semibold mt-3 mb-1" style={{color:AV.tp}}>{fmt(line.slice(4))}</h4>;
