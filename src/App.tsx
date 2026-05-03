@@ -193,11 +193,13 @@ const DARK={or:"#FF6B35",pu:"#7B2FBE",nv:"#0A0E1A",nm:"#0F1628",nl:"#1A2240",nb:
 const LIGHT={or:"#E05A2B",pu:"#6B21A8",nv:"#F8FAFC",nm:"#FFFFFF",nl:"#F1F5F9",nb:"#E2E8F0",tp:"#0F172A",tm:"#475569",td:"#94A3B8"};
 let AV=DARK;
 
-// ── Shared UI helpers ──────────────────────────────────────────────────────
-const tr=(s:string,n:number)=>s&&s.length>n?s.slice(0,n-1)+"…":(s||"");
-const Sec=({title,children}:{title:string,children:any})=><div className="mb-8"><div className="flex items-center gap-3 mb-4"><h2 className="text-xl font-black" style={{color:AV.tp}}>{title}</h2><div className="flex-1 h-px" style={{background:`linear-gradient(90deg,${AV.or}40,transparent)`}}/></div>{children}</div>;
-const Pr=({t}:{t:string})=>t?<p className="text-sm leading-7" style={{color:AV.tm}}>{t}</p>:null;
-const KV=({label,val}:{label:string,val:string})=>val?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{val}</span></div>:null;
+// ── Shared UI helpers (function declarations = hoisted, immune to TDZ) ─────
+function UISec({title,children}:{title:string,children:any}){return<div className="mb-8"><div className="flex items-center gap-3 mb-4"><h2 className="text-xl font-black" style={{color:AV.tp}}>{title}</h2><div className="flex-1 h-px" style={{background:`linear-gradient(90deg,${AV.or}40,transparent)`}}/></div>{children}</div>;}
+function UIPr({t}:{t:string}){return t?<p className="text-sm leading-7" style={{color:AV.tm}}>{t}</p>:null;}
+function UIKV({label,val}:{label:string,val:string}){return val?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{val}</span></div>:null;}
+function UItr(s:string,n:number){return s&&s.length>n?s.slice(0,n-1)+"…":(s||"");}
+// Short aliases used throughout
+const Sec=UISec,Pr=UIPr,KV=UIKV,tr=UItr;
 const CAT_TW:Record<string,{bg:string,bd:string,tx:string}> = {compute:{bg:"bg-blue-950/30",bd:"border-blue-500/30",tx:"text-blue-300"},network:{bg:"bg-indigo-950/30",bd:"border-indigo-500/30",tx:"text-indigo-300"},storage:{bg:"bg-yellow-950/30",bd:"border-yellow-500/30",tx:"text-yellow-300"},database:{bg:"bg-purple-950/30",bd:"border-purple-500/30",tx:"text-purple-300"},security:{bg:"bg-rose-950/30",bd:"border-rose-500/30",tx:"text-rose-300"},monitoring:{bg:"bg-green-950/30",bd:"border-green-500/30",tx:"text-green-300"},other:{bg:"bg-slate-900/30",bd:"border-slate-500/30",tx:"text-slate-300"}};
 
 // ── System prompt ──────────────────────────────────────────────────────────
