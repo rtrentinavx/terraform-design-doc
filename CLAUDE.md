@@ -23,7 +23,7 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 2. **Profile storage** — `loadProfiles()` merges from both `localStorage` (persisted) and `sessionStorage` (session-only). `saveProfiles()` routes by `persist` flag. Default: sessionStorage.
 3. **ProfileEditor / ProfileSwitcher** — modal components for managing named model profiles
 4. **Theme** (`DARK`/`LIGHT`/`AV`) — `AV` is a module-level `let` reassigned on every App render
-5. **`toStr(v)`** — safety helper that coerces any model response value to a string; handles `{description:"..."}` objects returned by non-Claude models
+5. **`toStr(v)` / `toArr(v)`** — safety helpers that coerce any model response value to string or string[]; handles `{description:"..."}` objects and strings-where-arrays-expected returned by non-Claude models
 6. **Shared UI helpers** — `UISec`/`UIPr`/`UIKV`/`UItr` as **function declarations** (not const arrows); aliased as `Sec`/`Pr`/`KV`/`tr`
 7. **System prompt** (`SYS`) — in `src/App.tsx` for client use; canonical in `lib/systemPrompt.ts` for API/tests
 8. **Mermaid diagram** (`buildMermaid`) — LR flowchart; `initMermaid` reinitializes on dark/light switch
@@ -38,7 +38,7 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 | `api/generate.ts` | HLD generation. Anthropic/Bedrock → `generateText` + JSON parse + Zod validate. OpenAI/Gemini/Custom → `generateObject` with Zod |
 | `api/explain.ts` | Plain-English explanation via `generateText`. Output content filter |
 | `api/validate.ts` | Code validation via `generateText` (Anthropic/Bedrock) or `generateObject` (others) with `ValidationSchema` |
-| `api/list-models.js` | Live model listing per provider. Bedrock returns curated static list |
+| `api/list-models.js` | Live model listing per provider. Bedrock: tries Mantle `/v1/models` (Bearer auth), falls back to curated list; filters out Anthropic/OpenAI/Google/Microsoft models |
 | `api/registry-defaults.js` | Fetches module defaults from registry.terraform.io; accepts dynamic `modules[]` POST body; Aviatrix always included as fallback |
 | `api/_origin.js` | Shared origin allowlist: `*.vercel.app` + localhost |
 
@@ -55,9 +55,11 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 - All React `useState` declarations in `App` MUST come before any `useEffect` that references them in dependency arrays
 
 ### Defensive String Rendering
-- `toStr(v)` must be used for any field that non-Claude models might return as an object instead of a string
+- `toStr(v)` coerces any value to string: extracts `.description`/`.text`/`.value`/`.summary` from objects, joins arrays with `, `
+- `toArr(v)` coerces any value to `string[]`: splits strings on `,`/`→`, wraps objects via `toStr`
 - `UIPr`/`Pr` already calls `toStr()` internally — safe for all `Pr` usages
 - Inline renders (e.g. `{v.name}`, `{f.description}`) should use `{toStr(v.name)}` etc.
+- Array renders (e.g. `f.path.map(...)`) should use `toArr(f.path).map(...)` etc.
 
 ### API Key Storage
 - Default: `sessionStorage` (cleared on tab close)

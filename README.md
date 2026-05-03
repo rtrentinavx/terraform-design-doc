@@ -22,7 +22,7 @@ Open http://localhost:5173, create a model profile, and upload Terraform files.
 | Feature | Description |
 |---|---|
 | **Universal Terraform Support** | Works with any provider — AWS, Azure, GCP, Aviatrix, and others. System prompt broadened beyond Aviatrix-only |
-| **Multi-Provider Model Profiles** | Named profiles for Anthropic, AWS Bedrock (API key), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint. Fetch live models, switch in one click |
+| **Multi-Provider Model Profiles** | Named profiles for Anthropic, AWS Bedrock (API key), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint. Bedrock: live model list via Mantle API, filtered to Amazon/Meta/Mistral/Cohere only |
 | **Key Persistence Opt-in** | Keys stored in `sessionStorage` by default (cleared on tab close). Explicit checkbox required to persist to `localStorage`, with security notice |
 | **Dynamic Registry Defaults** | Fetches live module defaults from registry.terraform.io for every module detected in uploaded files; 1h cache; Aviatrix modules hardcoded as fallback |
 | **Mermaid Diagram** | Auto-rendered LR network topology; re-renders on dark/light toggle |
@@ -31,6 +31,7 @@ Open http://localhost:5173, create a model profile, and upload Terraform files.
 | **Anti-Hallucination** | Strict prompt rules — no invented attachments, VPN connections, or data flows |
 | **AI Transparency** | Disclaimer + caveats in HLD and DOCX; unknown vendor stays unknown |
 | **Responsible AI** | Body size limits, output filtering, injection sanitization, no server-side key storage |
+| **Defensive Rendering** | `toStr()`/`toArr()` coerce any model response type — prevents crashes when non-Claude models return objects or strings for array fields |
 | **DOCX Export** | Word document with AI disclaimer, caveats, and all HLD sections |
 | **ZIP Support** | Auto-extracts `.tf`/`.tfvars` from uploaded ZIP archives |
 | **Prompt Versioning & Testing** | Versioned prompt archive in `prompts/`; `npm run test:prompts` (current) or `test:prompts:compare` (all versions side-by-side) |

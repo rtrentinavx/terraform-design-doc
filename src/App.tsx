@@ -1343,7 +1343,7 @@ export default function App(){
               <div className="space-y-2">
                 {[
                   ["HLD Generation","Analyzes any Terraform/OpenTofu files and generates a structured High Level Design with network design, security, firewall, DCF, edge devices, components, and data flows"],
-                  ["Multi-Provider Models","Named profiles for Anthropic Claude, AWS Bedrock (API key), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; live model fetch; switch in one click"],
+                  ["Multi-Provider Models","Named profiles for Anthropic, AWS Bedrock (live model list via Mantle API), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; keys in session memory by default"],
                   ["Explain Code","Plain-English explanation: summary, resources, architecture, security, variables, dependencies, and potential issues"],
                   ["Validate Code","Scored code review (0–100) with findings by severity and category: security, best-practice, cost, reliability, Aviatrix-specific, syntax"],
                   ["Mermaid Diagram","Auto-rendered LR network topology; re-renders on dark/light switch; shows transit/spoke/firenet/DCF/edge/external connections"],
