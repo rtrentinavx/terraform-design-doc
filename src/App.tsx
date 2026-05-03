@@ -1561,6 +1561,7 @@ export default function App(){
   const [custKey2, setCustKey2] =useState(()=>sg("tf_doc_cust_key")||"");
   const [custModel2,setCustModel2]=useState(()=>sg("tf_doc_cust_mod")||"");
   const [showProvCfg,setShowProvCfg]=useState(false);
+  const [showAbout,setShowAbout]=useState(false);
   const [fetchedModels,setFetchedModels]=useState<string[]>([]);
   const [fetchingModels,setFetchingModels]=useState(false);
   const [files,   setFiles]   =useState([]);
@@ -1789,6 +1790,7 @@ export default function App(){
             </select>}
             {provider!=="anthropic"&&<span className="text-xs px-3 py-0.5 rounded-full font-mono" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC"}}>{PROVIDERS.find(p=>p.id===provider)?.label}{provider==="azure"&&azDeploy?` · ${azDeploy}`:provider==="gemini"?` · ${gemModel}`:provider==="custom"&&custModel2?` · ${custModel2}`:""}</span>}
             <button onClick={()=>setShowProvCfg(s=>!s)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:showProvCfg?`${AV.or}20`:`${AV.tp}10`,border:`1px solid ${showProvCfg?AV.or:AV.nb}`,color:showProvCfg?AV.or:AV.tm}}>⚙ Model</button>
+            <button onClick={()=>setShowAbout(true)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>About</button>
             <button onClick={()=>{sd("tf_doc_apikey");setKeySet(false);setKeyInput("");setApiKey("");}} className="text-xs" style={{color:AV.td}}>🔑 Change API key</button>
             <button onClick={toggleDark} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>{dark?"☀ Light":"🌙 Dark"}</button>
           </div>
@@ -1946,6 +1948,78 @@ export default function App(){
       <div className="max-w-5xl mx-auto text-center py-6" style={{zIndex:1,position:"relative"}}>
         <p className="text-xs" style={{color:AV.tm}}>Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.or}}>rtrentin</a></p>
       </div>
+
+      {/* About modal */}
+      {showAbout&&<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.7)"}} onClick={()=>setShowAbout(false)}>
+        <div className="rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" style={{background:AV.nm,border:`1px solid ${AV.nb}`}} onClick={e=>e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:`1px solid ${AV.nb}`}}>
+            <div>
+              <h2 className="text-lg font-black" style={{color:AV.tp}}>Terraform Design Doc Generator</h2>
+              <span className="text-xs font-mono" style={{color:AV.or}}>v{APP_VERSION}</span>
+            </div>
+            <button onClick={()=>setShowAbout(false)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{background:AV.nl,color:AV.tm}}>✕</button>
+          </div>
+          <div className="px-6 py-5 space-y-6">
+
+            {/* Delivered */}
+            <div>
+              <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>What's included in v{APP_VERSION}</h3>
+              <div className="space-y-2">
+                {[
+                  ["AI Analysis","Analyzes Terraform/OpenTofu files and generates a structured Infrastructure Design Document using Claude or any OpenAI-compatible model"],
+                  ["Multi-Provider Models","Supports Anthropic Claude, Azure OpenAI, Google Gemini, and Custom OpenAI-compatible endpoints with live model fetching"],
+                  ["3 Diagram Modes","SVG topology diagram, Mermaid flowchart (LR layout), and MockFlow IdeaBoard (BETA) interactive diagrams"],
+                  ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, and emails are scrubbed before sending to the API and rehydrated after"],
+                  ["Prompt Injection Protection","Terraform file content is sanitized to strip injection patterns before analysis"],
+                  ["Variable Resolution","Resolves var.X references using .tfvars files client-side so Claude sees actual values, not variable names"],
+                  ["Anti-Hallucination Rules","Strict prompt rules prevent invented spoke attachments, VPN connections, or data flows not present in the Terraform code"],
+                  ["Aviatrix Defaults","Built-in defaults from the Terraform registry for mc-transit, mc-spoke, mc-firenet modules and gateway sizing"],
+                  ["Firewall Detection","Detects Palo Alto, Fortinet, and Check Point firewalls including HA mode, instance sizing, and license model"],
+                  ["DCF Policies","Extracts Distributed Cloud Firewall rulesets, smart groups, web groups, IPS profiles, and egress policies"],
+                  ["Edge Devices","Identifies edge devices (Equinix, Zscaler, self-managed, Megaport) and their transit connections"],
+                  ["DOCX Export","One-click Word document export with embedded network diagram and formatted tables"],
+                  ["ZIP Support","Upload entire Terraform project as ZIP; auto-extracts .tf and .tfvars files"],
+                  ["Dark / Light Mode","Full theme support across all views and diagrams"],
+                  ["Additional Instructions","Freeform field to append extra context to the analysis request"],
+                  ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy on all routes"],
+                  ["Origin Allowlist","API proxy endpoints reject requests from outside *.vercel.app and localhost"],
+                ].map(([title,desc])=>(
+                  <div key={title} className="flex gap-3">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
+                    <div><span className="text-xs font-semibold" style={{color:AV.tp}}>{title}</span><span className="text-xs" style={{color:AV.tm}}> — {desc}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Roadmap */}
+            <div style={{borderTop:`1px solid ${AV.nb}`,paddingTop:"1.25rem"}}>
+              <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Roadmap</h3>
+              <div className="space-y-2">
+                {[
+                  ["Dynamic Registry Defaults","Fetch Aviatrix module defaults live from registry.terraform.io instead of using hardcoded values"],
+                  ["DOCX Export Quality","Validate all new fields (network domains, edge devices, DCF, firewall) are correctly exported to Word"],
+                  ["Mermaid Theme Sync","Auto re-render Mermaid diagram when dark/light mode is toggled without requiring manual regeneration"],
+                  ["Rate Limiting","Per-IP request throttling on the API proxy to prevent abuse"],
+                  ["File Size Limit","Enforce a maximum upload size (5 MB) to prevent timeout abuse"],
+                  ["MockFlow Thumbnail","Display a preview image alongside the MockFlow board URL"],
+                  ["Official Aviatrix Icons","Replace current SVG icons with official Aviatrix brand icons in the topology diagram"],
+                  ["AWS Bedrock Support","Add AWS Bedrock as a model provider (requires SigV4 signing — planned for a future phase)"],
+                ].map(([title,desc])=>(
+                  <div key={title} className="flex gap-3">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div><span className="text-xs font-semibold" style={{color:AV.tp}}>{title}</span><span className="text-xs" style={{color:AV.tm}}> — {desc}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-center text-xs pt-2" style={{color:AV.td}}>
+              Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>rtrentin</a> · Powered by <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>Anthropic Claude</a>
+            </div>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
