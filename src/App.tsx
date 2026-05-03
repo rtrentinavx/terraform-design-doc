@@ -328,708 +328,6 @@ EXTERNAL: aviatrix_transit_external_device_conn→external_connections[].
 DCF: aviatrix_distributed_firewalling_policy_list policies{}→rules (PERMIT→allow, DENY→deny). aviatrix_distributed_firewalling_default_action_rule→default_action. Predefined: "any"=def000ad-0000-0000-0000-000000000000, "internet"=def000ad-0000-0000-0000-000000000001. Default action: 1)default_action_rule 2)policy named default/Greenfield 3)if DCF enabled→allow 4)unknown.`;
 
 
-// ── Icons ──────────────────────────────────────────────────────────────────
-const IC={vpc:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z",subnet:"M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z",igw:"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",tgw:"M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 3l7 4-7 4-7-4 7-4zm0 9l7-4v5l-7 4-7-4v-5l7 4z",fw:"M12 2l9 4.5v5c0 5.25-3.84 10.15-9 11.5C6.84 21.65 3 16.75 3 11.5v-5L12 2z",dcf:"M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z",gw:"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",net:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z",home:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",edge:"M13 2L3 14h9l-1 8 10-12h-9l1-8z"};
-const Ico=({d,x,y,sz=13,c="#fff"})=><svg x={x-sz/2} y={y-sz/2} width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} fill="none" stroke={c} strokeWidth="2"/></svg>;
-
-// ── Cloud Provider Logos (filled SVG paths) ────────────────────────────────
-const ProvLogo=({prov,x,y,sz=40})=>{
-  if(prov==="aws")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 64 64">
-    <path d="M18.1 28.2c0 .9.1 1.6.3 2.2.2.5.5 1.1.8 1.8.1.2.2.4.2.6 0 .3-.2.5-.5.7l-1.7 1.1c-.2.1-.4.2-.6.2-.3 0-.5-.1-.7-.4-.3-.4-.6-.7-.9-1.1-.2-.4-.5-.8-.8-1.3-2 2.4-4.5 3.5-7.6 3.5-2.2 0-3.9-.6-5.2-1.8-1.3-1.2-2-2.8-2-4.8 0-2.1.7-3.8 2.2-5.1 1.5-1.3 3.5-1.9 5.9-1.9.8 0 1.7.1 2.6.2.9.1 1.9.3 2.9.5v-1.8c0-1.9-.4-3.2-1.2-4-.8-.8-2.1-1.2-4.1-1.2-.9 0-1.8.1-2.7.3-.9.2-1.9.5-2.7.9-.4.2-.7.3-.9.3-.4 0-.6-.3-.6-.8v-1.3c0-.4.1-.7.2-.9.1-.2.4-.4.8-.6 .9-.5 2-.8 3.2-1.1 1.3-.3 2.6-.5 4.1-.5 3.1 0 5.3.7 6.8 2.1 1.4 1.4 2.1 3.6 2.1 6.4v8.4zm-10.5 3.9c.8 0 1.6-.1 2.5-.4.9-.3 1.7-.8 2.3-1.5.4-.4.6-.9.8-1.5.1-.6.2-1.3.2-2.1v-1c-.7-.2-1.5-.3-2.3-.4-.8-.1-1.6-.1-2.3-.1-1.6 0-2.8.3-3.6 1-.8.7-1.2 1.6-1.2 2.8 0 1.1.3 2 .9 2.5.6.5 1.5.8 2.7.8zm20.8 2.8c-.3 0-.6-.1-.7-.2-.2-.1-.3-.4-.5-.8l-5.2-17.1c-.1-.4-.2-.7-.2-.9 0-.4.2-.6.6-.6h2.6c.4 0 .6.1.7.2.2.1.3.4.4.8l3.7 14.6 3.5-14.6c.1-.4.2-.7.4-.8.1-.1.4-.2.8-.2h2.1c.4 0 .6.1.8.2.1.2.3.4.4.8l3.5 14.8 3.8-14.8c.1-.4.3-.7.4-.8.2-.1.4-.2.7-.2h2.5c.4 0 .6.2.6.6 0 .1 0 .3-.1.4 0 .2-.1.3-.2.6l-5.3 17.1c-.1.4-.3.7-.5.8-.2.1-.4.2-.7.2h-2.3c-.4 0-.6-.1-.8-.2-.1-.2-.3-.4-.4-.8L34 19.9l-3.4 14c-.1.4-.2.7-.4.8-.1.2-.4.2-.8.2h-2.3zm33.2.7c-1.3 0-2.5-.1-3.7-.4-1.2-.3-2.1-.6-2.8-1-.4-.3-.7-.5-.8-.8-.1-.3-.2-.5-.2-.8v-1.3c0-.5.2-.8.6-.8.2 0 .3 0 .5.1.2.1.4.2.7.3.9.4 1.9.7 3 1 1.1.2 2.1.3 3.2.3 1.7 0 3-.3 3.9-1 .9-.6 1.4-1.6 1.4-2.7 0-.8-.3-1.5-.8-2-.5-.6-1.5-1.1-3-1.6l-4.3-1.3c-2.1-.7-3.7-1.6-4.7-2.9-1-1.2-1.4-2.6-1.4-4 0-1.2.3-2.2.8-3.1.5-.9 1.2-1.6 2.1-2.2.9-.6 1.8-1 3-1.3 1.1-.3 2.3-.4 3.6-.4.6 0 1.3 0 1.9.1.7.1 1.3.2 1.9.4.6.1 1.1.3 1.6.5.5.2.9.4 1.2.6.4.2.6.5.8.7.2.2.2.5.2.9v1.2c0 .5-.2.8-.6.8-.2 0-.5-.1-.9-.3-1.4-.6-2.9-1-4.7-1-1.5 0-2.7.3-3.5.8-.8.5-1.2 1.4-1.2 2.5 0 .8.3 1.5.9 2 .6.5 1.7 1.1 3.2 1.6l4.2 1.3c2.1.7 3.6 1.6 4.5 2.8.9 1.2 1.4 2.5 1.4 4 0 1.2-.2 2.3-.7 3.3-.5 1-1.2 1.8-2.1 2.5-.9.7-2 1.2-3.3 1.5-1.3.4-2.7.5-4.2.5z" fill="#FF9900"/>
-    <path d="M57.4 45.2c-6.7 5-16.4 7.6-24.8 7.6-11.7 0-22.3-4.3-30.3-11.6-.6-.6-.1-1.3.7-.9 8.6 5 19.3 8.1 30.3 8.1 7.4 0 15.6-1.5 23.1-4.7 1.1-.5 2.1.7 1 1.5zm2.8-3.2c-.9-1.1-5.6-.5-7.8-.3-.7.1-.8-.5-.2-.9 3.8-2.7 10-1.9 10.7-1 .7.9-.2 7.1-3.7 10.1-.6.5-1.1.2-.8-.4.8-2 2.6-6.3 1.8-7.5z" fill="#FF9900"/>
-  </svg>);
-  if(prov==="azure")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 64 64">
-    <path d="M22.4 4h13.5L21.8 57.5c-.3.8-1 1.4-1.9 1.4H8.2c-1.2 0-2.1-1-2.1-2.2 0-.3.1-.5.1-.8L19.6 5.4c.3-.8 1-1.4 1.9-1.4h.9z" fill="#0078D4"/>
-    <path d="M49.5 39.7H26.9c-.5 0-1 .5-.7 1l14.6 16.6c.4.4.9.7 1.4.7h13.9L49.5 39.7z" fill="#0078D4" opacity=".7"/>
-    <path d="M22.4 4C21.4 4 20.5 4.7 20.2 5.5L6.3 55.8c-.5 1.3.5 2.6 1.8 2.6h13c.8 0 1.5-.5 1.8-1.2l3.3-9.5 9.4 10.7c.4.4.9.7 1.5.7h13.8l-6.1-18.3-16.8-2L40 4H22.4z" fill="#0078D4"/>
-    <path d="M45.4 5.5c-.3-.8-1.1-1.5-2-1.5H22.8c.9 0 1.7.6 2 1.5l13.4 50.4c.5 1.3-.5 2.6-1.8 2.6h20.5c1.3 0 2.3-1.3 1.8-2.6L45.4 5.5z" fill="#0078D4" opacity=".8"/>
-  </svg>);
-  if(prov==="gcp")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 64 64">
-    <path d="M40.8 19.2h2.2l6.3-6.3.3-2.7A27.5 27.5 0 0 0 4.8 26.4c.5-.1 2.5-.3 2.5-.3l12.6-2.1s.6-1.1 1-1a15.3 15.3 0 0 1 19.9-3.8z" fill="#EA4335"/>
-    <path d="M55.2 26.4a27.7 27.7 0 0 0-8.4-13.5L40.5 19a15.2 15.2 0 0 1 5.6 12.4v1.6c4.3 0 7.8 3.5 7.8 7.8s-3.5 7.8-7.8 7.8H32l-1.6 1.6v9.4l1.6 1.6h14.1a20.4 20.4 0 0 0 9.1-34.8z" fill="#4285F4"/>
-    <path d="M17.9 61.2h14.1V48.6H17.9a7.7 7.7 0 0 1-3.2-.7l-2.2.7-6.3 6.3-.6 2.2a20.2 20.2 0 0 0 12.3 3.9z" fill="#34A853"/>
-    <path d="M17.9 20.4a20.4 20.4 0 0 0-12.3 36.5l9.1-9.1A7.8 7.8 0 1 1 25.1 33l9.1-9.1a20.4 20.4 0 0 0-16.3-3.5z" fill="#FBBC05"/>
-  </svg>);
-  // multi / unknown — generic cloud
-  return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24" fill="none">
-    <path d="M6.5 20a4.5 4.5 0 0 1-.42-8.98 7 7 0 0 1 13.84 0A4.5 4.5 0 0 1 17.5 20H6.5z" fill={AV.or} opacity="0.3" stroke={AV.or} strokeWidth="1"/>
-  </svg>);
-};
-
-// ── Aviatrix Logo (simplified plane) ────────────────────────────────────────
-const AvxLogo=({x,y,sz=20,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-  <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill={c}/>
-</svg>;
-
-// ── Aviatrix Transit Gateway Icon (hub with radiating connections) ─────────
-const AvxTransitIco=({x,y,sz=18,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="4.5" fill={c} opacity="0.2" stroke={c} strokeWidth="1.2"/>
-  <circle cx="12" cy="12" r="2" fill={c}/>
-  {/* Radiating spokes */}
-  <line x1="12" y1="2" x2="12" y2="7" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
-  <line x1="12" y1="17" x2="12" y2="22" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
-  <line x1="2" y1="12" x2="7" y2="12" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
-  <line x1="17" y1="12" x2="22" y2="12" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
-  {/* Corner nodes */}
-  <circle cx="12" cy="2" r="1.3" fill={c}/><circle cx="12" cy="22" r="1.3" fill={c}/>
-  <circle cx="2" cy="12" r="1.3" fill={c}/><circle cx="22" cy="12" r="1.3" fill={c}/>
-</svg>;
-
-// ── Aviatrix Spoke Gateway Icon (endpoint with single uplink) ─────────────
-const AvxSpokeIco=({x,y,sz=18,c="#FF6B35"})=><svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-  <rect x="5" y="10" width="14" height="10" rx="2.5" fill={c} opacity="0.15" stroke={c} strokeWidth="1.2"/>
-  <circle cx="12" cy="15" r="2.5" fill={c} opacity="0.3" stroke={c} strokeWidth="1"/>
-  <circle cx="12" cy="15" r="1" fill={c}/>
-  {/* Uplink arrow to transit */}
-  <line x1="12" y1="10" x2="12" y2="4" stroke={c} strokeWidth="1.4" strokeLinecap="round"/>
-  <path d="M9 6.5L12 3l3 3.5" fill="none" stroke={c} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-</svg>;
-
-// ── Cloud VPC/VNet Icon (official architecture icons) ─────────────────────
-let vpcIcoId=0;
-const VpcIcon=({prov,x,y,sz=16})=>{
-  const uid=`vpci-${vpcIcoId++}`;
-  if(prov==="aws")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 64 64">
-    <defs><linearGradient id={uid} x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#4D27A8"/><stop offset="100%" stopColor="#A166FF"/></linearGradient></defs>
-    <rect width="64" height="64" rx="8" fill={`url(#${uid})`}/>
-    <path d="M48,33.98L44.5,32.51V46.88C47.91,46.15 48,42.18 48,42L48,33.98ZM42.5,46.92V32.51L39,33.98V42C39.01,42.47 39.18,46.34 42.5,46.92ZM43.11,30.08C43.36,29.98 43.64,29.98 43.89,30.08L49.39,32.39C49.76,32.55 50,32.91 50,33.31V42C49.98,44.43 48.56,49 43.37,49C38.39,49 37.03,44.43 37,42.02V33.31C37,32.91 37.24,32.55 37.61,32.39L43.11,30.08ZM52,30.79L43.49,27.09L35,30.67V41.03C35,41.09 34.96,46.01 37.81,48.89C39.19,50.29 41.06,51 43.37,51C51.81,51 52,41.43 52,41.02V30.79ZM54,30.14V41.03C53.97,45.17 51.72,53 43.37,53C40.5,53 38.15,52.09 36.37,50.29C32.94,46.8 33,41.24 33,41.01V30C33,29.6 33.24,29.24 33.61,29.08L43.11,25.08C43.36,24.98 43.65,24.98 43.9,25.09L53.4,29.22C53.76,29.38 54,29.74 54,30.14ZM19,38H30V40H19C14.22,40 10.27,36.48 10.02,31.99C10,31.81 10,31.6 10,31.39C10,26.09 13.65,24.04 15.92,23.28C15.9,23.06 15.89,22.84 15.89,22.63C15.89,18.04 18.66,13.7 22.62,12.08C27.58,10.05 33.24,10.94 36.7,14.29C37.72,15.28 38.6,16.6 39.34,18.21C40.3,17.42 41.39,17 42.52,17C45.23,17 48.28,19.3 48.9,23.06C51.07,23.34 52.94,24.64 53.9,26.58L52.1,27.47C51.34,25.93 49.81,25 48,25C47.47,25 47.03,24.59 47,24.06C46.81,20.76 44.28,19 42.52,19C41.55,19 40.58,19.57 39.8,20.61C39.58,20.9 39.22,21.05 38.85,20.99C38.49,20.94 38.19,20.69 38.06,20.35C37.33,18.35 36.4,16.79 35.3,15.72C32.41,12.92 27.62,12.2 23.38,13.93C19.78,15.41 17.89,19.42 17.89,22.63C17.89,23.03 17.95,23.5 17.99,23.89C18.05,24.39 17.73,24.85 17.24,24.98C15.28,25.46 12,26.94 12,31.39C12,31.54 12,31.69 12.01,31.84C12.21,35.31 15.28,38 19,38Z" fill="#FFFFFF"/>
-  </svg>);
-  if(prov==="azure")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    {/* Official Azure VNet — redrawn with simple lines for clarity at small sizes */}
-    <rect width="24" height="24" rx="3" fill="#0078D4"/>
-    {/* X-arms matching official colors #50e6ff and #1490df */}
-    <line x1="5" y1="5" x2="19" y2="19" stroke="#1490df" strokeWidth="2" strokeLinecap="round"/>
-    <line x1="19" y1="5" x2="5" y2="19" stroke="#50e6ff" strokeWidth="2" strokeLinecap="round"/>
-    {/* Three green nodes matching official #86d633 */}
-    <circle cx="7" cy="12" r="2.2" fill="#86d633"/>
-    <circle cx="12" cy="12" r="2.2" fill="#86d633"/>
-    <circle cx="17" cy="12" r="2.2" fill="#86d633"/>
-  </svg>);
-  if(prov==="gcp")return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    {/* Official GCP VPC Network icon */}
-    <rect width="24" height="24" rx="3" fill="#4285F4"/>
-    <rect x="16" y="2" width="6" height="6" fill="#aecbfa"/><rect x="19" y="2" width="3" height="6" fill="#669df6"/>
-    <rect x="16" y="16" width="6" height="6" fill="#aecbfa"/><rect x="19" y="16" width="3" height="6" fill="#669df6"/>
-    <rect x="2" y="2" width="6" height="6" fill="#aecbfa"/><rect x="5" y="2" width="3" height="6" fill="#669df6"/>
-    <rect x="2" y="16" width="6" height="6" fill="#aecbfa"/><rect x="5" y="16" width="3" height="6" fill="#669df6"/>
-    <rect x="8" y="4" width="8" height="2" fill="#fff"/><rect x="8" y="18" width="8" height="2" fill="#fff"/>
-    <rect x="18" y="8" width="2" height="8" fill="#fff"/><rect x="4" y="8" width="2" height="8" fill="#fff"/>
-  </svg>);
-  // generic — cloud
-  return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="3" fill="#6366F1"/>
-    <path d="M6.5 18a3.5 3.5 0 0 1-.33-6.98 5.5 5.5 0 0 1 10.66 0A3.5 3.5 0 0 1 14.5 18H6.5z" fill="#fff"/>
-  </svg>);
-};
-
-// ── Firewall Vendor Logo ────────────────────────────────────────────────────
-const FwLogo=({vendor,x,y,sz=18})=>{
-  const v=(vendor||"").toLowerCase();
-  if(v.includes("palo"))return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" fill="#FA582D" opacity="0.15"/><circle cx="12" cy="12" r="10" fill="none" stroke="#FA582D" strokeWidth="1.5"/>
-    <path d="M7 12h4V7h2v5h4v2h-4v5h-2v-5H7v-2z" fill="#FA582D"/>
-  </svg>);
-  if(v.includes("forti"))return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    <rect x="2" y="2" width="20" height="20" rx="3" fill="#EE3124" opacity="0.15"/><rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="#EE3124" strokeWidth="1.5"/>
-    <text x="12" y="16" textAnchor="middle" fill="#EE3124" fontSize="12" fontWeight="900" fontFamily="Arial">F</text>
-  </svg>);
-  if(v.includes("check"))return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    <rect x="2" y="2" width="20" height="20" rx="3" fill="#E1215B" opacity="0.15"/><rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="#E1215B" strokeWidth="1.5"/>
-    <path d="M6 12l4 4 8-8" fill="none" stroke="#E1215B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>);
-  // generic firewall shield
-  return(<svg x={x} y={y} width={sz} height={sz} viewBox="0 0 24 24">
-    <path d="M12 2l9 4.5v5c0 5.25-3.84 10.15-9 11.5C6.84 21.65 3 16.75 3 11.5v-5L12 2z" fill="#EC4899" opacity="0.15" stroke="#EC4899" strokeWidth="1.5"/>
-  </svg>);
-};
-
-const CAT_TW={compute:{bg:"bg-orange-900/20",bd:"border-orange-500/30",tx:"text-orange-400"},network:{bg:"bg-blue-900/20",bd:"border-blue-500/30",tx:"text-blue-400"},storage:{bg:"bg-purple-900/20",bd:"border-purple-500/30",tx:"text-purple-400"},database:{bg:"bg-cyan-900/20",bd:"border-cyan-500/30",tx:"text-cyan-400"},security:{bg:"bg-pink-900/20",bd:"border-pink-500/30",tx:"text-pink-400"},monitoring:{bg:"bg-yellow-900/20",bd:"border-yellow-500/30",tx:"text-yellow-400"},other:{bg:"bg-slate-800/40",bd:"border-slate-600/30",tx:"text-slate-400"}};
-
-const tr=(s,n)=>s&&s.length>n?s.slice(0,n-1)+"…":(s||"");
-const Sec=({title,children})=><div className="mb-8"><div className="flex items-center gap-3 mb-4"><h2 className="text-xl font-black" style={{color:AV.tp}}>{title}</h2><div className="flex-1 h-px" style={{background:`linear-gradient(90deg,${AV.or}40,transparent)`}}/></div>{children}</div>;
-const Pr=({t})=>t?<p className="text-sm leading-7" style={{color:AV.tm}}>{t}</p>:null;
-const KV=({k,v})=>v?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{k}</span><span style={{color:AV.tm}}>{v}</span></div>:null;
-
-// ── Network Diagram (Lucidchart-style) ────────────────────────────────────
-function Diagram({doc,dark}){
-  // Clean flat palette
-  const D=dark
-    ?{bg:"#0B1120",card:"#111827",cardBd:"#1E293B",text:"#F1F5F9",sub:"#94A3B8",dim:"#64748B",line:"#334155",labelBg:"#1E293B",labelBd:"#334155",shadow:"rgba(0,0,0,0.4)"}
-    :{bg:"#FFFFFF",card:"#FFFFFF",cardBd:"#E2E8F0",text:"#0F172A",sub:"#475569",dim:"#94A3B8",line:"#CBD5E0",labelBg:"#FFFFFF",labelBd:"#E2E8F0",shadow:"rgba(0,0,0,0.08)"};
-
-  const nd=doc.network_design||{},ao=doc.architecture_overview||{},dcf=doc.dcf||{},fw=doc.firewall_detail||{};
-  const vpcs=nd.vpcs||[],subs=nd.subnets||[],edges=doc.edge_devices||[];
-  const extConns=doc.external_connections||[];
-  const prov=doc.provider||"aws";
-  const ctxStr=JSON.stringify(nd.connectivity||"")+JSON.stringify(ao.description||"")+JSON.stringify(nd.routing||"");
-  const hasOnPrem=extConns.length>0||edges.length>0||/vpn|direct.connect|expressroute|dx|on.prem|datacenter|data.center|ipsec|bgp.*remote|site.to.site/i.test(ctxStr);
-  const hasInet=(dcf.egress_enabled)||(dcf.rulesets||[]).some(rs=>(rs.rules||[]).some(r=>/internet/i.test(r.dst||"")||/internet/i.test(r.src||"")))||subs.some(s=>/pub/i.test(s.name||""))||/internet|igw|nat.gateway|egress|public.subnet|0\.0\.0\.0/i.test(ctxStr+JSON.stringify(subs)+JSON.stringify(doc.components||[]));
-
-  const PC={aws:"#FF9900",azure:"#0078D4",gcp:"#34A853",multi:"#6366F1",unknown:"#6366F1"}[prov]||"#6366F1";
-  const provName={aws:"AWS",azure:"Azure",gcp:"GCP",multi:"Multi-Cloud",unknown:"Cloud"}[prov]||"Cloud";
-
-  // Detect cloud provider per VPC (for multi-cloud diagrams)
-  // Check name first to avoid false positives from purpose mentioning other clouds
-  const vpcProv=v=>{
-    const nm=(v.name||"").toLowerCase();
-    if(/azure|az-|vnet/.test(nm))return"azure";
-    if(/gcp|google/.test(nm))return"gcp";
-    if(/aws|amazon|ec2/.test(nm))return"aws";
-    // Fallback: check purpose (but name takes priority above)
-    const p=(v.purpose||"").toLowerCase();
-    if(/azure|vnet/.test(p))return"azure";
-    if(/gcp|google/.test(p))return"gcp";
-    if(/aws|amazon|ec2/.test(p))return"aws";
-    return prov==="multi"?"unknown":prov;
-  };
-
-  const hub=vpcs.filter(v=>v.type==="transit");
-  const spk=vpcs.filter(v=>v.type!=="transit");
-  const hV=hub.length>0?hub:vpcs.slice(0,Math.ceil(vpcs.length/2));
-  const sV=hub.length>0?spk:vpcs.slice(Math.ceil(vpcs.length/2));
-
-  const snFor=v=>{
-    // First: match by explicit vpc field
-    const byVpc=subs.filter(s=>s.vpc&&s.vpc.toLowerCase()===v.name.toLowerCase());
-    if(byVpc.length>0)return byVpc.slice(0,5);
-    // Fallback: fuzzy match — try full name, then parts, then short prefix
-    const vn=(v.name||"").toLowerCase();
-    const vnClean=vn.replace(/[-_\s]/g,"");
-    const parts=vn.split(/[-_\s]/).filter(p=>p.length>2);
-    return subs.filter(s=>{
-      const sn=(s.name||"").toLowerCase();
-      const snClean=sn.replace(/[-_\s]/g,"");
-      // Exact substring match (either direction)
-      if(snClean.includes(vnClean)||vnClean.includes(snClean))return true;
-      // Any significant part of VPC name appears in subnet name
-      if(parts.some(p=>sn.includes(p)))return true;
-      // Short prefix match
-      const k=vnClean.slice(0,8);
-      if(k&&(snClean.startsWith(k)||snClean.includes(k)))return true;
-      return false;
-    }).slice(0,5);
-  };
-  const svcFor=v=>{
-    const n=[];
-    if(v.type==="transit"){
-      n.push({type:"avx-transit",label:"Avx Transit GW",color:"#FF6B35"});
-      if(fw.present&&v.firenet===true){const vn=fw.vendor||"";const fl=/palo/i.test(vn)?"Palo Alto":/forti/i.test(vn)?"Fortinet":/check/i.test(vn)?"CheckPoint":"NGFW";n.push({type:"fw",label:fl,color:"#EC4899"});}
-      if(dcf.enabled)n.push({type:"dcf",label:"DCF",color:"#A855F7"});
-    }else{
-      n.push({type:"avx-spoke",label:"Avx Spoke GW",color:"#FF6B35"});
-    }
-    return n;
-  };
-
-  // ── Sizing ──
-  const VW=240,VP=12,HH=44,SH=28,SG=4,VG=40;
-  const CW=130,CH=52,EW=160,EH=44;
-  const vH=v=>{const s=snFor(v),sv=svcFor(v);return HH+VP+Math.max(1,s.length)*(SH+SG)-SG+VP+(sv.length>0?8+24+VP:VP);};
-  const rW=r=>Math.max(1,r.length)*(VW+VG)-VG;
-
-  const PAD=30,TH=44;
-  const iW=Math.max(rW(hV),rW(sV),300);
-  const hasE=edges.length>0;
-  const CX=PAD+(hasInet?CW+40:0)+(hasOnPrem?0:0);
-  const oX=CX+iW+40;
-  const eX=oX;
-  const cW=Math.max(oX+(hasOnPrem||hasE?CW+PAD:PAD), CX+iW+PAD);
-  const hY=TH+CH+50;
-  const mHH=hV.length>0?Math.max(...hV.map(vH)):100;
-  const sY=hY+mHH+60;
-  const mSH=sV.length>0?Math.max(...sV.map(vH)):0;
-  const edgeStartY=hY+mHH+20;
-  const edgeTotalH=hasE?edges.length*(EH+8)-8:0;
-  const bottomContent=Math.max(sV.length>0?sY+mSH:0, hasE?edgeStartY+edgeTotalH:0);
-  const LH=36;
-  const svgH=Math.max(bottomContent,hY+mHH)+LH+30;
-
-  const hX0=CX+(iW-rW(hV))/2,sX0=CX+(iW-rW(sV))/2;
-  const vP={};
-  hV.forEach((v,i)=>{vP[v.name]={x:hX0+i*(VW+VG),y:hY};});
-  sV.forEach((v,i)=>{vP[v.name]={x:sX0+i*(VW+VG),y:sY};});
-
-  const iX=PAD;
-  const fhp=hV.length>0?vP[hV[0].name]:null;
-  const lhp=hV.length>0?vP[hV[hV.length-1].name]:null;
-  const ECC={selfmanaged:"#F97316",equinix:"#EF4444",zscaler:"#3B82F6",platform:"#22C55E",megaport:"#EC4899",csp:"#A855F7",spoke:"#F97316"};
-
-  // ── Transit match — returns ALL matching transits (edge can attach to multiple) ──
-  const matchTransits=name=>{
-    if(!name||hV.length===0)return [];
-    // connected_transit may be comma-separated or contain multiple names
-    const parts=name.split(/[,;|]/).map(s=>s.trim().toLowerCase()).filter(Boolean);
-    const matched=new Set();
-    for(const lo of parts){
-      for(const v of hV){
-        const vn=v.name.toLowerCase();
-        if(vn===lo||vn.includes(lo)||lo.includes(vn))matched.add(v);
-      }
-    }
-    // If single string didn't split, also try fuzzy match on whole string
-    if(matched.size===0){
-      const lo=name.toLowerCase();
-      for(const v of hV){
-        const vn=v.name.toLowerCase();
-        if(vn.includes(lo)||lo.includes(vn))matched.add(v);
-      }
-    }
-    return[...matched];
-  };
-
-  // ── Connection line (clean, no glow/animation) ──
-  let connId=0;
-  const Conn=({x1,y1,x2,y2,color,label,dashed})=>{
-    const id=`cn-${connId++}`;
-    const c=color||"#64748B";
-    const mx=(x1+x2)/2,my=(y1+y2)/2;
-    const lw=label?Math.max(50,label.length*5.2+16):0;
-    const path=Math.abs(y1-y2)<4?`M${x1},${y1}L${x2},${y2}`:`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
-    return(<g>
-      <defs><marker id={`${id}-ah`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill={c}/></marker></defs>
-      <path d={path} fill="none" stroke={c} strokeWidth="1.5" strokeDasharray={dashed?"5,4":"none"} markerEnd={`url(#${id}-ah)`}/>
-      {label&&<g><rect x={mx-lw/2} y={my-9} width={lw} height={18} rx={3} fill={D.labelBg} stroke={D.labelBd} strokeWidth="0.8"/><text x={mx} y={my+3.5} textAnchor="middle" fill={D.sub} fontSize="7.5" fontWeight="600">{label}</text></g>}
-    </g>);
-  };
-
-  // ── External node (Internet / On-Prem) ──
-  const ExtNode=({x,y,color,icon,title,subtitle})=>(
-    <g>
-      <rect x={x} y={y} width={CW} height={CH} rx={8} fill={D.card} stroke={color} strokeWidth="1.5" style={{filter:`drop-shadow(0 2px 4px ${D.shadow})`}}/>
-      <rect x={x} y={y} width={CW} height={4} rx={2} fill={color}/>
-      <svg x={x+12} y={y+CH/2-8} width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">{icon}</svg>
-      <text x={x+36} y={y+CH/2-2} fill={D.text} fontSize="10" fontWeight="700">{title}</text>
-      <text x={x+36} y={y+CH/2+10} fill={D.dim} fontSize="7">{subtitle}</text>
-    </g>
-  );
-
-  // ── VPC Card (flat, clean) ──
-  const VBox=({v})=>{
-    const pos=vP[v.name];if(!pos)return null;
-    const {x,y}=pos,h=vH(v),sns=snFor(v),svcs=svcFor(v);
-    const isH=v.type==="transit";
-    const isMgmt=v.type==="mgmt";
-    const vp=vpcProv(v);
-    const accent=isH?"#3B82F6":isMgmt?"#06B6D4":({aws:"#FF9900",azure:"#0078D4",gcp:"#34A853"}[vp]||PC);
-    return(<g>
-      {/* Card shadow + border */}
-      <rect x={x} y={y} width={VW} height={h} rx={8} fill={D.card} stroke={D.cardBd} strokeWidth="1" style={{filter:`drop-shadow(0 2px 6px ${D.shadow})`}}/>
-      {/* Top accent bar */}
-      <rect x={x} y={y} width={VW} height={4} rx={2} fill={accent}/>
-      {/* Header with per-VPC cloud icon */}
-      <VpcIcon prov={vp} x={x+VP} y={y+6} sz={16}/>
-      <text x={x+VP+20} y={y+20} fill={D.dim} fontSize="7" fontWeight="700" letterSpacing="0.8">{(v.type||"vpc").toUpperCase()}</text>
-      <text x={x+VP} y={y+36} fill={D.text} fontSize="11" fontWeight="700">{tr(v.name,24)}</text>
-      {v.cidr&&<text x={x+VW-VP} y={y+20} textAnchor="end" fill={D.dim} fontSize="7" fontFamily="monospace">{v.cidr}</text>}
-      {v.gw_size&&<text x={x+VW-VP} y={y+36} textAnchor="end" fill={accent} fontSize="7.5" fontWeight="600" fontFamily="monospace">{v.gw_size}</text>}
-      {/* Divider */}
-      <line x1={x+VP} y1={y+HH} x2={x+VW-VP} y2={y+HH} stroke={D.cardBd} strokeWidth="0.8"/>
-      {/* Subnets */}
-      {(sns.length>0?sns:[{name:v.cidr||"Subnets",cidr:"",az:""}]).map((s,si)=>{
-        const sy=y+HH+VP+si*(SH+SG);
-        const pub=(s.name||"").toLowerCase().includes("pub");
-        const sc=pub?"#22C55E":"#7C3AED";
-        return(<g key={s.name||si}>
-          <rect x={x+VP} y={sy} width={VW-VP*2} height={SH} rx={4} fill={dark?`${sc}10`:`${sc}08`} stroke={`${sc}30`} strokeWidth="0.8"/>
-          <rect x={x+VP} y={sy} width={3} height={SH} rx={1.5} fill={sc}/>
-          <text x={x+VP+10} y={sy+12} fill={sc} fontSize="8" fontWeight="600">{tr(s.name,22)}</text>
-          <text x={x+VP+10} y={sy+22} fill={D.dim} fontSize="6.5" fontFamily="monospace">{tr((s.cidr||"")+(s.az?` · ${s.az}`:""),32)}</text>
-        </g>);
-      })}
-      {/* Service badges with icons */}
-      {svcs.length>0&&(()=>{
-        const bY=y+h-VP-24;
-        const bW=Math.floor((VW-VP*2-(svcs.length-1)*4)/svcs.length);
-        return svcs.map((svc,si)=>{
-          const bx=x+VP+si*(bW+4);
-          const sc=svc.color;
-          const icoSz=14;
-          return(<g key={svc.label}>
-            <rect x={bx} y={bY} width={bW} height={24} rx={4} fill={dark?`${sc}15`:`${sc}10`} stroke={`${sc}40`} strokeWidth="0.7"/>
-            {svc.type==="avx-transit"&&<AvxTransitIco x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz} c={sc}/>}
-            {svc.type==="avx-spoke"&&<AvxSpokeIco x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz} c={sc}/>}
-            {svc.type==="fw"&&<FwLogo vendor={fw.vendor} x={bx+4} y={bY+(24-icoSz)/2} sz={icoSz}/>}
-            {svc.type==="dcf"&&<Ico d={IC.dcf} x={bx+4+icoSz/2} y={bY+12} sz={icoSz} c={sc}/>}
-            <text x={bx+icoSz+8} y={bY+15} fill={sc} fontSize="7" fontWeight="600">{svc.label}</text>
-          </g>);
-        });
-      })()}
-    </g>);
-  };
-
-  // ── Region box ──
-  const allPos=Object.values(vP);
-  const regionX=allPos.length>0?Math.min(...allPos.map(p=>p.x))-16:CX;
-  const regionY=hY-28;
-  const regionW=allPos.length>0?Math.max(...allPos.map(p=>p.x))+VW+16-regionX:300;
-  const regionH=svgH-regionY-LH-15;
-
-  // ── Legend ──
-  const legend=[
-    {c:"#3B82F6",l:"Transit"},{c:PC,l:"Spoke"},{c:"#22C55E",l:"Public"},{c:"#7C3AED",l:"Private"},
-    hasInet&&{c:"#0891B2",l:"Internet"},hasOnPrem&&{c:"#7C3AED",l:"On-Prem"},
-    fw.present&&{c:"#EC4899",l:fw.vendor?.split(" ")[0]||"Firewall"},
-    edges.length>0&&{c:"#F97316",l:"Edge"},
-  ].filter(Boolean);
-
-  return(<Sec title="Network Diagram">
-    {ao.description&&<p className="text-sm mb-4 leading-7" style={{color:AV.tm}}>{ao.description}</p>}
-    <div style={{background:D.bg,borderRadius:12,border:`1px solid ${D.cardBd}`,overflow:"auto",boxShadow:`0 4px 16px ${D.shadow}`}}>
-      <svg data-diagram-svg width={cW} height={svgH} viewBox={`0 0 ${cW} ${svgH}`} xmlns="http://www.w3.org/2000/svg" fontFamily="'Inter','SF Pro Display',system-ui,sans-serif">
-        {/* Background */}
-        <rect width={cW} height={svgH} fill={D.bg}/>
-
-        {/* ─── Title Bar ─── */}
-        <rect x={0} y={0} width={cW} height={TH} fill={dark?"#111827":"#F8FAFC"}/>
-        <line x1={0} y1={TH} x2={cW} y2={TH} stroke={D.cardBd} strokeWidth="1"/>
-        <ProvLogo prov={prov} x={PAD} y={(TH-20)/2} sz={20}/>
-        <text x={PAD+26} y={TH/2+1} fill={D.text} fontSize="12" fontWeight="700">{doc.title||"Network Architecture"}</text>
-        <text x={PAD+26} y={TH/2+12} fill={D.dim} fontSize="7.5" fontWeight="600" letterSpacing="0.5">{provName}</text>
-        {ao.regions?.length>0&&ao.regions.map((r,ri)=>{const rx=cW-PAD-(ao.regions.length-ri)*(r.length*5.5+16);return(<g key={r}>
-          <rect x={rx} y={(TH-16)/2} width={r.length*5.5+10} height={16} rx={3} fill={`${PC}15`} stroke={`${PC}30`} strokeWidth="0.7"/>
-          <text x={rx+5} y={TH/2+3.5} fill={PC} fontSize="7" fontWeight="600">{r}</text>
-        </g>);})}
-
-        {/* ─── Cloud Region Container ─── */}
-        {allPos.length>0&&<g>
-          <rect x={regionX} y={regionY} width={regionW} height={regionH} rx={10} fill="none" stroke={`${PC}30`} strokeWidth="1" strokeDasharray="6,4"/>
-          <rect x={regionX+12} y={regionY-8} width={provName.length*6+30} height={16} rx={3} fill={D.bg}/>
-          <text x={regionX+20} y={regionY+3} fill={PC} fontSize="8" fontWeight="600" letterSpacing="0.5">{provName} Cloud</text>
-        </g>}
-
-        {/* ─── External: Internet ─── */}
-        {hasInet&&<ExtNode x={iX} y={TH+10} color="#0891B2" title="Internet" subtitle="Public Network"
-          icon={<g><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></g>}/>}
-
-        {/* ─── External: On-Premises ─── */}
-        {hasOnPrem&&<ExtNode x={oX} y={TH+10} color="#7C3AED" title="On-Premises" subtitle={prov==="azure"?"VPN / ExpressRoute":prov==="gcp"?"VPN / Interconnect":"VPN / DX / ER"}
-          icon={<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4"/>}/>}
-
-        {/* ─── Edge Devices ─── */}
-        {(()=>{
-          const nodes=[];
-          edges.forEach((e,ei)=>{
-            const ey=edgeStartY+ei*(EH+8),ec=ECC[e.type]||"#F97316";
-            // Render edge card
-            nodes.push(<g key={`eb-${e.name}`}>
-              <rect x={eX} y={ey} width={EW} height={EH} rx={6} fill={D.card} stroke={D.cardBd} strokeWidth="1" style={{filter:`drop-shadow(0 1px 3px ${D.shadow})`}}/>
-              <rect x={eX} y={ey} width={EW} height={3} rx={1.5} fill={ec}/>
-              <Ico d={IC.edge} x={eX+14} y={ey+EH/2} sz={12} c={ec}/>
-              <text x={eX+26} y={ey+16} fill={D.text} fontSize="8.5" fontWeight="700">{tr(e.name,18)}</text>
-              <text x={eX+26} y={ey+28} fill={D.dim} fontSize="6.5">{e.type}{e.ha?" · HA":""}{e.size?` · ${e.size}`:""}</text>
-              <text x={eX+26} y={ey+38} fill={D.dim} fontSize="6" opacity="0.6">{tr(e.location||"",26)}</text>
-            </g>);
-            // Draw connection to each matched transit (can be multiple)
-            const targets=matchTransits(e.connected_transit);
-            targets.forEach((tv,ti)=>{
-              const tp=vP[tv.name];
-              if(tp){
-                const yOff=targets.length>1?(ti-(targets.length-1)/2)*8:0;
-                nodes.push(<Conn key={`ea-${e.name}-${tv.name}`} x1={eX} y1={ey+EH/2} x2={tp.x+VW} y2={tp.y+vH(tv)/2+yOff} color="#F97316" label="Edge Attachment" dashed/>);
-              }
-            });
-          });
-          return nodes;
-        })()}
-
-        {/* ─── VPC Boxes ─── */}
-        {hV.map(v=><VBox key={v.name} v={v}/>)}
-        {sV.map(v=><VBox key={v.name} v={v}/>)}
-
-        {/* ─── Connections ─── */}
-        {/* Internet → transit(s) that have egress/internet evidence */}
-        {hasInet&&(()=>{
-          // Connect internet to first transit (egress is typically on primary transit)
-          if(!fhp)return null;
-          return<Conn x1={iX+CW} y1={TH+10+CH/2} x2={fhp.x} y2={fhp.y+vH(hV[0])/2} color="#0891B2" label="Internet Gateway" dashed/>;
-        })()}
-        {/* On-Prem → transit(s) with external connections, using local_gw to match */}
-        {hasOnPrem&&(()=>{
-          // Find which transits have external connections via local_gw field
-          const extTransits=new Set();
-          extConns.forEach(ec=>{
-            if(ec.local_gw){
-              const matched=matchTransits(ec.local_gw);
-              matched.forEach(t=>extTransits.add(t.name));
-            }
-          });
-          // Also check edge devices
-          edges.forEach(e=>{
-            if(e.connected_transit){
-              matchTransits(e.connected_transit).forEach(t=>extTransits.add(t.name));
-            }
-          });
-          // Derive connection label per transit based on provider/name/type
-          const connLabel=tv=>{
-            const n=tv.name.toLowerCase();
-            // Check external_connections for this transit's type
-            const ec=extConns.find(c=>c.local_gw&&n.includes(c.local_gw.toLowerCase())||c.local_gw&&c.local_gw.toLowerCase().includes(n.replace(/-/g,"")));
-            const tp=ec?.tunnel_protocol||ec?.type||"";
-            if(/expressroute|er\b/i.test(tp+n))return"ExpressRoute";
-            if(/direct.connect|dx/i.test(tp+n))return"Direct Connect";
-            if(n.includes("azure"))return"VPN / ER";
-            if(n.includes("aws"))return"VPN / DX";
-            if(n.includes("gcp"))return"VPN / Interconnect";
-            return"VPN";
-          };
-          // If we found specific transits, connect to those; otherwise fallback to all transits
-          const targets=extTransits.size>0?hV.filter(v=>extTransits.has(v.name)):hV;
-          return targets.map((tv,ti)=>{
-            const tp=vP[tv.name];if(!tp)return null;
-            const yOff=targets.length>1?(ti-(targets.length-1)/2)*10:0;
-            return<Conn key={`op-${tv.name}`} x1={oX} y1={TH+10+CH/2+yOff} x2={tp.x+VW} y2={tp.y+vH(tv)/2} color="#7C3AED" label={connLabel(tv)} dashed/>;
-          });
-        })()}
-        {/* Spoke → Transit = "Spoke Attachment" (use connected_transit data, fallback to nearest) */}
-        {sV.map(v=>{
-          const sp=vP[v.name];if(!sp||hV.length===0)return null;
-          // Use connected_transit field from AI analysis if available
-          const targets=v.connected_transit?matchTransits(v.connected_transit):[];
-          if(targets.length>0){
-            return targets.map(tv=>{const tp=vP[tv.name];if(!tp)return null;return<Conn key={`s-${v.name}-${tv.name}`} x1={tp.x+VW/2} y1={tp.y+vH(tv)} x2={sp.x+VW/2} y2={sp.y} color={PC} label="Spoke Attachment"/>;});
-          }
-          // Fallback: nearest transit by position
-          const nearest=hV.reduce((best,h)=>{const hp=vP[h.name];if(!hp)return best;const d=Math.abs((hp.x+VW/2)-(sp.x+VW/2));return(!best||d<best.d)?{h,hp,d}:best;},null);
-          if(!nearest)return null;
-          return<Conn key={`s-${v.name}`} x1={nearest.hp.x+VW/2} y1={nearest.hp.y+vH(nearest.h)} x2={sp.x+VW/2} y2={sp.y} color={PC} label="Spoke Attachment"/>;
-        })}
-        {/* Transit ↔ Transit = "Transit Peering" */}
-        {hV.slice(0,-1).map((v,i)=>{const a=vP[v.name],b=vP[hV[i+1].name];if(!a||!b)return null;return<Conn key={`hh-${i}`} x1={a.x+VW} y1={a.y+vH(v)/2} x2={b.x} y2={b.y+vH(hV[i+1])/2} color="#3B82F6" label="Transit Peering"/>;})}
-
-        {/* ─── Legend ─── */}
-        <g transform={`translate(${PAD},${svgH-LH+4})`}>
-          <line x1={-10} y1={-6} x2={cW-PAD*2+10} y2={-6} stroke={D.cardBd} strokeWidth="0.8"/>
-          {legend.map(({c,l},i)=>{const lx=i*90;return(<g key={l}>
-            <rect x={lx} y={2} width={8} height={8} rx={2} fill={c}/>
-            <text x={lx+12} y={9} fill={D.dim} fontSize="7.5" fontWeight="600">{l}</text>
-          </g>);})}
-        </g>
-      </svg>
-    </div>
-    {nd.routing&&<div className="mt-3 rounded-xl px-4 py-3 text-sm" style={{background:`${AV.or}08`,border:`1px solid ${AV.or}20`}}><span className="font-semibold" style={{color:AV.or}}>Routing: </span><span style={{color:AV.tm}}>{nd.routing}</span></div>}
-  </Sec>);
-}
-
-// ── DOCX Export ────────────────────────────────────────────────────────────
-function useDocx(){
-  useEffect(()=>{
-    if(window.docx)return;
-    const s=window.document.createElement("script");
-    s.src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js";
-    window.document.head.appendChild(s);
-  },[]);
-}
-
-function svgToPng(){
-  return new Promise((resolve)=>{
-    const svgEl=window.document.querySelector("[data-diagram-svg]");
-    if(!svgEl){resolve(null);return;}
-    const svgData=new XMLSerializer().serializeToString(svgEl);
-    const canvas=window.document.createElement("canvas");
-    const sc=2;
-    canvas.width=svgEl.width.baseVal.value*sc;
-    canvas.height=svgEl.height.baseVal.value*sc;
-    const ctx=canvas.getContext("2d");
-    const img=new Image();
-    img.onload=()=>{ctx.fillStyle="#050B15";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);canvas.toBlob(b=>{const r=new FileReader();r.onload=()=>resolve({buf:r.result,w:canvas.width,h:canvas.height});r.readAsArrayBuffer(b);},"image/png");};
-    img.onerror=()=>resolve(null);
-    img.src="data:image/svg+xml;base64,"+btoa(unescape(encodeURIComponent(svgData)));
-  });
-}
-
-function exportDocx(data,customerName){
-  return new Promise(async(resolve,reject)=>{
-    const D=window.docx;
-    if(!D){
-      const s=window.document.createElement("script");
-      s.src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js";
-      s.onload=()=>setTimeout(()=>exportDocx(data,customerName).then(resolve).catch(reject),400);
-      s.onerror=()=>reject(new Error("Failed to load DOCX library"));
-      window.document.head.appendChild(s);
-      return;
-    }
-    try{
-      const sf=v=>String(v||"—").slice(0,300);
-      const ph=(t,l=1)=>new D.Paragraph({text:sf(t),heading:l===1?D.HeadingLevel.HEADING_1:l===2?D.HeadingLevel.HEADING_2:D.HeadingLevel.HEADING_3,spacing:{before:200,after:100}});
-      const pp=t=>new D.Paragraph({children:[new D.TextRun({text:sf(t),size:22})],spacing:{after:120}});
-      const kv=(k,v)=>v&&v!=="—"?new D.Paragraph({children:[new D.TextRun({text:`${k}: `,bold:true,size:22}),new D.TextRun({text:sf(v),size:22})],spacing:{after:80}}):null;
-      const bl=t=>new D.Paragraph({children:[new D.TextRun({text:sf(t),size:22})],bullet:{level:0},spacing:{after:60}});
-      const dv=()=>new D.Paragraph({border:{bottom:{color:"FF6B35",size:4,space:1,style:"single"}},spacing:{after:160}});
-      const ch=[],add=item=>{if(item)ch.push(item);};
-
-      // Table helper
-      const HC="FF6B35",HBG="FFF3ED",BD="DDDDDD";
-      const hCell=t=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:sf(t),bold:true,size:18,color:"FFFFFF",font:"Calibri"})],spacing:{after:0}})],shading:{fill:HC},borders:{top:{style:"single",size:1,color:BD},bottom:{style:"single",size:1,color:BD},left:{style:"single",size:1,color:BD},right:{style:"single",size:1,color:BD}},margins:{top:60,bottom:60,left:80,right:80}});
-      const dCell=(t,opts={})=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:sf(t),size:18,bold:opts.bold||false,color:opts.color||"333333",font:opts.mono?"Courier New":"Calibri"})],spacing:{after:0}})],shading:opts.shade?{fill:HBG}:undefined,borders:{top:{style:"single",size:1,color:BD},bottom:{style:"single",size:1,color:BD},left:{style:"single",size:1,color:BD},right:{style:"single",size:1,color:BD}},margins:{top:50,bottom:50,left:80,right:80}});
-      const mkTable=(headers,rows,widths)=>new D.Table({
-        rows:[
-          new D.TableRow({children:headers.map(h=>hCell(h)),tableHeader:true}),
-          ...rows.map((r,ri)=>new D.TableRow({children:r.map((c,ci)=>dCell(c,{shade:ri%2===0,mono:ci===0}))}))
-        ],
-        width:{size:100,type:D.WidthType.PERCENTAGE},
-        columnWidths:widths||headers.map(()=>Math.floor(9000/headers.length)),
-      });
-
-      // ── Title ──
-      ch.push(new D.Paragraph({children:[new D.TextRun({text:data.title||"Infrastructure Design Document",bold:true,size:48,color:"FF6B35"})],spacing:{after:160}}));
-      if(customerName)add(kv("Customer",customerName));
-      add(kv("Version",data.version||"1.0")); add(kv("Date",new Date().toLocaleDateString("en-CA"))); add(kv("Provider",(data.provider||"").toUpperCase())); ch.push(dv());
-
-      // ── 1. Executive Summary ──
-      ch.push(ph("1. Executive Summary")); ch.push(pp(data.executive_summary)); ch.push(dv());
-
-      // ── 2. Architecture Overview ──
-      const ao=data.architecture_overview||{};
-      ch.push(ph("2. Architecture Overview")); ch.push(pp(ao.description)); add(kv("Pattern",ao.pattern)); if(ao.regions?.length)add(kv("Regions",ao.regions.join(", ")));
-
-      // Diagram image
-      const diag=await svgToPng();
-      if(diag){
-        ch.push(new D.Paragraph({spacing:{before:200,after:200},children:[new D.ImageRun({data:diag.buf,transformation:{width:Math.min(620,diag.w/2),height:Math.min(400,diag.h/2)},type:"png"})]}));
-      }
-      ch.push(dv());
-
-      // ── 3. Network Design ──
-      const nd=data.network_design||{};
-      ch.push(ph("3. Network Design")); if(nd.description)ch.push(pp(nd.description));
-
-      // VPCs table
-      if(nd.vpcs?.length){
-        ch.push(ph("3.1 VPCs / VNets",2));
-        ch.push(mkTable(
-          ["Name","CIDR","Type","Gateway Size","Purpose"],
-          nd.vpcs.map(v=>[v.name,v.cidr||"—",v.type||"—",v.gw_size||"—",v.purpose||"—"]),
-          [2000,1500,1200,1800,2500]
-        ));
-      }
-
-      // Subnets table
-      if(nd.subnets?.length){
-        ch.push(ph("3.2 Subnets",2));
-        ch.push(mkTable(
-          ["Name","CIDR","AZ","Purpose"],
-          nd.subnets.map(s=>[s.name,s.cidr||"—",s.az||"—",s.purpose||"—"]),
-          [2500,2000,1500,3000]
-        ));
-      }
-
-      if(nd.routing){ch.push(ph("Routing",2));ch.push(pp(nd.routing));}
-      if(nd.network_domains){ch.push(ph("Network Domains",2));ch.push(pp(nd.network_domains));}
-      if(nd.connectivity){ch.push(ph("Connectivity",2));ch.push(pp(nd.connectivity));}
-      ch.push(dv());
-
-      // ── 4. Security ──
-      const sec=data.security||{},fw=data.firewall_detail||{},dcf=data.dcf||{};
-      ch.push(ph("4. Security Design")); if(sec.description)ch.push(pp(sec.description));
-      if(fw.present){
-        ch.push(ph("4.1 Firewall",2));
-        ch.push(new D.Paragraph({children:[new D.TextRun({text:`${fw.vendor||"Firewall"} — ${fw.product||""}`,bold:true,size:24,color:"FF6B35"})],spacing:{after:80}}));
-        const fwRows=[["Instance Size",fw.instance_size||fw.fw_size],["vCPUs",fw.vcpus],["Memory",fw.memory_gb?fw.memory_gb+" GB":null],["License Model",fw.license_model],["License Type",fw.license_type],["HA Mode",fw.ha_mode],["HA Instances",fw.ha_instances?String(fw.ha_instances):null],["Deployment",fw.deployment_mode],["Interfaces",fw.interfaces?.join(", ")],["Version",fw.version&&fw.version!=="unknown"?fw.version:null]].filter(([,v])=>v&&v!=="unknown"&&v!=="none");
-        if(fwRows.length){
-          ch.push(mkTable(["Property","Value"],fwRows,[3500,5500]));
-        }
-        if(fw.notes&&fw.notes!=="none")ch.push(pp(fw.notes));
-      } else {ch.push(ph("4.1 Firewall",2));ch.push(pp(sec.firewall||"No dedicated firewall deployed."));}
-      if(sec.encryption){ch.push(ph("4.2 Encryption",2));ch.push(pp(sec.encryption));}
-      if(sec.access_control){ch.push(ph("4.3 Access Control",2));ch.push(pp(sec.access_control));}
-      if(sec.inspection){ch.push(ph("4.4 Traffic Inspection",2));ch.push(pp(sec.inspection));}
-
-      // DCF
-      if(dcf.enabled){
-        ch.push(ph("4.5 DCF Policies",2)); if(dcf.summary)ch.push(pp(dcf.summary));
-        add(kv("Default Action",(dcf.default_action||"").toUpperCase())); add(kv("Egress",dcf.egress_enabled?"Enabled":"Disabled"));
-        if(dcf.smart_groups?.length){
-          ch.push(ph("SmartGroups",3));
-          ch.push(mkTable(["Name","Filter Type","Members"],dcf.smart_groups.map(sg=>[sg.name,sg.filter_type||"—",(sg.members||[]).slice(0,6).join(", ")||"—"]),[2500,2000,4500]));
-        }
-        (dcf.rulesets||[]).forEach(rs=>{
-          ch.push(ph(`Ruleset: ${rs.name||"Unnamed"}`,3));
-          if(rs.rules?.length){
-            ch.push(mkTable(["#","Name","Source","Destination","Proto","Port","Action"],rs.rules.map((r,i)=>[String(r.priority??i+1),r.name||"—",r.src||"Any",r.dst||"Any",r.protocol||"Any",r.port||"Any",(r.action||"—").toUpperCase()]),[600,1500,1500,1500,1000,1000,900]));
-          }
-        });
-      }
-      ch.push(dv());
-
-      // ── 5. Edge Devices ──
-      const edArr=data.edge_devices||[];
-      if(edArr.length){
-        ch.push(ph("5. Edge Devices"));
-        ch.push(mkTable(["Name","Type","Location","Size","HA","Connected Transit","BGP ASN"],edArr.map(e=>[e.name,e.type||"—",e.location||"—",e.size||"—",e.ha?"Yes":"No",e.connected_transit||"—",e.bgp_asn||"—"]),[1800,1200,1200,1200,600,1500,1000]));
-        ch.push(dv());
-      }
-
-      // ── 6. External Connections ──
-      const extArr=data.external_connections||[];
-      if(extArr.length){
-        ch.push(ph("6. External Connections"));
-        ch.push(mkTable(["Name","Type","Local GW","Remote IP","Tunnel","BGP ASN"],extArr.map(c=>[c.name,c.type||"—",c.local_gw||"—",c.remote_ip||"—",c.tunnel_protocol||"—",c.bgp_asn||"—"]),[2000,1000,1500,1500,1500,1000]));
-        ch.push(dv());
-      }
-
-      // ── 7. Components ──
-      ch.push(ph("7. Components"));
-      if((data.components||[]).length){
-        ch.push(mkTable(["Name","Type","Category","Purpose","Config"],
-          (data.components||[]).map(c=>[c.name,c.type||"—",c.category||"—",c.purpose||"—",c.configuration||"—"]),
-          [2000,1500,1200,2500,1800]));
-      }
-      ch.push(dv());
-
-      // ── 8. Data Flows ──
-      ch.push(ph("8. Data Flows"));
-      (data.data_flows||[]).forEach(f=>{ch.push(ph(f.name,2));ch.push(pp(f.description));if(f.path?.length)ch.push(bl(f.path.join(" → ")));});
-      ch.push(dv());
-
-      // ── 9. Variables ──
-      if((data.variables_and_parameters||[]).length){
-        ch.push(ph("9. Variables"));
-        ch.push(mkTable(["Name","Type/Value","Required","Purpose"],
-          data.variables_and_parameters.map(v=>[v.name,v.value_or_type||"—",v.required?"Yes":"No",v.purpose||"—"]),
-          [2500,2000,1000,3500]));
-        ch.push(dv());
-      }
-
-      // ── 10. Outputs ──
-      if((data.outputs||[]).length){
-        ch.push(ph("10. Outputs"));
-        ch.push(mkTable(["Name","Description","Consumed By"],
-          data.outputs.map(o=>[o.name,o.description||"—",o.consumed_by||"—"]),
-          [3000,4000,2000]));
-        ch.push(dv());
-      }
-
-      // ── 11. Modules ──
-      if((data.modules_used||[]).length){
-        ch.push(ph("11. Modules"));
-        ch.push(mkTable(["Name","Source","Version","Purpose"],
-          data.modules_used.map(m=>[m.name,m.source||"—",m.version||"—",m.purpose||"—"]),
-          [2000,3000,1000,3000]));
-        ch.push(dv());
-      }
-
-      // ── 12. Deployment Notes ──
-      ch.push(ph("12. Deployment Notes")); ch.push(pp(data.deployment_notes));
-      if(data.provider_context)ch.push(pp(data.provider_context));
-      if(data.firewall_context)ch.push(pp(data.firewall_context));
-
-      const docxFile=new D.Document({
-        creator:"Terraform Design Doc Generator",title:data.title||"IDD",
-        sections:[{properties:{page:{margin:{top:1080,right:1080,bottom:1080,left:1080}}},children:ch.filter(Boolean)}],
-        styles:{default:{document:{run:{font:"Calibri",size:22,color:"222222"}},heading1:{run:{font:"Calibri",size:32,bold:true,color:"FF6B35"}},heading2:{run:{font:"Calibri",size:26,bold:true,color:"1A2240"}},heading3:{run:{font:"Calibri",size:22,bold:true,color:"4A5A7A"}}}},
-      });
-
-      D.Packer.toBlob(docxFile).then(blob=>{
-        const url=URL.createObjectURL(blob);
-        const a=window.document.createElement("a");
-        a.href=url; a.download=`${(data.title||"design-document").replace(/[^a-z0-9]+/gi,"-").toLowerCase()}.docx`; a.style.display="none";
-        window.document.body.appendChild(a); a.click();
-        setTimeout(()=>{window.document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-        resolve();
-      }).catch(reject);
-    }catch(e){reject(e);}
-  });
-}
 
 // ── Mermaid Diagram ───────────────────────────────────────────────────────
 const initMermaid=(dark=true)=>{
@@ -1048,161 +346,147 @@ function useMermaid(){
   },[]);
 }
 
-function buildMermaid(doc:any,dark=true){
-  const nd=doc.network_design||{},vpcs:any[]=nd.vpcs||[];
+// ── Mermaid diagram builder ────────────────────────────────────────────────
+function buildMermaid(doc:any,dark=true):string{
+  const nd=doc.network_design||{};
+  const vpcs:any[]=nd.vpcs||[];
   const fw=doc.firewall_detail||{};
+  const dcf=doc.dcf||{};
   const edges:any[]=doc.edge_devices||[];
   const extConns:any[]=doc.external_connections||[];
-  const dcf=doc.dcf||{};
+  const prov=doc.provider||"aws";
+
   const hubs=vpcs.filter((v:any)=>v.type==="transit");
   const spokes=vpcs.filter((v:any)=>v.type==="spoke");
-  const standalone=vpcs.filter((v:any)=>v.type!=="transit"&&v.type!=="spoke");
-  const sid=(s:string)=>"n_"+s.replace(/[^a-zA-Z0-9]/g,"_");
-  const connType=doc.provider==="azure"?"ExpressRoute":doc.provider==="gcp"?"Interconnect":"Direct Connect";
-  const vpcLabel=doc.provider==="azure"?"VNet":"VPC";
-  const L=[];
+  const mgmt=vpcs.filter((v:any)=>v.type==="mgmt"||v.type==="shared");
+  const standalone=vpcs.filter((v:any)=>v.type==="unknown"&&v.name);
+  const vpcLabel=prov==="azure"?"VNet":"VPC";
+  const connLabel=prov==="azure"?"ExpressRoute":prov==="gcp"?"Interconnect":"Direct Connect";
 
-  // LR layout: OnPrem/Internet → Transits → Spokes
+  // Safe Mermaid node id
+  const sid=(s:string)=>"n_"+s.replace(/[^a-zA-Z0-9]/g,"_");
+  const L:string[]=[];
+
   L.push("flowchart LR");
 
-  // Left column: external endpoints
-  const hasInet=vpcs.some((v:any)=>v.type==="transit")||hubs.length>0;
+  // ── Left: external endpoints ──────────────────────────────────────────────
+  const hasInet=hubs.length>0;
   const hasOnPrem=extConns.length>0||edges.length>0;
 
+  if(hasInet) L.push(`  INET(["🌐 Internet"])`)
   if(hasOnPrem){
-    L.push(`  subgraph EXT_GRP["On-Premises"]`);
-    if(edges.length){
-      edges.forEach((e:any)=>{
-        const eid=sid("edge_"+e.name);
-        const loc=e.location?` | ${e.location}`:"";
-        L.push(`    ${eid}["${e.name}${loc}\\n${e.type||'Edge'}${e.ha?" HA":""}"]`);
-      });
-    }
+    L.push(`  subgraph EXT["On-Premises / Edge"]`);
+    edges.forEach((e:any)=>{
+      const ha=e.ha?" HA":"";
+      L.push(`    ${sid("edge_"+e.name)}["⚡ ${e.name}\\n${e.type||"edge"}${ha}${e.location?`\\n${e.location}`:""}"]`);
+    });
     extConns.forEach((c:any)=>{
       if(!c.name)return;
-      const cid=sid("ext_"+c.name);
       const asn=c.bgp_asn?` ASN ${c.bgp_asn}`:"";
-      L.push(`    ${cid}["${c.name}\\n${c.type||'BGP'}${asn}"]`);
+      L.push(`    ${sid("ext_"+c.name)}["🔗 ${c.name}\\n${c.type||"BGP"}${asn}"]`);
     });
-    if(!edges.length&&!extConns.length) L.push(`    ONPREM_NODE["Corporate Network"]`);
+    if(!edges.length&&!extConns.length) L.push(`    ONPREM["🏢 Corporate Network"]`);
     L.push("  end");
   }
-  if(hasInet) L.push(`  INET(("Internet"))`);
 
-  // Middle column: transit VPCs
+  // ── Middle: transit layer ─────────────────────────────────────────────────
   if(hubs.length){
-    L.push(`  subgraph TRANSIT_GRP["Transit Layer"]`);
+    L.push(`  subgraph TRANSIT["Transit Layer"]`);
     hubs.forEach((v:any)=>{
       const id=sid(v.name);
-      const sz=v.gw_size?` | ${v.gw_size}`:"";
-      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel}: ${v.cidr||'—'}"]`);
-      L.push(`      ${id}_gw["Transit GW${sz}"]`);
+      const sz=v.gw_size?v.gw_size:"default";
+      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel} ${v.cidr||"—"}"]`);
+      L.push(`      ${id}_gw["🔷 Transit GW\\n${sz}"]`);
       if(v.firenet===true&&fw.present){
         const fwV=fw.vendor||"NGFW";
-        const fwSz=fw.instance_size?` | ${fw.instance_size}`:"";
-        const fwHA=fw.ha_mode&&fw.ha_mode!=="unknown"?` (${fw.ha_mode})`:"";
-        L.push(`      ${id}_fw["FireNet: ${fwV}${fwHA}${fwSz}"]`);
+        const fwSz=fw.instance_size?` ${fw.instance_size}`:"";
+        const fwHA=fw.ha_mode==="active-active"?" AA":fw.ha_mode==="active-passive"?" AP":"";
+        L.push(`      ${id}_fw["🔥 FireNet\\n${fwV}${fwSz}${fwHA}"]`);
         L.push(`      ${id}_gw --> ${id}_fw`);
       }
-      if(dcf.enabled) L.push(`      ${id}_dcf["DCF Policy\\n${dcf.default_action||'deny'}"]`);
+      if(dcf.enabled){
+        const act=dcf.default_action||"deny";
+        L.push(`      ${id}_dcf{{"🛡 DCF\\n${act}"}}`);
+      }
       L.push("    end");
     });
     L.push("  end");
   }
 
-  // Right column: spoke VPCs
-  if(spokes.length){
-    L.push(`  subgraph SPOKE_GRP["Spoke Layer"]`);
+  // ── Right: spoke + mgmt layers ────────────────────────────────────────────
+  if(spokes.length||mgmt.length){
+    L.push(`  subgraph WORKLOAD["Workload Layer"]`);
     spokes.forEach((v:any)=>{
       const id=sid(v.name);
-      const sz=v.gw_size?` | ${v.gw_size}`:"";
-      L.push(`    subgraph ${id}["${v.name}\\n${vpcLabel}: ${v.cidr||'—'}"]`);
-      L.push(`      ${id}_gw["Spoke GW${sz}"]`);
-      L.push("    end");
+      const sz=v.gw_size?`\\n${v.gw_size}`:"";
+      L.push(`    ${id}["📦 ${v.name}\\n${v.cidr||"—"}${sz}"]`);
+    });
+    mgmt.forEach((v:any)=>{
+      const id=sid(v.name);
+      L.push(`    ${id}["⚙ ${v.name}\\n${v.cidr||"—"}"]`);
     });
     L.push("  end");
   }
 
-  // Standalone VPCs (no gateway)
   if(standalone.length){
-    L.push(`  subgraph STANDALONE_GRP["Standalone VPCs"]`);
-    standalone.forEach((v:any)=>{
-      L.push(`    ${sid(v.name)}["${v.name}\\n${v.cidr||'—'}"]`);
-    });
+    L.push(`  subgraph STANDALONE["Standalone"]`);
+    standalone.forEach((v:any)=>L.push(`    ${sid(v.name)}["${v.name}\\n${v.cidr||"—"}"]`));
     L.push("  end");
   }
 
-  // ── Connections ──
+  // ── Connections ────────────────────────────────────────────────────────────
   L.push("");
+  if(hasInet&&hubs[0]) L.push(`  INET -.->|"public"| ${sid(hubs[0].name)}_gw`);
 
-  // Internet → first transit
-  if(hasInet&&hubs[0]) L.push(`  INET -.->|"Public"| ${sid(hubs[0].name)}_gw`);
+  const findHub=(name:string)=>hubs.find((h:any)=>name&&h.name.toLowerCase().includes(name.toLowerCase()))||hubs[hubs.length-1];
 
-  // OnPrem → transits
-  if(hasOnPrem&&hubs.length){
-    const findTarget=(localGw:string)=>{
-      if(!localGw)return hubs[hubs.length-1];
-      return hubs.find((h:any)=>h.name.toLowerCase().includes(localGw.toLowerCase()))||hubs[hubs.length-1];
-    };
-    const linked=new Set();
-    extConns.forEach((c:any)=>{
-      if(!c.name)return;
-      const cid=sid("ext_"+c.name);
-      const hub=findTarget(c.local_gw);
-      L.push(`  ${cid} -.->|"${c.type||connType}"| ${sid(hub.name)}_gw`);
-      linked.add(hub.name);
-    });
-    edges.forEach((e:any)=>{
-      const eid=sid("edge_"+e.name);
-      const hub=findTarget(e.connected_transit);
-      L.push(`  ${eid} -.->|"Edge"| ${sid(hub.name)}_gw`);
-      linked.add(hub.name);
-    });
-    // If no specific links, connect generic on-prem node
-    if(!extConns.length&&!edges.length)
-      L.push(`  ONPREM_NODE -.->|"${connType}"| ${sid(hubs[hubs.length-1].name)}_gw`);
-  }
+  extConns.forEach((c:any)=>{
+    if(!c.name)return;
+    const hub=findHub(c.local_gw);
+    if(hub) L.push(`  ${sid("ext_"+c.name)} -.->|"${c.type||connLabel}"| ${sid(hub.name)}_gw`);
+  });
+  edges.forEach((e:any)=>{
+    const hub=findHub(e.connected_transit)||hubs[0];
+    if(hub) L.push(`  ${sid("edge_"+e.name)} -.->|"edge"| ${sid(hub.name)}_gw`);
+  });
+  if(hasOnPrem&&!extConns.length&&!edges.length&&hubs.length)
+    L.push(`  ONPREM -.->|"${connLabel}"| ${sid(hubs[hubs.length-1].name)}_gw`);
 
-  // Transit ↔ Transit peering
-  for(let i=0;i<hubs.length-1;i++){
-    L.push(`  ${sid(hubs[i].name)}_gw <-->|"Transit Peering"| ${sid(hubs[i+1].name)}_gw`);
-  }
+  for(let i=0;i<hubs.length-1;i++)
+    L.push(`  ${sid(hubs[i].name)}_gw <-->|"transit peering"| ${sid(hubs[i+1].name)}_gw`);
 
-  // Spoke → Transit
-  spokes.forEach((sv:any)=>{
-    const tgt=sv.connected_transit?hubs.find((h:any)=>h.name===sv.connected_transit)||hubs[0]:hubs[0];
-    if(tgt) L.push(`  ${sid(tgt.name)}_gw -->|"Spoke"| ${sid(sv.name)}_gw`);
+  [...spokes,...mgmt].forEach((v:any)=>{
+    const tgt=v.connected_transit?hubs.find((h:any)=>h.name===v.connected_transit)||hubs[0]:hubs[0];
+    if(tgt) L.push(`  ${sid(tgt.name)}_gw -->|"spoke"| ${sid(v.name)}`);
   });
 
-  // ── Styles ──
+  // ── Styles ──────────────────────────────────────────────────────────────────
   L.push("");
   if(dark){
-    L.push("  classDef transitGw fill:#1E3A5F,stroke:#3B82F6,color:#BAE6FD,stroke-width:2px");
-    L.push("  classDef spokeGw fill:#1A2240,stroke:#FF6B35,color:#FED7AA,stroke-width:1px");
-    L.push("  classDef fwNode fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
-    L.push("  classDef extNode fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:1px");
-    L.push("  classDef inetNode fill:#1A0F2E,stroke:#6366F1,color:#A5B4FC,stroke-width:2px");
-    L.push("  classDef dcfNode fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
-    L.push("  classDef standalone fill:#0F1628,stroke:#475569,color:#94A3B8,stroke-width:1px");
+    L.push("  classDef tgw fill:#1E3A5F,stroke:#3B82F6,color:#BAE6FD,stroke-width:2px");
+    L.push("  classDef fw fill:#3D1A1A,stroke:#EC4899,color:#FCA5A5,stroke-width:2px");
+    L.push("  classDef dcf fill:#1A1A2E,stroke:#A855F7,color:#D8B4FE,stroke-width:1px");
+    L.push("  classDef spoke fill:#1A2240,stroke:#FF6B35,color:#FED7AA,stroke-width:1px");
+    L.push("  classDef ext fill:#0F1628,stroke:#0891B2,color:#67E8F9,stroke-width:1px");
+    L.push("  classDef inet fill:#1A0F2E,stroke:#6366F1,color:#A5B4FC,stroke-width:2px");
   }else{
-    L.push("  classDef transitGw fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
-    L.push("  classDef spokeGw fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
-    L.push("  classDef fwNode fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
-    L.push("  classDef extNode fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:1px");
-    L.push("  classDef inetNode fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:2px");
-    L.push("  classDef dcfNode fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
-    L.push("  classDef standalone fill:#F8FAFC,stroke:#94A3B8,color:#475569,stroke-width:1px");
+    L.push("  classDef tgw fill:#DBEAFE,stroke:#2563EB,color:#1E3A5F,stroke-width:2px");
+    L.push("  classDef fw fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px");
+    L.push("  classDef dcf fill:#F5F3FF,stroke:#7C3AED,color:#5B21B6,stroke-width:1px");
+    L.push("  classDef spoke fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1px");
+    L.push("  classDef ext fill:#ECFEFF,stroke:#0891B2,color:#155E75,stroke-width:1px");
+    L.push("  classDef inet fill:#EEF2FF,stroke:#4F46E5,color:#3730A3,stroke-width:2px");
   }
+
   hubs.forEach((v:any)=>{
-    L.push(`  class ${sid(v.name)}_gw transitGw`);
-    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fwNode`);
-    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcfNode`);
+    L.push(`  class ${sid(v.name)}_gw tgw`);
+    if(v.firenet===true&&fw.present) L.push(`  class ${sid(v.name)}_fw fw`);
+    if(dcf.enabled) L.push(`  class ${sid(v.name)}_dcf dcf`);
   });
-  spokes.forEach((v:any)=>L.push(`  class ${sid(v.name)}_gw spokeGw`));
-  standalone.forEach((v:any)=>L.push(`  class ${sid(v.name)} standalone`));
-  extConns.forEach((c:any)=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} extNode`);});
-  edges.forEach((e:any)=>L.push(`  class ${sid("edge_"+e.name)} extNode`));
-  if(hasInet) L.push("  class INET inetNode");
+  [...spokes,...mgmt].forEach((v:any)=>L.push(`  class ${sid(v.name)} spoke`));
+  extConns.forEach((c:any)=>{if(c.name)L.push(`  class ${sid("ext_"+c.name)} ext`);});
+  edges.forEach((e:any)=>L.push(`  class ${sid("edge_"+e.name)} ext`));
+  if(hasInet) L.push("  class INET inet");
 
   return L.join("\n");
 }
@@ -1218,10 +502,28 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
-  const [diagMode,setDiagMode]=useState("svg");
   const [mmSvg,setMmSvg]=useState("");
-  const [mmErr,setMmErr]=useState(null);
+  const [mmErr,setMmErr]=useState<string|null>(null);
   const mmRef=useRef(null);
+  const diagMode="mermaid";
+
+  const renderMermaid=useCallback(()=>{
+    const code=buildMermaid(doc,dark);
+    initMermaid(dark);
+    const tryRender=()=>{
+      if(!window.mermaid){setTimeout(tryRender,300);return;}
+      window.mermaid.render("mm-"+Date.now(),code)
+        .then(({svg}:any)=>setMmSvg(svg))
+        .catch((e:any)=>setMmErr(e.message||"Mermaid render failed"));
+    };
+    tryRender();
+  },[doc,dark]);
+
+  // Auto-render when diagram tab is active or dark mode changes
+  useEffect(()=>{
+    if(tab==="diagram"){setMmSvg("");setMmErr(null);renderMermaid();}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[tab,dark]);
   const tabs=[{id:"overview",l:"Overview"},{id:"network",l:"Network"},{id:"security",l:"Security"},{id:"dcf",l:"DCF Policies"},{id:"edge",l:"Edge & Ext"},{id:"components",l:"Components"},{id:"diagram",l:"Diagram"},{id:"flows",l:"Data Flows"},{id:"variables",l:"Variables"}];
   const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
@@ -1386,62 +688,24 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
       {/* Always render diagram so SVG is in DOM for DOCX export */}
       <div style={tab==="diagram"?{}:{position:"absolute",left:"-9999px",top:0,opacity:0,pointerEvents:"none"}}>
         {tab==="diagram"&&<>
-          <TabIntro text="Visual network topology showing transit gateways, spoke VPCs, firewall and DCF placement, edge device connections, and internet/on-prem connectivity paths."/>
-          {/* Diagram mode toggle */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
-              <button onClick={()=>setDiagMode("svg")} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="svg"?{background:`${AV.or}18`,color:AV.or,borderRight:`1px solid ${AV.nb}`}:{background:AV.nl,color:AV.tm,borderRight:`1px solid ${AV.nb}`}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-                SVG Diagram
-              </button>
-              <button onClick={()=>{
-                setDiagMode("mermaid");
-                if(!mmSvg&&!mmErr){
-                  initMermaid(dark);const code=buildMermaid(doc,dark);
-                  const tryRender=()=>{
-                    if(!window.mermaid){setTimeout(tryRender,300);return;}
-                    window.mermaid.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
-                  };
-                  tryRender();
-                }
-              }} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all" style={diagMode==="mermaid"?{background:"#22C55E18",color:"#4ADE80",borderRight:`1px solid ${AV.nb}`}:{background:AV.nl,color:AV.tm,borderRight:`1px solid ${AV.nb}`}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Mermaid
-              </button>
-            </div>
-          </div>
+          <TabIntro text="Network topology diagram — transit gateways, spoke VPCs, firewall placement, DCF, edge devices, and external connectivity."/>
         </>}
-        {/* SVG diagram — always rendered for DOCX export, hidden when other mode active */}
-        <div style={diagMode!=="svg"&&tab==="diagram"?{display:"none"}:{}}>
-          <Diagram doc={doc} dark={dark}/>
-        </div>
-        {/* Mermaid view */}
-        {tab==="diagram"&&diagMode==="mermaid"&&<div>
+        {/* Mermaid diagram — auto-renders on tab open, re-renders on dark/light toggle */}
+        {tab==="diagram"&&<div>
           {!mmSvg&&!mmErr&&<div className="rounded-xl p-12 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
             <svg className="animate-spin w-8 h-8 mx-auto mb-4" style={{color:"#22C55E"}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
             <p className="font-semibold" style={{color:AV.tp}}>Rendering Mermaid diagram...</p>
           </div>}
-          {mmErr&&<div className="rounded-xl p-6" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
-            <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}>{mmErr}</div>
-            <button onClick={()=>{
-              setMmSvg("");setMmErr(null);
-              initMermaid(dark);const code=buildMermaid(doc,dark);
-              window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
-            }} className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white" style={{background:"#22C55E"}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Retry
-            </button>
+          {mmErr&&<div className="rounded-xl p-5" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <p className="text-sm mb-3" style={{color:"#F9A8D4"}}>{mmErr}</p>
+            <button onClick={()=>{setMmSvg("");setMmErr(null);renderMermaid();}} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white" style={{background:"#22C55E"}}>Retry</button>
           </div>}
           {mmSvg&&<div>
             <div className="rounded-xl overflow-auto p-4" style={{background:dark?"#0D1117":"#FAFBFC",border:`1px solid ${AV.nb}`}} ref={mmRef} dangerouslySetInnerHTML={{__html:mmSvg}}/>
-            <div className="flex items-center justify-between mt-3">
-              <p className="text-xs" style={{color:AV.tm}}>Rendered with Mermaid.js — flowchart from IDD network data</p>
-              <button onClick={()=>{
-                setMmSvg("");setMmErr(null);
-                initMermaid(dark);const code=buildMermaid(doc,dark);
-                window.mermaid?.render("mm-"+Date.now(),code).then(({svg})=>setMmSvg(svg)).catch(e=>setMmErr(e.message||"Mermaid render failed"));
-              }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs" style={{color:AV.td}}>Mermaid.js · auto-updates on theme change</p>
+              <button onClick={()=>{setMmSvg("");setMmErr(null);renderMermaid();}} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 Regenerate
               </button>
             </div>
@@ -1574,6 +838,8 @@ export default function App(){
   const [registryDefaults,setRegistryDefaults]=useState<string>("");
   const [explanation,setExplanation]=useState<string>("");
   const [explaining,setExplaining]=useState(false);
+  const [validation,setValidation]=useState<any>(null);
+  const [validating,setValidating]=useState(false);
   const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   AV=dark?DARK:LIGHT;
@@ -1759,6 +1025,24 @@ export default function App(){
     setExplaining(false);
   };
 
+  const validate=async()=>{
+    if(!activeProfile||!files.length)return;
+    setValidating(true);setValidation(null);setError(null);
+    try{
+      const varMap=new Map<string,string>();
+      files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
+      const resolved=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
+      const{map:redMap}=buildRedactionMap(resolved.map(f=>f.content).join("\n"),custName);
+      const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      const safe=redactText(combined,redMap);
+      const r=await fetch("/api/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,secretKey:activeProfile.secretKey||undefined,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Validate this Terraform code:\n\n${safe}`})});
+      const d=await r.json();
+      if(!r.ok||d.error){setError("Validate failed: "+(d.error||r.status));}
+      else setValidation(d);
+    }catch(e:any){setError("Validate error: "+e.message);}
+    setValidating(false);
+  };
+
   const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
 
   return(
@@ -1837,11 +1121,46 @@ export default function App(){
                 {loading?<span className="flex items-center justify-center gap-3"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating…</span>:"Generate IDD ✦"}
               </button>
               <button onClick={explain} disabled={!files.length||explaining||loading||!activeProfile} className="px-5 py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp}}>
-                {explaining?<span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span>:"Explain Code"}
+                {explaining?<span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span>:"Explain"}
+              </button>
+              <button onClick={validate} disabled={!files.length||validating||loading||!activeProfile} className="px-5 py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp}}>
+                {validating?<span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span>:"Validate"}
               </button>
             </div>
 
             {/* Explanation panel */}
+            {/* Validation results */}
+            {validation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Validation Report</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:validation.score>=80?"#22C55E20":validation.score>=60?"#F59E0B20":"#EC489920",color:validation.score>=80?"#22C55E":validation.score>=60?"#F59E0B":"#EC4899"}}>Score {validation.score}/100</span>
+                </div>
+                <button onClick={()=>setValidation(null)} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
+              </div>
+              {validation.summary&&<div className="px-4 py-3 text-sm" style={{color:AV.tm,borderBottom:`1px solid ${AV.nb}`}}>{validation.summary}</div>}
+              <div className="divide-y" style={{borderColor:AV.nb,maxHeight:400,overflowY:"auto"}}>
+                {(validation.findings||[]).map((f:any,i:number)=>{
+                  const sc={error:{bg:"#EC489910",bd:"#EC489940",ic:"🔴",tx:"#F9A8D4"},warning:{bg:"#F59E0B10",bd:"#F59E0B40",ic:"🟡",tx:"#FCD34D"},info:{bg:"#3B82F610",bd:"#3B82F640",ic:"🔵",tx:"#93C5FD"}}[f.severity]||{bg:AV.nl,bd:AV.nb,ic:"ℹ",tx:AV.tm};
+                  return(<div key={i} className="px-4 py-3" style={{background:sc.bg,borderLeft:`3px solid`,borderLeftColor:sc.bd.replace("40","")}} >
+                    <div className="flex items-start gap-2">
+                      <span>{sc.ic}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className="text-xs font-bold" style={{color:sc.tx}}>{f.title}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-mono uppercase" style={{background:`${AV.tp}10`,color:AV.td}}>{f.category}</span>
+                          {f.resource&&<span className="text-xs font-mono" style={{color:AV.or}}>{f.resource}</span>}
+                        </div>
+                        <p className="text-xs mb-1" style={{color:AV.tm}}>{f.description}</p>
+                        {f.recommendation&&<p className="text-xs" style={{color:AV.td}}>→ {f.recommendation}</p>}
+                      </div>
+                    </div>
+                  </div>);
+                })}
+                {!validation.findings?.length&&<div className="px-4 py-6 text-center text-sm" style={{color:"#22C55E"}}>✓ No issues found</div>}
+              </div>
+            </div>}
+
             {explanation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
               <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Code Explanation</span>
