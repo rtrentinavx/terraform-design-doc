@@ -58,29 +58,6 @@ FIREWALL VENDOR DETECTION: "check point" → Check Point, "palo" → Palo Alto N
 FIREWALL IMAGE STRINGS: "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1" → PAYG Bundle 1; "(BYOL)" → BYOL; "Fortinet FortiGate Next-Generation Firewall" → PAYG
 FALLBACK: If firewall vendor cannot be resolved → vendor="unknown", product="unknown". NEVER fabricate. Add caveat.
 
-COMPONENTS — MANDATORY: Populate components[] with EVERY meaningful resource found. Create one entry per resource block or module. Never leave components[] empty if there are resources.
-Category mapping:
-  compute: aws_instance, azurerm_virtual_machine, google_compute_instance, aws_lambda_function, aws_ecs_service, aws_eks_cluster, aws_autoscaling_group
-  network: aws_vpc, aws_subnet, aws_security_group, aws_route_table, aws_internet_gateway, aws_nat_gateway, aws_lb, aws_elb, aws_vpc_endpoint, azurerm_virtual_network, azurerm_subnet, google_compute_network
-  storage: aws_s3_bucket, aws_efs_file_system, azurerm_storage_account, google_storage_bucket
-  database: aws_db_instance, aws_rds_cluster, aws_dynamodb_table, azurerm_sql_database, google_sql_database_instance, aws_elasticache_cluster
-  security: aws_iam_role, aws_iam_policy, aws_kms_key, aws_secretsmanager_secret, aws_wafv2_web_acl, azurerm_key_vault
-  monitoring: aws_cloudwatch_log_group, aws_cloudwatch_metric_alarm, azurerm_monitor_diagnostic_setting
-  other: everything else
-For modules: create one component entry with the module name, source, and purpose.
-
-VPC/NETWORK EXTRACTION: For every aws_vpc, azurerm_virtual_network, or google_compute_network resource:
-  - Add to network_design.vpcs with name=resource name, cidr=cidr_block, type="unknown" (unless transit/spoke role is clear), gw_size="", connected_transit=""
-  - For subnets: add to network_design.subnets with vpc=parent VPC resource name
-  - If no VPC resources exist but compute resources do, create a synthetic VPC entry representing the implied network
-
-DATA FLOWS — Extract from explicit resource relationships:
-  - Load balancer → target instances/services → database
-  - Lambda → DynamoDB/S3/RDS (from IAM policies or environment variables)
-  - ECS service → RDS via security group rules
-  - API Gateway → Lambda
-  - Only create data_flows entries for connections traceable through actual resources (security groups, route tables, IAM, event sources). Do NOT invent flows.
-
 EDGE (Aviatrix-specific): aviatrix_edge_gateway_selfmanaged→selfmanaged, aviatrix_edge_equinix→equinix, aviatrix_edge_zscaler→zscaler, aviatrix_edge_platform→platform, aviatrix_edge_megaport→megaport, aviatrix_edge_spoke→spoke.
 
 EXTERNAL CONNECTIONS: aviatrix_transit_external_device_conn, aws_vpn_connection, aws_dx_connection, azurerm_express_route_circuit, google_compute_interconnect_attachment → external_connections[].

@@ -14,8 +14,10 @@ providers:
 prompts:
   - id: file://lib/systemPrompt.ts
     label: "v2 (current) — universal Terraform"
+  - id: file://prompts/v3-no-aviatrix-bias.ts
+    label: "v3 — no-Aviatrix-bias (previous)"
   - id: file://prompts/v2-universal.ts
-    label: "v2 — universal TF (previous)"
+    label: "v2 — universal TF (archived)"
   - id: file://prompts/v1-aviatrix.ts
     label: "v1 — Aviatrix-focused (baseline)"
 
@@ -235,4 +237,24 @@ tests:
         value: |
           const d = JSON.parse(output);
           return d.firewall_detail?.present === false;
+        threshold: 1
+
+  # ── Components populated for plain AWS ────────────────────────────────
+  - description: "Plain AWS VPC — components[] must NOT be empty"
+    vars:
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aws-plain-vpc.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return Array.isArray(d.components) && d.components.length > 0;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return (d.network_design?.vpcs || []).length > 0;
         threshold: 1
