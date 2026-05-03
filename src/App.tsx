@@ -12,6 +12,7 @@ type ModelProfile = {
   apiKey: string;
   model: string;
   baseUrl?: string;   // AWS Bedrock: region | Azure: endpoint | Custom: base URL
+  persist?: boolean;  // true = saved to localStorage; false/undefined = sessionStorage only
 };
 
 const PROVIDERS=[
@@ -34,11 +35,33 @@ const autoName=(provider:string,model:string)=>{
 
 const newProfile=():ModelProfile=>({id:crypto.randomUUID(),name:"",provider:"anthropic",apiKey:"",model:"",baseUrl:""});
 
+const PROFILE_LS_KEY="tf_doc_profiles";   // persisted (localStorage)
+const PROFILE_SS_KEY="tf_doc_profiles_s"; // session-only (sessionStorage)
+
 const loadProfiles=():ModelProfile[]=>{
-  try{return JSON.parse(localStorage.getItem("tf_doc_profiles")||"[]");}catch{return [];}
+  const parse=(s:string|null):ModelProfile[]=>{try{return JSON.parse(s||"[]");}catch{return[];}};
+  const ls=parse(localStorage.getItem(PROFILE_LS_KEY));
+  const ss=parse(sessionStorage.getItem(PROFILE_SS_KEY));
+  // Merge — deduplicate by id, session takes priority
+  const map=new Map<string,ModelProfile>();
+  ls.forEach(p=>map.set(p.id,p));
+  ss.forEach(p=>map.set(p.id,p));
+  return Array.from(map.values());
 };
+
 const saveProfiles=(ps:ModelProfile[])=>{
-  try{localStorage.setItem("tf_doc_profiles",JSON.stringify(ps));}catch{}
+  // Route each profile to the right storage based on persist flag
+  const persisted=ps.filter(p=>p.persist===true);
+  const session=ps.filter(p=>!p.persist);
+  // Clean up any persisted profiles that were toggled to session-only
+  const existingLs:ModelProfile[]=loadProfiles().filter(p=>p.persist===true);
+  existingLs.forEach(ep=>{if(!persisted.find(p=>p.id===ep.id)){}});  // removal handled below
+  try{
+    if(persisted.length>0)localStorage.setItem(PROFILE_LS_KEY,JSON.stringify(persisted));
+    else localStorage.removeItem(PROFILE_LS_KEY);
+    if(session.length>0)sessionStorage.setItem(PROFILE_SS_KEY,JSON.stringify(session));
+    else sessionStorage.removeItem(PROFILE_SS_KEY);
+  }catch{}
 };
 
 // ── Safe storage ───────────────────────────────────────────────────────────
@@ -133,6 +156,20 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
         {/* Profile name */}
         <div><label className={lbl} style={{color:AV.tm}}>Profile Name</label>
           <input type="text" placeholder="e.g. Claude Sonnet (Work)" value={p.name} onChange={e=>up("name",e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={inpS}/>
+        </div>
+        {/* Persistence opt-in */}
+        <div className="rounded-xl px-4 py-3" style={{background:p.persist?`#F59E0B10`:`${AV.nl}`,border:`1px solid ${p.persist?"#F59E0B40":AV.nb}`}}>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={!!p.persist} onChange={e=>setP(prev=>({...prev,persist:e.target.checked}))} className="mt-0.5 w-4 h-4 shrink-0" style={{accentColor:"#F59E0B"}}/>
+            <div>
+              <p className="text-xs font-semibold" style={{color:p.persist?"#F59E0B":AV.tp}}>Remember this profile across sessions</p>
+              <p className="text-xs mt-0.5 leading-5" style={{color:AV.tm}}>
+                {p.persist
+                  ? "⚠ API key will be stored in browser localStorage — readable by browser extensions and visible in DevTools. Only enable on trusted personal devices."
+                  : "Default: key stored in session memory only. Cleared automatically when you close this tab."}
+              </p>
+            </div>
+          </label>
         </div>
         {/* Actions */}
         <div className="flex gap-3 pt-1">
@@ -817,7 +854,7 @@ export default function App(){
     const legacyKey=sg("tf_doc_apikey");
     const legacyModel=sg("tf_doc_model")||"claude-sonnet-4-20250514";
     if(legacyKey){
-      const p:ModelProfile={id:crypto.randomUUID(),name:autoName("anthropic",legacyModel),provider:"anthropic",apiKey:legacyKey,model:legacyModel};
+      const p:ModelProfile={id:crypto.randomUUID(),name:autoName("anthropic",legacyModel),provider:"anthropic",apiKey:legacyKey,model:legacyModel,persist:true};
       saveProfiles([p]);
       return[p];
     }
