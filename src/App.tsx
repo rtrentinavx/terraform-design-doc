@@ -1711,6 +1711,33 @@ export default function App(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Fetch Aviatrix module defaults from Terraform Registry (24h cache)
+  useEffect(()=>{
+    const CACHE_KEY="tf_doc_reg_defaults";
+    const CACHE_TTL=86400*1000;
+    try{
+      const cached=localStorage.getItem(CACHE_KEY);
+      if(cached){
+        const{ts,data}=JSON.parse(cached);
+        if(Date.now()-ts<CACHE_TTL){setRegistryDefaults(data);return;}
+      }
+    }catch{}
+    fetch("/api/registry-defaults").then(r=>r.ok?r.json():null).then(json=>{
+      if(!json?.modules)return;
+      const lines:string[]=["LIVE AVIATRIX MODULE DEFAULTS (fetched from registry.terraform.io):"];
+      json.modules.forEach((m:any)=>{
+        lines.push(`\n${m.key} v${m.version}:`);
+        (m.inputs||[]).forEach((i:any)=>{
+          const def=i.default===null||i.default===""?"(required)":String(i.default).replace(/^"|"$/g,"");
+          lines.push(`  ${i.name} = ${def}`);
+        });
+      });
+      const data=lines.join("\n");
+      setRegistryDefaults(data);
+      try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts:Date.now(),data}));}catch{}
+    }).catch(()=>{});
+  },[]);
+
   // Derive active profile — fall back to first profile if saved id gone
   const activeProfile=profiles.find(p=>p.id===activeId)||profiles[0]||null;
 
@@ -1736,6 +1763,7 @@ export default function App(){
   const [progress,setProgress]=useState({step:0,label:""});
   const [custName,setCustName]=useState(()=>sg("tf_doc_cust")||"");
   const [extraInstr,setExtraInstr]=useState(()=>sg("tf_doc_extra")||"");
+  const [registryDefaults,setRegistryDefaults]=useState<string>("");
   const [showExtra,setShowExtra]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   AV=dark?DARK:LIGHT;
@@ -1883,7 +1911,7 @@ export default function App(){
       redMapRef.current=redMap;
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
-      const userMsg=`Generate a formal Infrastructure Design Document from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
+      const userMsg=`Generate a formal Infrastructure Design Document from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}${registryDefaults?`\n\n${registryDefaults}`:""}`;
       if(!activeProfile){setError("No model profile configured. Click the model chip in the header to add one.");stopProgress(false);setLoading(false);return;}
       dbg.step="fetch";let resp:Response;
       try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,secretKey:activeProfile.secretKey||undefined,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`${userMsg}\n\n${safeCombined}`})});}
