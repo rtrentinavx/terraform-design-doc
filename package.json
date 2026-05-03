@@ -11,6 +11,7 @@
     "test:prompts:view": "promptfoo view"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^4.0.100",
     "@ai-sdk/anthropic": "^3.0.74",
     "@ai-sdk/google": "^3.0.67",
     "@ai-sdk/openai": "^3.0.58",

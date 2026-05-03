@@ -2,19 +2,27 @@ import { generateObject } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { checkOrigin } from "./_origin.js";
 import { IDDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
-function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
+function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string, secretKey?: string) {
   if (provider === "anthropic") {
     return createAnthropic({ apiKey })(model);
+  }
+  if (provider === "bedrock") {
+    // baseUrl = AWS region, apiKey = Access Key ID, secretKey = Secret Access Key
+    return createAmazonBedrock({
+      region: baseUrl || "us-east-1",
+      accessKeyId: apiKey,
+      secretAccessKey: secretKey || "",
+    })(model);
   }
   if (provider === "gemini") {
     return createGoogleGenerativeAI({ apiKey })(model);
   }
   if (provider === "azure") {
-    // Azure OpenAI: baseUrl = https://{resource}.openai.azure.com
     return createOpenAI({
       apiKey,
       baseURL: `${baseUrl}/openai/deployments/${model}`,
@@ -29,12 +37,12 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
+  const { provider = "anthropic", apiKey, secretKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
   try {
-    const mdl = buildModel(provider, apiKey, model, baseUrl);
+    const mdl = buildModel(provider, apiKey, model, baseUrl, secretKey);
 
     const { object, usage } = await generateObject({
       model: mdl,

@@ -8,21 +8,23 @@ const GENERATE_URL = "/api/generate";
 type ModelProfile = {
   id: string;
   name: string;
-  provider: "anthropic"|"azure"|"gemini"|"custom";
-  apiKey: string;
+  provider: "anthropic"|"azure"|"gemini"|"custom"|"bedrock";
+  apiKey: string;     // AWS: Access Key ID
+  secretKey?: string; // AWS Bedrock: Secret Access Key
   model: string;
-  baseUrl?: string;
+  baseUrl?: string;   // AWS: region (e.g. us-east-1) | Azure: endpoint | Custom: base URL
 };
 
 const PROVIDERS=[
-  {id:"anthropic", label:"Anthropic",  hint:"sk-ant-api03-..."},
-  {id:"azure",     label:"Azure OpenAI", hint:"Azure API key"},
-  {id:"gemini",    label:"Google Gemini", hint:"Google AI Studio key"},
+  {id:"anthropic", label:"Anthropic",               hint:"sk-ant-api03-..."},
+  {id:"bedrock",   label:"AWS Bedrock",              hint:"AWS Access Key ID"},
+  {id:"azure",     label:"Azure OpenAI",             hint:"Azure API key"},
+  {id:"gemini",    label:"Google Gemini",            hint:"Google AI Studio key"},
   {id:"custom",    label:"Custom / OpenAI-compatible", hint:"API key"},
 ];
 
 const PROVIDER_COLORS:Record<string,string>={
-  anthropic:"#D97706", azure:"#0078D4", gemini:"#4285F4", custom:"#6366F1"
+  anthropic:"#D97706", bedrock:"#FF9900", azure:"#0078D4", gemini:"#4285F4", custom:"#6366F1"
 };
 
 const autoName=(provider:string,model:string)=>{
@@ -58,12 +60,14 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
       next.name=autoName(next.provider,next.model||prev.model);
     return next;
   });
-  const canFetch=p.apiKey.trim()&&(p.provider!=="azure"||(p.baseUrl||"").trim())&&(p.provider!=="custom"||(p.baseUrl||"").trim());
-  const canSave=p.apiKey.trim()&&p.model.trim()&&p.name.trim()&&(p.provider!=="azure"||(p.baseUrl||"").trim())&&(p.provider!=="custom"||(p.baseUrl||"").trim());
+  const needsBase=p.provider==="azure"||p.provider==="custom"||p.provider==="bedrock";
+  const needsSecret=p.provider==="bedrock";
+  const canFetch=p.apiKey.trim()&&(!needsSecret||(p.secretKey||"").trim())&&(!needsBase||(p.baseUrl||"").trim());
+  const canSave=canFetch&&p.model.trim()&&p.name.trim();
   const fetchModels=async()=>{
     setFetching(true);setFetchErr("");setModels([]);
     try{
-      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,baseUrl:p.baseUrl||""})});
+      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,secretKey:p.secretKey||"",baseUrl:p.baseUrl||""})});
       const d=await r.json();
       const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
       if(ids.length)setModels(ids);else setFetchErr(d.error||"No models returned");
@@ -92,16 +96,28 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
             ))}
           </div>
         </div>
+        {/* AWS Region for Bedrock */}
+        {p.provider==="bedrock"&&(
+          <div><label className={lbl} style={{color:AV.tm}}>AWS Region</label>
+            <input type="text" placeholder="e.g. us-east-1, us-west-2, eu-west-1" value={p.baseUrl||""} onChange={e=>up("baseUrl",e.target.value)} className={inp} style={inpS}/>
+          </div>
+        )}
         {/* Base URL for Azure/Custom */}
         {(p.provider==="azure"||p.provider==="custom")&&(
           <div><label className={lbl} style={{color:AV.tm}}>{p.provider==="azure"?"Azure Endpoint":"Base URL"}</label>
             <input type="text" placeholder={p.provider==="azure"?"https://your-resource.openai.azure.com":"https://your-endpoint.com/v1"} value={p.baseUrl||""} onChange={e=>up("baseUrl",e.target.value)} className={inp} style={inpS}/>
           </div>
         )}
-        {/* API Key */}
-        <div><label className={lbl} style={{color:AV.tm}}>API Key</label>
+        {/* API Key (Access Key ID for Bedrock) */}
+        <div><label className={lbl} style={{color:AV.tm}}>{p.provider==="bedrock"?"AWS Access Key ID":"API Key"}</label>
           <input type="password" placeholder={PROVIDERS.find(pv=>pv.id===p.provider)?.hint||"API key"} value={p.apiKey} onChange={e=>up("apiKey",e.target.value)} className={inp} style={inpS}/>
         </div>
+        {/* AWS Secret Access Key for Bedrock */}
+        {p.provider==="bedrock"&&(
+          <div><label className={lbl} style={{color:AV.tm}}>AWS Secret Access Key</label>
+            <input type="password" placeholder="AWS Secret Access Key" value={p.secretKey||""} onChange={e=>setP(prev=>({...prev,secretKey:e.target.value}))} className={inp} style={inpS}/>
+          </div>
+        )}
         {/* Model fetch + select */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
@@ -1870,7 +1886,7 @@ export default function App(){
       const userMsg=`Generate a formal Infrastructure Design Document from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
       if(!activeProfile){setError("No model profile configured. Click the model chip in the header to add one.");stopProgress(false);setLoading(false);return;}
       dbg.step="fetch";let resp:Response;
-      try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`${userMsg}\n\n${safeCombined}`})});}
+      try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,secretKey:activeProfile.secretKey||undefined,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`${userMsg}\n\n${safeCombined}`})});}
       catch(fe:any){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
