@@ -1,0 +1,155 @@
+description: "Terraform IDD Generator — prompt regression tests"
+
+providers:
+  - id: anthropic:claude-sonnet-4-20250514
+    config:
+      temperature: 0
+      max_tokens: 16000
+
+prompts:
+  - label: "IDD system prompt"
+    raw: "{{system_prompt}}"
+
+defaultTest:
+  options:
+    provider: anthropic:claude-sonnet-4-20250514
+
+tests:
+  # ── Firewall detection (hardcoded image) ─────────────────────────────────
+  - description: "AWS FireNet with Palo Alto Bundle 1 — explicit image string"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: "{{file://test/fixtures/aws-firenet-palo.tf}}"
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.present === true;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const v = (d.firewall_detail?.vendor || '').toLowerCase();
+          return v.includes('palo');
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.license_model === 'PAYG';
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.instance_size === 'c5.xlarge';
+        threshold: 1
+
+  # ── Firewall detection (via tfvars variable resolution) ──────────────────
+  - description: "AWS FireNet with Palo Alto via tfvars — variable must be resolved"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: |
+        ### RESOLVED VARIABLES (from tfvars)
+        firewall_image = "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1"
+        fw_amount = "2"
+        fw_instance_size = "c5.xlarge"
+
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aws-firenet-tfvars.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.present === true;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return (d.firewall_detail?.vendor || '').toLowerCase().includes('palo');
+        threshold: 1
+
+  # ── Anti-hallucination: no firewall ──────────────────────────────────────
+  - description: "Plain AWS VPC with no firewall — must NOT invent firewall"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/no-firewall.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.present === false;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_vendor === 'none' || d.firewall_vendor === 'unknown';
+        threshold: 1
+
+  # ── Anti-hallucination: no spoke without mc-spoke ────────────────────────
+  - description: "Transit only — no spokes should appear without mc-spoke module"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        module "mc-transit" {
+          source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
+          version = "2.5.0"
+          cloud   = "AWS"
+          region  = "us-east-1"
+          cidr    = "10.1.0.0/23"
+          account = "aws-prod"
+          gw_name = "aws-transit-only"
+        }
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const spokes = (d.network_design?.vpcs || []).filter(v => v.type === 'spoke');
+          return spokes.length === 0;
+        threshold: 1
+
+  # ── Provider detection ───────────────────────────────────────────────────
+  - description: "AWS provider must be detected correctly"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aws-firenet-palo.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.provider === 'aws';
+        threshold: 1
+
+  # ── Schema completeness ──────────────────────────────────────────────────
+  - description: "Output must contain all required top-level fields"
+    vars:
+      system_prompt: "{{file://lib/systemPrompt.ts}}"
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aws-firenet-palo.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const required = ['title','version','date','provider','executive_summary',
+            'architecture_overview','network_design','security','firewall_detail','dcf'];
+          return required.every(k => k in d);
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return typeof d.title === 'string' && d.title.length > 0;
+        threshold: 1

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { IDD_TOOL } from "./iddTool";
+// IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const APP_VERSION       = "1.1.0";
@@ -9,8 +9,7 @@ const AVAILABLE_MODELS  = [
   { label:"Claude Opus 4.6",             value:"claude-opus-4-20250514"    },
   { label:"Claude Haiku 4.5",            value:"claude-haiku-4-5-20251001" },
 ];
-const API_URL = "/api/analyze";
-const OPENAI_PROXY_URL = "/api/openai-proxy";
+const GENERATE_URL = "/api/generate";
 
 const PROVIDERS=[
   {id:"anthropic",label:"Anthropic (Claude)"},
@@ -1703,38 +1702,21 @@ export default function App(){
       redMapRef.current=redMap;
       const safeCombined=redactText(combined,redMap);
       const safeCustName=custName.trim()?`CUSTOMER_NAME`:"";
-      const userMsg=`Generate a formal Infrastructure Design Document JSON from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
-      dbg.step="fetch";let resp;
-      try{
-        if(provider==="anthropic"){
-          resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,tools:[IDD_TOOL],tool_choice:{type:"tool",name:"generate_idd"},messages:[{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
-        }else{
-          const provKey=provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
-          const provModel=provider==="azure"?azDeploy:provider==="gemini"?gemModel:custModel2;
-          const provBase=provider==="azure"?azEndpoint:custUrl;
-          resp=await fetch(OPENAI_PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:provKey,model:provModel,baseUrl:provBase,max_tokens:16000,temperature:0,messages:[{role:"system",content:SYS},{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
-        }
-      }
-      catch(fe){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
+      const userMsg=`Generate a formal Infrastructure Design Document from these Terraform files. Be concise:${safeCustName?`\nCustomer: ${safeCustName}. Use this as the customer name in the title and throughout the document.`:""}${extraInstr.trim()?`\n\nAdditional instructions from the user:\n${extraInstr.trim()}`:""}`;
+      const activeKey=provider==="anthropic"?apiKey:provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
+      const activeModel=provider==="anthropic"?selModel:provider==="azure"?azDeploy:provider==="gemini"?gemModel:custModel2;
+      const activeBase=provider==="azure"?azEndpoint:provider==="custom"?custUrl:undefined;
+      dbg.step="fetch";let resp:Response;
+      try{resp=await fetch(GENERATE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:activeKey,model:activeModel,baseUrl:activeBase,content:`${userMsg}\n\n${safeCombined}`})});}
+      catch(fe:any){dbg.step="fetch_failed";dbg.statusMsg=fe.message;setDebug({...dbg});setError("Network error: "+fe.message);stopProgress(false);setLoading(false);return;}
       dbg.apiStatus=resp.status;dbg.step="read_body";
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
-      if(!resp.ok){setDebug({...dbg});setError(`API HTTP ${resp.status}: ${bt.slice(0,300)}`);stopProgress(false);setLoading(false);return;}
-      let data;try{data=JSON.parse(bt);}catch(je){setDebug({...dbg});setError("Parse error: "+je.message);stopProgress(false);setLoading(false);return;}
-      if(data.error){setDebug({...dbg});setError("API error: "+JSON.stringify(data.error));stopProgress(false);setLoading(false);return;}
-      dbg.stopReason=data.stop_reason||data.choices?.[0]?.finish_reason||"";
-      let parsed:any;
-      if(provider==="anthropic"){
-        // Tool use: extract from tool_use block — already a parsed object, no JSON.parse needed
-        const toolBlock=data.content?.find((b:any)=>b.type==="tool_use"&&b.name==="generate_idd");
-        if(!toolBlock?.input){setDebug({...dbg});setError("No tool_use block in response. Stop reason: "+dbg.stopReason);stopProgress(false);setLoading(false);return;}
-        parsed=toolBlock.input;
-      }else{
-        // OpenAI-compatible: text response, parse JSON
-        const raw=(data.choices?.[0]?.message?.content||"").replace(/```json|```/g,"").trim();
-        if(!raw){setDebug({...dbg});setError("Empty response");stopProgress(false);setLoading(false);return;}
-        try{parsed=JSON.parse(raw);}
-        catch(pe){try{let f=raw;f=f.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,"").replace(/,\s*"[^"]*$/,"").replace(/"[^"]*$/,'"..."');let ob=(f.match(/\{/g)||[]).length-(f.match(/\}/g)||[]).length,ab=(f.match(/\[/g)||[]).length-(f.match(/\]/g)||[]).length;while(ab-->0)f+="]";while(ob-->0)f+="}";parsed=JSON.parse(f);}catch(re){setDebug({...dbg});setError(`JSON parse failed: ${pe.message}\n${raw.slice(0,400)}`);stopProgress(false);setLoading(false);return;}}
-      }
+      if(!resp.ok){setDebug({...dbg});setError(`API ${resp.status}: ${bt.slice(0,300)}`);stopProgress(false);setLoading(false);return;}
+      let data:any;try{data=JSON.parse(bt);}catch(je:any){setDebug({...dbg});setError("Parse error: "+je.message);stopProgress(false);setLoading(false);return;}
+      if(data.error){setDebug({...dbg});setError("API error: "+data.error);stopProgress(false);setLoading(false);return;}
+      // AI SDK returns { object, usage } — object is already validated against Zod schema
+      let parsed:any=data.object;
+      if(!parsed){setDebug({...dbg});setError("Empty response object");stopProgress(false);setLoading(false);return;}
       // Rehydrate redacted PII back into the parsed document
       if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
