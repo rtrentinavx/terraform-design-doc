@@ -1285,13 +1285,34 @@ export default function App(){
                 <button onClick={()=>setExplanation("")} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
               </div>
               <div className="p-5 text-sm leading-7 whitespace-pre-wrap" style={{color:AV.tp,background:AV.nm,maxHeight:480,overflowY:"auto",fontFamily:"inherit"}}>
-                {explanation.split("\n").map((line,i)=>{
-                  if(line.startsWith("## "))return<p key={i} className="font-bold text-base mt-4 mb-1" style={{color:AV.or}}>{line.slice(3)}</p>;
-                  if(line.startsWith("### "))return<p key={i} className="font-bold mt-3 mb-0.5" style={{color:AV.tp}}>{line.slice(4)}</p>;
-                  if(line.startsWith("- ")||line.startsWith("* "))return<p key={i} className="ml-3" style={{color:AV.tm}}>• {line.slice(2)}</p>;
-                  if(line.trim()==="")return<div key={i} className="h-1"/>;
-                  return<p key={i} style={{color:AV.tm}}>{line}</p>;
-                })}
+                {(()=>{
+                  // Inline formatter: handles **bold**, `code`, _italic_
+                  const fmt=(text:string)=>{
+                    const parts:any[]=[];let rest=text;let k=0;
+                    while(rest.length){
+                      const bb=rest.indexOf("**"),bt=rest.indexOf("`"),bi=rest.indexOf("_");
+                      const next=[bb,bt,bi].filter(x=>x>=0);
+                      if(!next.length){parts.push(<span key={k++}>{rest}</span>);break;}
+                      const first=Math.min(...next);
+                      if(first>0)parts.push(<span key={k++}>{rest.slice(0,first)}</span>);
+                      if(first===bb){const end=rest.indexOf("**",bb+2);if(end<0){parts.push(<span key={k++}>{rest}</span>);break;}parts.push(<strong key={k++} style={{color:AV.tp}}>{rest.slice(bb+2,end)}</strong>);rest=rest.slice(end+2);}
+                      else if(first===bt){const end=rest.indexOf("`",bt+1);if(end<0){parts.push(<span key={k++}>{rest}</span>);break;}parts.push(<code key={k++} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{background:`${AV.tp}12`,color:AV.or}}>{rest.slice(bt+1,end)}</code>);rest=rest.slice(end+1);}
+                      else{const end=rest.indexOf("_",bi+1);if(end<0){parts.push(<span key={k++}>{rest}</span>);break;}parts.push(<em key={k++} style={{color:AV.tm}}>{rest.slice(bi+1,end)}</em>);rest=rest.slice(end+1);}
+                    }
+                    return parts;
+                  };
+                  return explanation.split("\n").map((line,i)=>{
+                    if(line.startsWith("# "))return<h2 key={i} className="font-black text-lg mt-5 mb-2" style={{color:AV.or}}>{fmt(line.slice(2))}</h2>;
+                    if(line.startsWith("## "))return<h3 key={i} className="font-bold text-base mt-4 mb-1.5" style={{color:AV.or}}>{fmt(line.slice(3))}</h3>;
+                    if(line.startsWith("### "))return<h4 key={i} className="font-semibold mt-3 mb-1" style={{color:AV.tp}}>{fmt(line.slice(4))}</h4>;
+                    if(/^\d+\.\s/.test(line)){const m=line.match(/^(\d+)\.\s(.*)/);return<div key={i} className="flex gap-2 ml-2 my-0.5"><span className="shrink-0 font-mono text-xs mt-0.5" style={{color:AV.or}}>{m?.[1]}.</span><span className="text-sm" style={{color:AV.tm}}>{fmt(m?.[2]||"")}</span></div>;}
+                    if(line.startsWith("- ")||line.startsWith("* "))return<div key={i} className="flex gap-2 ml-2 my-0.5"><span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{background:AV.or}}/><span className="text-sm" style={{color:AV.tm}}>{fmt(line.slice(2))}</span></div>;
+                    if(line.startsWith("  - ")||line.startsWith("  * "))return<div key={i} className="flex gap-2 ml-6 my-0.5"><span className="shrink-0 mt-1.5 w-1 h-1 rounded-full" style={{background:AV.td}}/><span className="text-sm" style={{color:AV.tm}}>{fmt(line.slice(4))}</span></div>;
+                    if(line.startsWith("```"))return<div key={i} className="my-1" style={{height:line==="```"?4:undefined}}/>;
+                    if(line.trim()==="")return<div key={i} className="h-2"/>;
+                    return<p key={i} className="text-sm leading-6 my-0.5" style={{color:AV.tm}}>{fmt(line)}</p>;
+                  });
+                })()}
               </div>
             </div>}
           </div>
