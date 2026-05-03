@@ -14,6 +14,8 @@ providers:
 prompts:
   - id: file://lib/systemPrompt.ts
     label: "v2 (current) — universal Terraform"
+  - id: file://prompts/v2-universal.ts
+    label: "v2 — universal TF (previous)"
   - id: file://prompts/v1-aviatrix.ts
     label: "v1 — Aviatrix-focused (baseline)"
 
@@ -207,4 +209,30 @@ tests:
           // Either explicitly unknown OR a legitimate vendor detected from context
           return vendor === 'unknown' || vendor === '' ||
                  vendor.includes('palo') || vendor.includes('forti') || vendor.includes('check');
+        threshold: 1
+
+  # ── No Aviatrix hallucination on plain AWS VPC ─────────────────────────
+  - description: "Plain AWS VPC — must NOT mention Aviatrix anywhere"
+    vars:
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aws-plain-vpc.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const out = output.toLowerCase();
+          return !out.includes('aviatrix') && !out.includes('firenet') &&
+                 !out.includes('mc-transit') && !out.includes('mc-spoke');
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.provider === 'aws';
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.firewall_detail?.present === false;
         threshold: 1

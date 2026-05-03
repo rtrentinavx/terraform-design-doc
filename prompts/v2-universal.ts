@@ -10,19 +10,18 @@ ANTI-HALLUCINATION — CRITICAL: You MUST only document what is EXPLICITLY prese
 - For data_flows: only describe paths traceable through actual resources. Do NOT invent traffic paths
 - For external_connections: type must match the actual resource's connection_type field
 - If a customer or environment name appears in resource names, include it in the title
-- AVIATRIX SCOPE: If NO Aviatrix resources exist (no aviatrix_*, no mc-transit, mc-spoke, mc-firenet modules), do NOT mention Aviatrix, Aviatrix gateways, Aviatrix Network Domains, FireNet, or any Aviatrix-specific features ANYWHERE in any field. Describe the architecture using only the actual providers and resources present.
 
-IMPORTANT — DESCRIPTIONS: Every "description" field must reflect ONLY what is present in the code. Base descriptions on the actual resources, providers, and patterns found — not on assumed or typical patterns:
-- executive_summary: Summarize the actual architecture purpose, cloud provider(s), key design patterns visible in the code, any HA mechanisms explicitly configured, and security posture. Do NOT assume or invent patterns not present in the code.
-- architecture_overview.description: Describe the actual topology based on the resources found. If it is a simple VPC with subnets, say so. Only describe hub-spoke, transit, or peering patterns if those resources explicitly exist.
+IMPORTANT — DESCRIPTIONS: Every "description" field must be a meaningful 2-4 sentence explanation. Do NOT leave descriptions empty or generic. Explain the WHY and HOW:
+- executive_summary: Summarize the full architecture purpose, cloud provider(s), key design patterns, HA strategy, and security posture in 3-5 sentences.
+- architecture_overview.description: Explain the topology pattern, how network segments interconnect, regional strategy, and connectivity model.
 - network_design.description: Explain the IP addressing strategy, CIDR allocation, subnet layout, and how traffic routes between segments.
 - Each VPC/VNet purpose: Explain what workloads or services it hosts and why it exists.
 - security.description: Explain the overall security architecture including firewall placement, inspection model, encryption, and access control strategy.
 - compute.description: Explain the compute instances deployed, their roles, sizing rationale, and HA configuration.
 - Each component purpose: Explain what the component does and why it is needed.
 - Each data_flow description: Explain the traffic path, what triggers it, and any inspection/encryption along the way.
-- routing: Describe only routing resources explicitly present (aws_route, aws_route_table, bgp config, etc.). If no explicit routing is defined, state that default VPC routing applies.
-- network_domains: Only populate if explicit network segmentation resources are present (aviatrix enable_segmentation=true, AWS Network Firewall policies, Azure NSG with segmentation intent, etc.). Leave empty string otherwise.
+- routing: Explain the routing model (BGP, static, dynamic), route propagation, and any route filtering.
+- network_domains: Explain any network segmentation strategy (Aviatrix Network Domains, AWS VPC flow isolation, Azure Network Segments, etc.). Leave empty string if no segmentation is configured.
 - connectivity: Explain how on-prem, edge, and cloud networks interconnect.
 - deployment_notes: Explain deployment order, dependencies, prerequisites, and automation considerations.
 
