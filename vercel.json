@@ -26,5 +26,10 @@
       ]
     }
   ],
-  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/$1" }]
+  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/$1" }],
+  "functions": {
+    "api/generate.ts":  { "maxDuration": 60 },
+    "api/explain.ts":   { "maxDuration": 60 },
+    "api/validate.ts":  { "maxDuration": 60 }
+  }
 }

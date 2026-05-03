@@ -1139,7 +1139,8 @@ export default function App(){
       const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
       const safe=redactText(combined,redMap);
       const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Explain this Terraform code:\n\n${safe}`})});
-      const d=await r.json();
+      const rawText=await r.text();
+      let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("Explain failed: "+(d.error||r.status));}
       else{
         const raw=d.explanation||"";
@@ -1173,7 +1174,8 @@ export default function App(){
       const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
       const safe=redactText(combined,redMap);
       const r=await fetch("/api/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Validate this Terraform code:\n\n${safe}`})});
-      const d=await r.json();
+      const rawText=await r.text();
+      let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("Validate failed: "+(d.error||r.status));}
       else setValidation(d);
     }catch(e:any){setError("Validate error: "+e.message);}
