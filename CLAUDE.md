@@ -4,51 +4,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Single-page React app that analyzes Terraform/OpenTofu configurations via the Claude API and generates a formatted Infrastructure Design Document (IDD). Users upload `.tf`/`.tfvars` files (or ZIP archives), the app redacts PII client-side, sends content to Claude with a structured JSON system prompt, and renders the parsed response as a rich document with network diagrams, component tables, firewall details, DCF policies, and DOCX export.
+Single-page React app that analyzes Terraform/OpenTofu configurations via AI and generates Infrastructure Design Documents (IDD). Users upload `.tf`/`.tfvars` files (or ZIP archives), the app redacts PII client-side, resolves variables, and sends content to an LLM. It renders the parsed response as a rich tabbed document with a Mermaid network diagram, and supports three actions: Generate IDD, Explain Code, Validate Code.
 
 ## Commands
 
-- `npm run dev` — Start Vite dev server with API proxy (localhost:5173)
+- `npm run dev` — Start Vite dev server (localhost:5173)
 - `npm run build` — Production build to `dist/`
-- `npm run preview` — Preview production build locally
+- `npm run preview` — Preview production build
+- `npm run test:prompts` — Run promptfoo regression tests (requires `ANTHROPIC_API_KEY`)
+- `npm run test:prompts:view` — Open promptfoo web UI
 
 ## Architecture
 
-The entire application lives in `src/App.tsx` — a single ~1800-line file. No router or state management library. Key sections in order:
+### Frontend — `src/App.tsx` (~1300 lines)
 
-1. **Constants & config** (top): Model list, API URLs (`/api/analyze`, `/api/mockflow` proxies)
-2. **Safe storage helpers** (`sg`/`ss`/`sd`): localStorage with in-memory fallback
-3. **Theme** (`DARK`/`LIGHT`/`AV`): Dark/light mode color palettes. `AV` is a module-level `let` reassigned on every App render — all components read it at render time from module scope
-4. **System prompt** (`SYS`): Structured prompt instructing Claude to return JSON matching a specific schema (network design, firewalls, edge devices, DCF, etc.) with Aviatrix Terraform module defaults and strict anti-hallucination rules
-5. **SVG icon paths** (`IC`): Inline icon definitions for the network diagram
-6. **Cloud provider logos** (`ProvLogo`, `AvxLogo`, `FwLogo`): SVG logo components for AWS, Azure, GCP, Aviatrix, and firewall vendors (Palo Alto, Fortinet, Check Point)
-7. **Diagram component**: SVG-based network topology renderer with theme-aware colors, animated flow dots, conditional Internet/On-Prem nodes, cloud region containers, and provider watermarks
-8. **Mermaid diagram** (`buildMermaid`): Generates Mermaid flowchart syntax (LR layout) from IDD network data. Rendered via Mermaid.js loaded from CDN
-9. **MockFlow MCP integration** (`buildMockFlowData`, `callMockFlowMCP`): Converts IDD data to MockFlow node/link format and calls the IdeaBoard MCP via `/api/mockflow` proxy
-10. **DOCX export** (`exportDocx`): Generates Word documents with tables, embedded diagram PNG (via canvas), and structured sections. Uses `docx` library loaded from CDN
-11. **DocView component**: Tabbed document viewer (Overview, Network, Security, DCF, Edge, Components, Diagram, Flows, Variables). Diagram tab has SVG/Mermaid/MockFlow toggle
-12. **App component**: API key input, customer name, additional instructions, file upload/ZIP extraction, model selection, dark mode toggle, PII redaction, API calls with progress bar, JSON parsing with truncation recovery
+Key sections in order:
+
+1. **Constants & types** — `APP_VERSION`, `ModelProfile` type, `PROVIDERS`, `PROVIDER_COLORS`, profile helpers
+2. **ProfileEditor / ProfileSwitcher** — modal components for managing named model profiles (provider + key + model + optional base URL)
+3. **Theme** (`DARK`/`LIGHT`/`AV`) — `AV` is a module-level `let` reassigned on every App render; all components read it at render time
+4. **Shared UI helpers** — `UISec`/`UIPr`/`UIKV`/`UItr` defined as **function declarations** (not const arrows) to avoid esbuild TDZ crashes; aliased as `Sec`/`Pr`/`KV`/`tr`
+5. **System prompt** (`SYS`) — in `src/App.tsx` for client use; canonical version in `lib/systemPrompt.ts` used by API
+6. **Mermaid diagram** (`buildMermaid`) — LR flowchart from IDD network data; `initMermaid` reinitializes theme on dark/light switch
+7. **`useJSZip` / `useDocx` / `exportDocx`** — CDN-loaded libraries; `exportDocx` includes AI disclaimer and caveats section
+8. **`DocView` component** — tabbed viewer (Overview, Network, Security, DCF, Edge, Components, Diagram, Flows, Variables); auto-renders Mermaid on tab open and dark/light toggle
+9. **`App` component** — profile management, file upload/ZIP extraction, variable resolution, PII redaction, registry defaults fetch, three action buttons (Generate IDD, Explain, Validate), progress bar, About modal
+
+### API (Vercel serverless)
+
+| File | Purpose |
+|---|---|
+| `api/generate.ts` | Main IDD generation. Anthropic/Bedrock → `generateText` + JSON parse + Zod validate. OpenAI/Gemini/Custom → `generateObject` with Zod schema |
+| `api/explain.ts` | Plain-English code explanation via `generateText`. Includes output content filter |
+| `api/validate.ts` | Code validation via `generateObject` with `ValidationSchema` (severity, category, score) |
+| `api/list-models.js` | Live model listing per provider. Bedrock returns curated static list |
+| `api/registry-defaults.js` | Fetches module defaults from registry.terraform.io for detected modules + Aviatrix fallback |
+| `api/_origin.js` | Shared origin allowlist: `*.vercel.app` + localhost |
+
+### Shared library — `lib/`
+
+- `lib/iddSchema.ts` — Zod schema for IDD output (includes `caveats: z.array(z.string())`)
+- `lib/systemPrompt.ts` — Canonical system prompt used by API functions and promptfoo tests
+
+### Tests — `test/` + `promptfoo.yaml`
+
+- Fixtures: `test/fixtures/*.tf` + `.tfvars`
+- Test cases: firewall detection (explicit + via tfvars), anti-hallucination (no fake firewall, no fake spokes), provider detection, schema completeness
 
 ## Deployment
 
-- **Local dev**: Vite proxy in `vite.config.ts` rewrites `/api/analyze` → `https://api.anthropic.com/v1/messages` and `/api/mockflow` → `https://app.mockflow.com/ideaboard/mcp` (strips Origin/Referer headers to avoid CORS)
-- **Vercel**: `api/analyze.js` and `api/mockflow.js` serverless functions proxy to their respective upstreams. No environment variables required — users supply their own API key. `vercel.json` applies security headers and rewrites `/api/*` to serverless functions
+- **Local dev**: Vite proxy rewrites `/api/*` to serverless handlers (simulated via local routes for non-Anthropic)
+- **Vercel**: serverless functions in `api/`. No shared API keys — users supply their own per profile. `vercel.json` applies security headers
 
-## Security
+## Critical Conventions
 
-- **PII redaction**: `buildRedactionMap()` scrubs public IPs, customer names, BGP ASNs (non-private ranges), domain names, and emails before sending to Claude. `revMap` rehydrates tokens back after response. Mapping never leaves the browser
-- **Origin allowlist**: `api/_origin.js` checks `Origin`/`Referer` header against `*.vercel.app` and localhost. Both API routes call `checkOrigin()` and return 403 for disallowed origins
-- **Security headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy applied in `vercel.json` and `vite.config.ts`
-- **API key**: forwarded as `x-api-key` header from client; never stored or logged server-side
-- `dangerouslySetInnerHTML` used only for Mermaid SVG output (generated by `buildMermaid` from Claude's structured JSON — low XSS risk, mitigated by CSP)
+### TDZ / Minifier Safety
+- `esbuild.minifyIdentifiers: false` in `vite.config.ts` — MUST NOT be removed. Without it, esbuild renames variables to single letters causing "Cannot access X before initialization" crashes
+- All module-level and component-level component helpers MUST be `function` declarations, not `const` arrow functions
+- All React `useState` declarations in `App` MUST come before any `useEffect` that references them in dependency arrays
 
-## Key Conventions
+### Theme
+- `AV` is a module-level `let` reassigned at the start of every `App` render: `AV = dark ? DARK : LIGHT`
+- Components read `AV` at render time — consistent within a single render pass
 
-- Compressed variable names: `AV` (theme), `SYS` (system prompt), `sg`/`ss`/`sd` (storage), `IC` (icons), `PC` (provider colors)
-- All styling: Tailwind CSS utilities + inline `style` props referencing `AV` theme object
-- Claude API called with `temperature: 0` for deterministic JSON output
-- Claude API response must be valid JSON matching the schema in `SYS` — parsed with `JSON.parse` after stripping markdown fences, with auto-repair for truncated responses
-- Network diagram layout is computed procedurally (no layout library) with manual coordinate math
-- Diagram conditionally shows Internet/On-Prem nodes based on data evidence (public subnets, egress rules, external connections, edge devices)
-- SVG `<g>` elements must be used instead of React Fragments (`<>`) inside SVG — fragments crash React in SVG context
-- Gradient text spans (`background-clip: text`) require `display: inline-block` and a `key` prop tied to the theme to force remount on dark/light switch — browsers don't re-apply clip on in-place style updates
+### PII Redaction
+- `buildRedactionMap()` builds forward map (real → token); stored in `redMapRef` (useRef) so MockFlow / explain / validate can reuse it
+- Rehydration applied to parsed JSON before `setDoc()`
+- `INJECT_RE` regex strips prompt injection from TF content AND Additional Instructions field
+
+### AI Provider Routing
+- Anthropic + Bedrock: `generateText()` → manual JSON parse + repair → Zod `safeParse`
+- OpenAI / Gemini / Custom: `generateObject()` with Zod schema
+- Reason: Anthropic's grammar-based tool enforcement rejects schemas above a certain complexity
+
+### Gradient text spans
+- `background-clip: text` requires `display: inline-block` on the span
+- Add `key={dark?"d":"l"}` to force DOM remount on theme switch (browser doesn't re-apply clip in-place)
+
+### SVG in React
+- Use `<g>` instead of `<>` fragments inside SVG — fragments crash React in SVG context

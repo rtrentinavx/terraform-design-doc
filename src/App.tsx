@@ -1291,23 +1291,27 @@ export default function App(){
               <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>What's included in v{APP_VERSION}</h3>
               <div className="space-y-2">
                 {[
-                  ["AI Analysis","Analyzes Terraform/OpenTofu files and generates a structured Infrastructure Design Document using Claude or any OpenAI-compatible model"],
-                  ["Multi-Provider Models","Supports Anthropic Claude, Azure OpenAI, Google Gemini, and Custom OpenAI-compatible endpoints with live model fetching"],
-                  ["2 Diagram Modes","SVG topology diagram and Mermaid flowchart (LR layout)"],
-                  ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, and emails are scrubbed before sending to the API and rehydrated after"],
-                  ["Prompt Injection Protection","Terraform file content is sanitized to strip injection patterns before analysis"],
-                  ["Variable Resolution","Resolves var.X references using .tfvars files client-side so Claude sees actual values, not variable names"],
-                  ["Anti-Hallucination Rules","Strict prompt rules prevent invented spoke attachments, VPN connections, or data flows not present in the Terraform code"],
-                  ["Aviatrix Defaults","Built-in defaults from the Terraform registry for mc-transit, mc-spoke, mc-firenet modules and gateway sizing"],
-                  ["Firewall Detection","Detects Palo Alto, Fortinet, and Check Point firewalls including HA mode, instance sizing, and license model"],
+                  ["AI Analysis","Analyzes Terraform/OpenTofu files and generates a structured Infrastructure Design Document (IDD) with network design, security, firewall, DCF, edge devices, and more"],
+                  ["Multi-Provider Models","Named model profiles — configure Anthropic Claude, AWS Bedrock, Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; fetch available models live; switch profiles in one click"],
+                  ["Explain Code","Plain-English explanation of any Terraform code: summary, resources, architecture, security, variables, dependencies, and potential issues"],
+                  ["Validate Code","AI-powered code review with scored findings (0–100) categorised by severity and type: security, best-practice, cost, reliability, Aviatrix-specific, and syntax"],
+                  ["Mermaid Diagram","Auto-rendered network topology diagram (LR layout) with transit gateways, spoke/mgmt VPCs, FireNet, DCF, edge devices, and external connections; re-renders on theme switch"],
+                  ["Dynamic Registry Defaults","Fetches live module defaults from registry.terraform.io for any module detected in uploaded files; cached 1 hour; always uses current published values"],
+                  ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, and emails scrubbed before API call and rehydrated after; redaction map never leaves the browser"],
+                  ["Prompt Injection Protection","Terraform content and Additional Instructions field sanitized against injection patterns before sending to any provider"],
+                  ["Variable Resolution","Resolves var.X references client-side using .tfvars files so the model sees actual values, not variable names"],
+                  ["Anti-Hallucination Rules","Strict prompt rules prevent invented spoke attachments, VPN/DX connections, or data flows not present in the Terraform code"],
+                  ["AI Transparency","AI-generated disclaimer banner in the IDD and DOCX export; caveats field lists inferred or uncertain values; unknown vendor stays unknown — no fabrication"],
+                  ["Firewall Detection","Detects Palo Alto, Fortinet, and Check Point firewalls including HA mode, instance sizing, and license model from tfvars variable resolution"],
                   ["DCF Policies","Extracts Distributed Cloud Firewall rulesets, smart groups, web groups, IPS profiles, and egress policies"],
                   ["Edge Devices","Identifies edge devices (Equinix, Zscaler, self-managed, Megaport) and their transit connections"],
-                  ["DOCX Export","One-click Word document export with embedded network diagram and formatted tables"],
+                  ["DOCX Export","One-click Word document export with AI disclaimer, caveats section, and all IDD sections"],
                   ["ZIP Support","Upload entire Terraform project as ZIP; auto-extracts .tf and .tfvars files"],
-                  ["Dark / Light Mode","Full theme support across all views and diagrams"],
-                  ["Additional Instructions","Freeform field to append extra context to the analysis request"],
+                  ["Body Size Limit","5 MB cap on all API endpoints prevents timeout abuse"],
+                  ["Dark / Light Mode","Full theme support; Mermaid diagram re-renders automatically on switch"],
                   ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy on all routes"],
                   ["Origin Allowlist","API proxy endpoints reject requests from outside *.vercel.app and localhost"],
+                  ["promptfoo Tests","Regression test suite (npm run test:prompts) covering firewall detection, anti-hallucination, schema completeness, and variable resolution"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
@@ -1322,13 +1326,11 @@ export default function App(){
               <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Roadmap</h3>
               <div className="space-y-2">
                 {[
-                  ["Dynamic Registry Defaults","Fetch Aviatrix module defaults live from registry.terraform.io instead of using hardcoded values"],
-                  ["DOCX Export Quality","Validate all new fields (network domains, edge devices, DCF, firewall) are correctly exported to Word"],
-                  ["Mermaid Theme Sync","Auto re-render Mermaid diagram when dark/light mode is toggled without requiring manual regeneration"],
-                  ["Rate Limiting","Per-IP request throttling on the API proxy to prevent abuse"],
-                  ["File Size Limit","Enforce a maximum upload size (5 MB) to prevent timeout abuse"],
-                  ["Official Aviatrix Icons","Replace current SVG icons with official Aviatrix brand icons in the topology diagram"],
-                  ["AWS Bedrock Support","Add AWS Bedrock as a model provider (requires SigV4 signing — planned for a future phase)"],
+                  ["DOCX Export Quality","Validate all new fields (caveats, edge devices, DCF, modules) are correctly exported to Word"],
+                  ["Rate Limiting","Per-IP request throttling on the API proxy using Upstash Redis or similar"],
+                  ["Official Aviatrix Icons","Replace placeholder icons with official Aviatrix brand icons in the Mermaid diagram"],
+                  ["MockFlow Thumbnail","If MockFlow support is re-added, display preview image alongside the board URL"],
+                  ["Prompt Versioning","Version and A/B test system prompt changes with promptfoo"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
