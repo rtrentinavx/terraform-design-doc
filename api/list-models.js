@@ -21,7 +21,10 @@ export default async function handler(req, res) {
         if (r.ok) {
           const d = await r.json();
           // Exclude Anthropic models — use the Anthropic provider directly
-          const filtered = (d.data || []).filter(m => !m.id?.startsWith("anthropic."));
+          const filtered = (d.data || []).filter(m => {
+            const id = m.id || "";
+            return !id.startsWith("anthropic.") && !id.startsWith("openai.") && !id.startsWith("microsoft.");
+          });
           if (filtered.length) return res.json({ data: filtered });
         }
       } catch {}
