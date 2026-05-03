@@ -1561,6 +1561,8 @@ export default function App(){
   const [custKey2, setCustKey2] =useState(()=>sg("tf_doc_cust_key")||"");
   const [custModel2,setCustModel2]=useState(()=>sg("tf_doc_cust_mod")||"");
   const [showProvCfg,setShowProvCfg]=useState(false);
+  const [fetchedModels,setFetchedModels]=useState<string[]>([]);
+  const [fetchingModels,setFetchingModels]=useState(false);
   const [files,   setFiles]   =useState([]);
   const [loading, setLoading] =useState(false);
   const [extr,    setExtr]    =useState(false);
@@ -1827,6 +1829,38 @@ export default function App(){
               <div><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>API Key</label>
               <input type="password" placeholder="sk-..." value={custKey2} onChange={e=>{setCustKey2(e.target.value);ss("tf_doc_cust_key",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm font-mono" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div></>}
 
+            {/* Fetch models button — available for all providers once key is set */}
+            {((provider==="anthropic"&&apiKey)||(provider==="azure"&&azKey&&azEndpoint)||(provider==="gemini"&&gemKey)||(provider==="custom"&&custKey2&&custUrl))&&
+              <div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button disabled={fetchingModels} onClick={async()=>{
+                    setFetchingModels(true);setFetchedModels([]);
+                    try{
+                      const pk=provider==="anthropic"?apiKey:provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
+                      const pb=provider==="azure"?azEndpoint:provider==="custom"?custUrl:"";
+                      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider,apiKey:pk,baseUrl:pb})});
+                      const d=await r.json();
+                      // Anthropic: data.data[].id; OpenAI-compat: data.data[].id
+                      const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
+                      setFetchedModels(ids);
+                    }catch(e:any){setFetchedModels(["Error: "+e.message]);}
+                    setFetchingModels(false);
+                  }} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm,opacity:fetchingModels?0.6:1}}>
+                    {fetchingModels?<svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>}
+                    {fetchingModels?"Fetching…":"Fetch models"}
+                  </button>
+                  {fetchedModels.length>0&&<span className="text-xs" style={{color:AV.tm}}>{fetchedModels.filter(m=>!m.startsWith("Error")).length} models available</span>}
+                </div>
+                {fetchedModels.length>0&&!fetchedModels[0].startsWith("Error")&&<div className="mt-2 rounded-lg overflow-hidden" style={{border:`1px solid ${AV.nb}`,maxHeight:160,overflowY:"auto"}}>
+                  {fetchedModels.map(m=><button key={m} onClick={()=>{
+                    if(provider==="anthropic"){setSelModel(m);ss("tf_doc_model",m);}
+                    else if(provider==="azure"){setAzDeploy(m);ss("tf_doc_az_dep",m);}
+                    else if(provider==="gemini"){setGemModel(m);ss("tf_doc_gem_model",m);}
+                    else{setCustModel2(m);ss("tf_doc_cust_mod",m);}
+                  }} className="w-full text-left px-3 py-1.5 text-xs font-mono hover:opacity-80" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`,color:AV.tp}}>{m}</button>)}
+                </div>}
+                {fetchedModels[0]?.startsWith("Error")&&<p className="text-xs mt-1" style={{color:"#F9A8D4"}}>{fetchedModels[0]}</p>}
+              </div>}
             <p className="text-xs" style={{color:AV.td}}>Credentials stored in browser localStorage only. The system prompt and JSON schema are the same across all providers — quality may vary.</p>
           </div>
         </div>}
@@ -1909,8 +1943,8 @@ export default function App(){
             </div>
           </div>
         </div>
-      <div className="text-center py-4" style={{color:AV.td}}>
-        <p className="text-xs">Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.tm}}>rtrentin</a></p>
+      <div className="max-w-5xl mx-auto text-center py-6" style={{zIndex:1,position:"relative"}}>
+        <p className="text-xs" style={{color:AV.tm}}>Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.or}}>rtrentin</a></p>
       </div>
     </div>
   );
