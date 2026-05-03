@@ -826,7 +826,23 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         {edgeDevs.length===0&&extConns.length===0&&<div className="rounded-xl px-4 py-6 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="text-4xl mb-3">📡</div><p className="font-semibold" style={{color:AV.tp}}>No edge devices or external connections detected</p></div>}
       </div>}
 
-      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toArr(doc.components).length||0})`}><div className="space-y-3">{toArr(doc.components).map((c,i)=>{const ct=catStyle(c.category);return(<div key={i} className="rounded-xl px-4 py-4" style={ct.card}><div className="flex flex-wrap items-center gap-2 mb-2"><span style={ct.text}>{toStr(c.name)}</span><code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{toStr(c.type)}</code><span className="text-xs px-2 py-0.5 rounded-full capitalize" style={ct.badge}>{toStr(c.category)}</span></div><Pr t={c.purpose}/>{c.configuration&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {toStr(c.configuration)}</p>}{c.dependencies?.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {c.dependencies.join(", ")}</p>}</div>);})}</div></Sec></div>}
+      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toArr(doc.components).length||0})`}><div className="space-y-3">{toArr(doc.components).map((c,i)=>{const name=toStr(c.name||c.resource_name||c.component_name||c.id)||`Component ${i+1}`;
+        const type=toStr(c.type||c.resource_type||c.service||c.resource_kind||"");
+        const cat=toStr(c.category||c.type_category||c.kind||"other")||"other";
+        const purpose=toStr(c.purpose||c.description||c.details||c.notes||"");
+        const config=toStr(c.configuration||c.config||c.settings||"");
+        const deps=toArr(c.dependencies||c.depends_on||c.requires||[]);
+        const ct=catStyle(cat);
+        return(<div key={i} className="rounded-xl px-4 py-4" style={ct.card}>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span style={ct.text}>{name}</span>
+            {type&&<code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{type}</code>}
+            <span className="text-xs px-2 py-0.5 rounded-full capitalize" style={ct.badge}>{cat}</span>
+          </div>
+          {purpose&&<Pr t={purpose}/>}
+          {config&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {config.slice(0,80)}</p>}
+          {deps.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {deps.join(", ")}</p>}
+        </div>);})}</div></Sec></div>}
 
       {/* Always render diagram so SVG is in DOM for DOCX export */}
       <div style={tab==="diagram"?{}:{position:"absolute",left:"-9999px",top:0,opacity:0,pointerEvents:"none"}}>
@@ -856,7 +872,20 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         </div>}
       </div>
 
-      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toArr(doc.data_flows).filter((f:any)=>toStr(f.name)||toStr(f.description)||toArr(f.path).length>0).map((f:any,i:number)=>{const name=toStr(f.name)||`Flow ${i+1}`;const desc=toStr(f.description);const path=toArr(f.path);return(<div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold mb-2" style={{color:AV.or}}>{name}</div>{desc&&<Pr t={desc}/>}{path.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{path.map((p:string,j:number,arr:string[])=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<arr.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}</div>);})}</div></Sec></div>}
+      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toArr(doc.data_flows).map((f:any,i:number)=>{
+          const name=toStr(f.name||f.flow_name||f.title||f.id)||`Flow ${i+1}`;
+          const desc=toStr(f.description||f.details||f.summary||f.notes||"");
+          const path=toArr(f.path||f.steps||f.hops||f.route||[]);
+          const src=toStr(f.source||f.src||f.from||"");
+          const dst=toStr(f.destination||f.dst||f.to||"");
+          if(!name&&!desc&&!path.length&&!src&&!dst)return null;
+          const displayPath=path.length>0?path:(src&&dst?[src,dst]:[]);
+          return(<div key={i} className="rounded-xl px-4 py-4" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}>
+            <div className="font-bold mb-2" style={{color:AV.or}}>{name}</div>
+            {desc&&<Pr t={desc}/>}
+            {displayPath.length>0&&<div className="mt-3 flex flex-wrap items-center gap-1">{displayPath.map((p:string,j:number,arr:string[])=><span key={j} className="flex items-center gap-1"><span className="text-xs px-2 py-1 rounded font-mono" style={{background:`${AV.pu}20`,color:"#C084FC",border:`1px solid ${AV.pu}30`}}>{p}</span>{j<arr.length-1&&<span style={{color:AV.or}}>→</span>}</span>)}</div>}
+          </div>);
+        })}</div></Sec></div>}
 
       {tab==="variables"&&<div className="space-y-6">
         <TabIntro text="Terraform variables, outputs, and modules used in the configuration. Variables control the deployment parameters, outputs expose values for consumption by other configurations or CI/CD pipelines."/>
