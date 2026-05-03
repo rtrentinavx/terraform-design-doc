@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { IDD_TOOL } from "./iddTool";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const APP_VERSION       = "1.1.0";
@@ -35,7 +36,7 @@ const LIGHT={or:"#E05A2B",pu:"#6B21A8",nv:"#F8FAFC",nm:"#FFFFFF",nl:"#F1F5F9",nb
 let AV=DARK;
 
 // ── System prompt ──────────────────────────────────────────────────────────
-const SYS=`You are a senior cloud infrastructure architect writing a formal Infrastructure Design Document (IDD). Return ONLY valid JSON (no markdown, no backticks).
+const SYS=`You are a senior cloud infrastructure architect writing a formal Infrastructure Design Document (IDD). You will be given a tool called generate_idd — call it exactly once with all fields populated.
 
 ANTI-HALLUCINATION — CRITICAL: You MUST only document what is EXPLICITLY present in the Terraform code. Do NOT infer, assume, or fabricate:
 - Do NOT add spoke-to-transit attachments unless aviatrix_spoke_transit_attachment or mc-spoke with transit_gateway parameter exists in the code
@@ -61,26 +62,6 @@ IMPORTANT — DESCRIPTIONS: Every "description" field must be a meaningful 2-4 s
 - network_domains: Explain Aviatrix Network Domains strategy and how domains are isolated. Only populate if enable_segmentation=true is set on transit gateways; leave empty string if not enabled.
 - connectivity: Explain how on-prem, edge, and cloud networks interconnect.
 - deployment_notes: Explain deployment order, dependencies, prerequisites, and any automation considerations.
-
-{
-  "title":"string","version":"1.0","date":"MUST be today's date in YYYY-MM-DD format","provider":"aws|azure|gcp|multi|unknown","firewall_vendor":"palo_alto|fortinet|checkpoint|cisco|none|unknown",
-  "executive_summary":"string (3-5 sentences)",
-  "architecture_overview":{"description":"string (2-4 sentences)","pattern":"hub-and-spoke|flat|mesh|hybrid|unknown","regions":["string"],"availability_zones":["string"],"diagram_description":"string"},
-  "network_design":{"description":"string (2-4 sentences)","vpcs":[{"name":"string","cidr":"string","purpose":"string (1-2 sentences)","type":"transit|spoke|mgmt|shared|unknown","gw_size":"string (VM instance type)","connected_transit":"string (name of the transit VPC this spoke/mgmt VPC attaches to — MUST match a transit VPC name exactly; leave empty for transit VPCs)","firenet":"boolean — true ONLY if this specific transit has FireNet enabled (aviatrix_firenet, mc-firenet, or enable_firenet=true for THIS transit); false for all others"}],"subnets":[{"name":"string","cidr":"string","purpose":"string","az":"string","vpc":"string (name of the VPC this subnet belongs to — MUST match a VPC name exactly)"}],"routing":"string (2-3 sentences)","network_domains":"string (2-3 sentences, only if enable_segmentation=true on transit gateways; empty string if not enabled)","connectivity":"string (2-3 sentences)"},
-  "compute":{"description":"string (2-3 sentences)","instances":[{"name":"string","type":"string","purpose":"string","ha":true}]},
-  "security":{"description":"string (2-4 sentences)","firewall":"string (1-2 sentences)","encryption":"string (1-2 sentences)","access_control":"string (1-2 sentences)","inspection":"string (1-2 sentences)"},
-  "firewall_detail":{"present":true,"vendor":"string REQUIRED","product":"string REQUIRED","instance_size":"string REQUIRED (VM instance type e.g. c5.xlarge)","vcpus":"string REQUIRED","memory_gb":"string REQUIRED","license_model":"BYOL|PAYG|included|unknown","license_type":"string REQUIRED","ha_mode":"active-active|active-passive|standalone|unknown","ha_instances":2,"deployment_mode":"string REQUIRED","interfaces":["management","egress","lan"],"version":"string","notes":"string REQUIRED (2-3 sentences explaining firewall deployment)"},
-  "firewall_context":"string (1-2 sentences)",
-  "components":[{"name":"string","type":"string","category":"compute|network|storage|database|security|monitoring|other","purpose":"string (1-2 sentences)","configuration":"string","dependencies":["string"]}],
-  "data_flows":[{"name":"string","description":"string (1-2 sentences — ONLY describe paths traceable through actual Terraform resources)","path":["string (each hop must correspond to a real gateway, attachment, or firenet resource in the code)"]}],
-  "modules_used":[{"name":"string","source":"string","version":"string","purpose":"string"}],
-  "variables_and_parameters":[{"name":"string","value_or_type":"string","purpose":"string","required":true}],
-  "outputs":[{"name":"string","description":"string","consumed_by":"string"}],
-  "deployment_notes":"string (2-3 sentences)","provider_context":"string (1-2 sentences)",
-  "edge_devices":[{"name":"string","type":"selfmanaged|equinix|zscaler|platform|megaport|csp|spoke","location":"string","size":"string","ha":false,"wan":"string","lan":"string","connected_transit":"string (comma-separated if attached to multiple transits)","bgp_asn":"string"}],
-  "external_connections":[{"name":"string","type":"bgp|static|ipsec|direct_connect|expressroute (MUST match the actual connection_type in the Terraform resource)","local_gw":"string","remote_ip":"string","bgp_asn":"string","tunnel_protocol":"string (e.g. IPsec, GRE, LAN — from tunnel_protocol in the resource)"}],
-  "dcf":{"enabled":false,"default_action":"deny|allow|unknown","smart_groups":[{"name":"string","description":"string","filter_type":"string","members":["string"]}],"web_groups":[{"name":"string","domains":["string"]}],"rulesets":[{"name":"string","type":"user|egress|system|unknown","rules":[{"name":"string","priority":0,"src":"string","dst":"string","protocol":"string","port":"string","action":"allow|deny|force-drop","logging":false,"tls_decryption":false,"ips_profile":"string"}]}],"ips_profiles":[{"name":"string","feeds":["string"],"actions":{"informational":"string","minor":"string","major":"string","critical":"string"},"applied_to":["string"]}],"egress_enabled":false,"tls_decryption_enabled":false,"kubernetes_enabled":false,"transit_egress":false,"summary":"string (2-3 sentences)"}
-}
 
 AVIATRIX TERRAFORM DEFAULTS — Use these when values are NOT explicitly set in the uploaded Terraform files:
 
@@ -187,6 +168,7 @@ EDGE: aviatrix_edge_gateway_selfmanaged→selfmanaged, aviatrix_edge_equinix→e
 EXTERNAL: aviatrix_transit_external_device_conn→external_connections[].
 
 DCF: aviatrix_distributed_firewalling_policy_list policies{}→rules (PERMIT→allow, DENY→deny). aviatrix_distributed_firewalling_default_action_rule→default_action. Predefined: "any"=def000ad-0000-0000-0000-000000000000, "internet"=def000ad-0000-0000-0000-000000000001. Default action: 1)default_action_rule 2)policy named default/Greenfield 3)if DCF enabled→allow 4)unknown.`;
+
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 const IC={vpc:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z",subnet:"M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z",igw:"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",tgw:"M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 3l7 4-7 4-7-4 7-4zm0 9l7-4v5l-7 4-7-4v-5l7 4z",fw:"M12 2l9 4.5v5c0 5.25-3.84 10.15-9 11.5C6.84 21.65 3 16.75 3 11.5v-5L12 2z",dcf:"M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z",gw:"M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",net:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z",home:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",edge:"M13 2L3 14h9l-1 8 10-12h-9l1-8z"};
@@ -1725,7 +1707,7 @@ export default function App(){
       dbg.step="fetch";let resp;
       try{
         if(provider==="anthropic"){
-          resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,messages:[{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
+          resp=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model:selModel,max_tokens:16000,temperature:0,system:SYS,tools:[IDD_TOOL],tool_choice:{type:"tool",name:"generate_idd"},messages:[{role:"user",content:`${userMsg}\n\n${safeCombined}`}]})});
         }else{
           const provKey=provider==="azure"?azKey:provider==="gemini"?gemKey:custKey2;
           const provModel=provider==="azure"?azDeploy:provider==="gemini"?gemModel:custModel2;
@@ -1739,13 +1721,20 @@ export default function App(){
       if(!resp.ok){setDebug({...dbg});setError(`API HTTP ${resp.status}: ${bt.slice(0,300)}`);stopProgress(false);setLoading(false);return;}
       let data;try{data=JSON.parse(bt);}catch(je){setDebug({...dbg});setError("Parse error: "+je.message);stopProgress(false);setLoading(false);return;}
       if(data.error){setDebug({...dbg});setError("API error: "+JSON.stringify(data.error));stopProgress(false);setLoading(false);return;}
-      // Normalize response: Anthropic uses content[].text; OpenAI uses choices[0].message.content
-      const raw=(provider==="anthropic"?(data.content?.map((b:any)=>b.text||"").join("")||""):(data.choices?.[0]?.message?.content||"")).replace(/```json|```/g,"").trim();
-      dbg.stopReason=data.stop_reason||"";
-      if(!raw){setDebug({...dbg});setError("Empty response");stopProgress(false);setLoading(false);return;}
-      let parsed;
-      try{parsed=JSON.parse(raw);}
-      catch(pe){try{let f=raw;f=f.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,"").replace(/,\s*"[^"]*$/,"").replace(/"[^"]*$/,'"..."');let ob=(f.match(/\{/g)||[]).length-(f.match(/\}/g)||[]).length,ab=(f.match(/\[/g)||[]).length-(f.match(/\]/g)||[]).length;while(ab-->0)f+="]";while(ob-->0)f+="}";parsed=JSON.parse(f);}catch(re){setDebug({...dbg});setError(`JSON parse failed: ${pe.message}\n${raw.slice(0,400)}`);stopProgress(false);setLoading(false);return;}}
+      dbg.stopReason=data.stop_reason||data.choices?.[0]?.finish_reason||"";
+      let parsed:any;
+      if(provider==="anthropic"){
+        // Tool use: extract from tool_use block — already a parsed object, no JSON.parse needed
+        const toolBlock=data.content?.find((b:any)=>b.type==="tool_use"&&b.name==="generate_idd");
+        if(!toolBlock?.input){setDebug({...dbg});setError("No tool_use block in response. Stop reason: "+dbg.stopReason);stopProgress(false);setLoading(false);return;}
+        parsed=toolBlock.input;
+      }else{
+        // OpenAI-compatible: text response, parse JSON
+        const raw=(data.choices?.[0]?.message?.content||"").replace(/```json|```/g,"").trim();
+        if(!raw){setDebug({...dbg});setError("Empty response");stopProgress(false);setLoading(false);return;}
+        try{parsed=JSON.parse(raw);}
+        catch(pe){try{let f=raw;f=f.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,"").replace(/,\s*"[^"]*$/,"").replace(/"[^"]*$/,'"..."');let ob=(f.match(/\{/g)||[]).length-(f.match(/\}/g)||[]).length,ab=(f.match(/\[/g)||[]).length-(f.match(/\]/g)||[]).length;while(ab-->0)f+="]";while(ob-->0)f+="}";parsed=JSON.parse(f);}catch(re){setDebug({...dbg});setError(`JSON parse failed: ${pe.message}\n${raw.slice(0,400)}`);stopProgress(false);setLoading(false);return;}}
+      }
       // Rehydrate redacted PII back into the parsed document
       if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
@@ -1945,6 +1934,7 @@ export default function App(){
             </div>
           </div>
         </div>
+      </div>
       <div className="max-w-5xl mx-auto text-center py-6" style={{zIndex:1,position:"relative"}}>
         <p className="text-xs" style={{color:AV.tm}}>Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline" style={{color:AV.or}}>rtrentin</a></p>
       </div>
