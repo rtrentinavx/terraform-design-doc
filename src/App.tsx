@@ -234,6 +234,12 @@ function toStr(v:any):string{
   if(typeof v==="object")return v.description||v.text||v.value||v.summary||JSON.stringify(v);
   return String(v);
 }
+function toArr(v:any):string[]{
+  if(!v)return[];
+  if(Array.isArray(v))return v.map(toStr);
+  if(typeof v==="string")return v.split(/[,→]/).map((s:string)=>s.trim()).filter(Boolean);
+  return[toStr(v)];
+}
 function UIPr({t}:{t:any}){const s=toStr(t);return s?<p className="text-sm leading-7" style={{color:AV.tm}}>{s}</p>:null;}
 function UIKV({label,val}:{label:string,val:any}){const s=toStr(val);return s?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{s}</span></div>:null;}
 function UItr(s:string,n:number){return s&&s.length>n?s.slice(0,n-1)+"…":(s||"");}
