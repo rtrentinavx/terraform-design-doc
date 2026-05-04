@@ -103,7 +103,7 @@ export default async function handler(req: any, res: any) {
     }
   } catch (err: any) {
     Sentry.captureException(err);
-    const msg = err?.message || String(err);
+    const msg = err?.message || (typeof err?.error === "object" ? err.error?.message : err?.error) || String(err);
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     res.status(status).json({ error: msg });
   }

@@ -232,7 +232,7 @@ function toStr(v:any):string{
   if(!v)return"";
   if(typeof v==="string")return v;
   if(Array.isArray(v))return v.map(toStr).join(", ");
-  if(typeof v==="object")return v.description||v.text||v.value||v.summary||JSON.stringify(v);
+  if(typeof v==="object")return v.description||v.text||v.value||v.summary||v.message||v.content||JSON.stringify(v);
   return String(v);
 }
 function toArr(v:any):string[]{
@@ -1201,7 +1201,7 @@ export default function App(){
       const bt=await resp.text();dbg.apiBody=bt.slice(0,600);
       if(!resp.ok){setDebug({...dbg});setError(`API ${resp.status}: ${bt.slice(0,300)}`);stopProgress(false);setLoading(false);return;}
       let data:any;try{data=JSON.parse(bt);}catch(je:any){setDebug({...dbg});setError("Parse error: "+je.message);stopProgress(false);setLoading(false);return;}
-      if(data.error){setDebug({...dbg});setError("API error: "+data.error);stopProgress(false);setLoading(false);return;}
+      if(data.error){setDebug({...dbg});setError("API error: "+(typeof data.error==="object"?JSON.stringify(data.error):data.error));stopProgress(false);setLoading(false);return;}
       // AI SDK returns { object, usage } — object is already validated against Zod schema
       let parsed:any=data.object;
       if(!parsed){setDebug({...dbg});setError("Empty response object");stopProgress(false);setLoading(false);return;}
@@ -1247,7 +1247,7 @@ export default function App(){
       const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Explain this Terraform code:\n\n${safe}`})});
       const rawText=await r.text();
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
-      if(!r.ok||d.error){setError("Explain failed: "+(d.error||r.status));}
+      if(!r.ok||d.error){setError("Explain failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
       else{
         const raw=d.explanation||"";
         setExplanation(raw);
@@ -1282,7 +1282,7 @@ export default function App(){
       const r=await fetch("/api/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Validate this Terraform code:\n\n${safe}`})});
       const rawText=await r.text();
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
-      if(!r.ok||d.error){setError("Validate failed: "+(d.error||r.status));}
+      if(!r.ok||d.error){setError("Validate failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
       else setValidation(d);
     }catch(e:any){Sentry.captureException(e,{tags:{action:"validate"}});setError("Validate error: "+e.message);}
     setValidating(false);
