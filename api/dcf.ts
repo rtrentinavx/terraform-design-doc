@@ -69,7 +69,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, tfContent, hldSummary } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, tfContent, hldSummary, enableEgress = true } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
 
   const bodySize = JSON.stringify(req.body).length;
@@ -78,7 +78,10 @@ export default async function handler(req: any, res: any) {
   try {
     initSentry();
     const mdl = buildModel(provider, apiKey, model, baseUrl);
-    const prompt = `NETWORK SUMMARY FROM HLD:\n${JSON.stringify(hldSummary, null, 2)}\n\nTERRAFORM CODE:\n${tfContent}`;
+    const egressNote = enableEgress
+      ? "Include egress rules to WebGroups for internet-bound traffic (software updates, monitoring, cloud APIs)."
+      : "DO NOT include any egress rules or internet access. Implement Zero Trust — all traffic not explicitly allowed is denied.";
+    const prompt = `NETWORK SUMMARY FROM HLD:\n${JSON.stringify(hldSummary, null, 2)}\n\nEGRESS POLICY: ${egressNote}\n\nTERRAFORM CODE:\n${tfContent}`;
 
     const { text } = await generateText({
       model: mdl,

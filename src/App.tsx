@@ -650,7 +650,7 @@ async function exportDocx(data:any,customerName:string){
 }
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean}){
+function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean,dcfEgress?:boolean,onToggleEgress?:()=>void}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
@@ -846,6 +846,12 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mx-auto mb-3" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`}}>🛡</div>
             <p className="font-bold mb-1" style={{color:AV.tp}}>Aviatrix Distributed Cloud Firewall not configured</p>
             <p className="text-xs mb-4" style={{color:AV.tm}}>Generate a tentative DCF policy suggestion based on the network segments discovered in this Terraform configuration.</p>
+            <label className="flex items-center gap-2 cursor-pointer mb-3 justify-center">
+              <div onClick={onToggleEgress} className="relative w-9 h-5 rounded-full transition-colors" style={{background:dcfEgress?AV.pu:"#475569"}}>
+                <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" style={{transform:dcfEgress?"translateX(18px)":"translateX(2px)"}}/>
+              </div>
+              <span className="text-xs font-semibold" style={{color:AV.tm}}>Include egress rules (internet access)</span>
+            </label>
             <button onClick={onGenerateDcf} disabled={generatingDcf} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50" style={{background:`linear-gradient(135deg,${AV.pu},${AV.or})`}}>
               {generatingDcf?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating DCF Policy…</>:<>🛡 Generate DCF Policy Suggestion</>}
             </button>
@@ -969,6 +975,7 @@ export default function App(){
   const [grounding,setGrounding]=useState<{verified:number,total:number,unverified:string[]}|null>(null);
   const [dcfSuggestion,setDcfSuggestion]=useState<{dcf_config:any,terraform_code:string}|null>(null);
   const [generatingDcf,setGeneratingDcf]=useState(false);
+  const [dcfEgress,setDcfEgress]=useState(true);
   const [error,   setError]   =useState(null);
   const [debug,   setDebug]   =useState(null);
   const [drag,    setDrag]    =useState(false);
@@ -1340,7 +1347,7 @@ export default function App(){
         subnets:toObjArr(doc.network_design?.subnets).map((s:any)=>({name:toStr(s.name),cidr:toStr(s.cidr),vpc:toStr(s.vpc)})),
         firewall:doc.firewall_detail?.present?{vendor:doc.firewall_detail.vendor,mode:doc.firewall_detail.ha_mode}:null,
       };
-      const r=await fetch("/api/dcf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,tfContent:safe,hldSummary})});
+      const r=await fetch("/api/dcf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,tfContent:safe,hldSummary,enableEgress:dcfEgress})});
       const rawText=await r.text();
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("DCF generation failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
@@ -1523,7 +1530,7 @@ export default function App(){
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} grounding={grounding} onGenerateDcf={generateDcf} generatingDcf={generatingDcf}/>
+            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} grounding={grounding} onGenerateDcf={generateDcf} generatingDcf={generatingDcf} dcfEgress={dcfEgress} onToggleEgress={()=>setDcfEgress(v=>!v)}/>
             {/* DCF Policy Suggestion Panel */}
             {dcfSuggestion&&<div className="mt-6 rounded-2xl overflow-hidden" style={{border:`1px solid ${AV.pu}40`}}>
               <div className="px-5 py-4 flex items-center justify-between" style={{background:`${AV.pu}10`,borderBottom:`1px solid ${AV.pu}30`}}>
