@@ -8,7 +8,7 @@ import { checkOrigin } from "./_origin.js";
 import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
-const TEXT_PROVIDERS = new Set(["anthropic", "bedrock"]);
+const TEXT_PROVIDERS = new Set(["anthropic", "bedrock", "custom"]);
 
 const CRITIQUE_PROMPT = `You are auditing a High Level Design (HLD) document for accuracy against Terraform source code.
 
@@ -30,7 +30,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
   if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl || "us-east-1", apiKey })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model, { structuredOutputs: true });
-  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { structuredOutputs: true });
+  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
 }
 
 function repairJson(raw: string): string {
