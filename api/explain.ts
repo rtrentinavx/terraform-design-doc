@@ -19,7 +19,7 @@ const EXPLAIN_PROMPT = [
   "## Architecture",
   "How the components connect and interact. Include topology, traffic flow, and any hub-spoke or multi-cloud patterns.",
   "",
-  "After the architecture description, include a Mermaid diagram using flowchart LR layout showing key resources and connections. Wrap it in a mermaid code fence.",
+  "After the architecture description, optionally include a short Mermaid flowchart LR if it adds clarity (max 10 nodes).",
   "",
   "## Security",
   "Key security configurations: firewall rules, encryption, access controls, network segmentation.",
@@ -62,7 +62,7 @@ export default async function handler(req: any, res: any) {
       system: EXPLAIN_PROMPT,
       prompt: content,
       temperature: 0,
-      maxTokens: 4000,
+      maxTokens: 2000,
     });
 
     const lower = text.toLowerCase();

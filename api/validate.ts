@@ -81,7 +81,7 @@ export default async function handler(req: any, res: any) {
         system: VALIDATE_PROMPT,
         prompt: content,
         temperature: 0,
-        maxTokens: 4000,
+        maxTokens: 2000,
       });
       const raw = text.replace(/```json|```/g, "").trim();
       let parsed: any;
@@ -96,7 +96,7 @@ export default async function handler(req: any, res: any) {
         system: VALIDATE_PROMPT,
         prompt: content,
         temperature: 0,
-        maxTokens: 4000,
+        maxTokens: 2000,
       });
       return res.status(200).json(object);
     }
