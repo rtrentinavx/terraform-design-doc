@@ -12,10 +12,12 @@ Sentry.init({
   integrations: [
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration({ maskAllText: true, blockAllMedia: false }),
+    Sentry.feedbackIntegration({ colorScheme: "system" }),
   ],
   tracesSampleRate: 0.2,
-  replaysSessionSampleRate: 1.0,  // 100% while verifying integration
+  replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
+  sendDefaultPii: false,
   environment: import.meta.env.MODE,
 });
 
