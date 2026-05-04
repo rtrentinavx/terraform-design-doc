@@ -182,21 +182,6 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
           </div>
           <p className="text-xs mt-1" style={{color:AV.td}}>Leave at default for thinking/reasoning models (Kimi K2, DeepSeek R1)</p>
         </div>
-        {/* Temperature */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className={lbl} style={{color:AV.tm}}>Temperature</label>
-            <span className="text-xs font-mono" style={{color:pc}}>{p.temperature===undefined?"model default":p.temperature?.toFixed(1)}</span>
-          </div>
-          <input type="range" min="-0.1" max="2" step="0.1"
-            value={p.temperature??-0.1}
-            onChange={e=>{const v=parseFloat(e.target.value);setP(prev=>({...prev,temperature:v<0?undefined:parseFloat(v.toFixed(1))}));}}
-            className="w-full h-2 rounded-full appearance-none cursor-pointer" style={{accentColor:pc}}/>
-          <div className="flex justify-between text-xs mt-1 px-0.5" style={{color:AV.td}}>
-            <span>Default</span><span>0</span><span>1</span><span>2</span>
-          </div>
-          <p className="text-xs mt-1" style={{color:AV.td}}>Leave at default for thinking/reasoning models (Kimi K2, DeepSeek R1)</p>
-        </div>
         <div><label className={lbl} style={{color:AV.tm}}>Profile Name</label>
           <input type="text" placeholder="e.g. Claude Sonnet (Work)" value={p.name} onChange={e=>up("name",e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={inpS}/>
         </div>
