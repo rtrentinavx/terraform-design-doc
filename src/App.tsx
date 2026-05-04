@@ -96,9 +96,15 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
     try{
       const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,baseUrl:p.baseUrl||""})});
       const d=await r.json();
-      const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
-      if(ids.length)setModels(ids);else{const e=d.error;setFetchErr(typeof e==="object"?(e?.message||JSON.stringify(e)):(e||"No models returned"));}
-    }catch(e:any){setFetchErr(e.message);}
+      if(!r.ok||d.error){
+        const e=d.error;
+        setFetchErr(typeof e==="object"?(e?.message||JSON.stringify(e)):(e||`HTTP ${r.status}`));
+      }else{
+        // Ensure every id is a plain string — never pass objects to <option>
+        const ids=(d.data||[]).map((m:any)=>String(m.id||m.name||"")).filter(s=>s.length>0);
+        if(ids.length)setModels(ids);else setFetchErr("No models returned");
+      }
+    }catch(e:any){setFetchErr(String(e?.message||e));}
     setFetching(false);
   };
   const inp="w-full rounded-xl px-4 py-2.5 text-sm font-mono";
@@ -762,7 +768,7 @@ function DocView({doc,selModel,dark,onExport,grounding}:{doc:any,selModel:string
         <TabIntro text="Network topology extracted from your Terraform configuration, including VPCs/VNets, CIDR allocations, subnet layout, gateway instance sizes, routing model, and Network Domains."/>
         {nd.description&&<Sec title="Network Topology"><Pr t={nd.description}/></Sec>}
         {toObjArr(nd.vpcs).length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{toStr(v.name)}</div><div className="grid grid-cols-2 gap-1"><KV label="CIDR" val={v.cidr}/><KV label="Type" val={v.type}/><KV label="Gateway Size" val={v.gw_size}/></div><Pr t={toStr(v.purpose)}/></div>)}</div></Sec>}
-        {nd.subnets?.length>0&&<Sec title="Subnets"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","CIDR","AZ","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{nd.subnets.map((s,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono text-xs" style={{color:AV.or}}>{s.name}</td><td className="px-4 py-2 font-mono text-xs" style={{color:"#60A5FA"}}>{s.cidr||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.az||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.purpose}</td></tr>)}</tbody></table></div></Sec>}
+        {nd.subnets?.length>0&&<Sec title="Subnets"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","CIDR","AZ","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{nd.subnets.map((s,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono text-xs" style={{color:AV.or}}>{toStr(s.name)}</td><td className="px-4 py-2 font-mono text-xs" style={{color:"#60A5FA"}}>{s.cidr||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.az||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{toStr(s.purpose)}</td></tr>)}</tbody></table></div></Sec>}
         {nd.routing&&<Sec title="Routing"><Pr t={nd.routing}/></Sec>}
         {nd.network_domains&&<Sec title="Network Domains"><Pr t={nd.network_domains}/></Sec>}
         {nd.connectivity&&<Sec title="Connectivity"><Pr t={nd.connectivity}/></Sec>}
@@ -803,8 +809,8 @@ function DocView({doc,selModel,dark,onExport,grounding}:{doc:any,selModel:string
               {/* Stats row */}
               {fwStats.length>0&&<div className="flex flex-wrap" style={{borderBottom:`1px solid ${AV.nb}`}}>
                 {fwStats.map((s,i)=><div key={s.label} className="flex-1 min-w-[120px] px-5 py-4" style={{background:AV.nm,borderRight:i<fwStats.length-1?`1px solid ${AV.nb}`:"none"}}>
-                  <div className="flex items-center gap-1.5 mb-1.5"><span className="text-xs">{s.icon}</span><span className="text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{s.label}</span></div>
-                  <div className="text-lg font-black font-mono" style={{color:AV.tp}}>{s.value}</div>
+                  <div className="flex items-center gap-1.5 mb-1.5"><span className="text-xs">{toStr(s.icon)}</span><span className="text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{toStr(s.label)}</span></div>
+                  <div className="text-lg font-black font-mono" style={{color:AV.tp}}>{toStr(s.value)}</div>
                 </div>)}
               </div>}
               {/* Meta details */}
@@ -1416,7 +1422,7 @@ export default function App(){
                           {f.resource&&<span className="text-xs font-mono" style={{color:AV.or}}>{toStr(f.resource)}</span>}
                         </div>
                         <p className="text-xs mb-1" style={{color:AV.tm}}>{toStr(f.description)}</p>
-                        {f.recommendation&&<p className="text-xs" style={{color:AV.td}}>→ {f.recommendation}</p>}
+                        {f.recommendation&&<p className="text-xs" style={{color:AV.td}}>→ {toStr(f.recommendation)}</p>}
                       </div>
                     </div>
                   </div>);
