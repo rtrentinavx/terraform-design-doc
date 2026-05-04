@@ -241,6 +241,13 @@ function toArr(v:any):string[]{
   if(typeof v==="string")return v.split(/[,→]/).map((s:string)=>s.trim()).filter(Boolean);
   return[toStr(v)];
 }
+// For arrays of objects — keeps elements as objects, does NOT stringify them
+function toObjArr(v:any):any[]{
+  if(!v)return[];
+  if(Array.isArray(v))return v;
+  if(typeof v==="object"&&!Array.isArray(v))return Object.values(v);
+  return[];
+}
 function UIPr({t}:{t:any}){const s=toStr(t);return s?<p className="text-sm leading-7" style={{color:AV.tm}}>{s}</p>:null;}
 function UIKV({label,val}:{label:string,val:any}){const s=toStr(val);return s?<div className="flex gap-2 text-sm"><span className="font-semibold min-w-32 shrink-0" style={{color:AV.tp}}>{label}</span><span style={{color:AV.tm}}>{s}</span></div>:null;}
 function UItr(s:string,n:number){return s&&s.length>n?s.slice(0,n-1)+"…":(s||"");}
@@ -416,12 +423,12 @@ function useMermaid(){
 // ── Mermaid diagram builder ────────────────────────────────────────────────
 function buildMermaid(doc:any,dark=true):string{
   const nd=doc.network_design||{};
-  const vpcs:any[]=toArr(nd.vpcs);
-  const subs:any[]=toArr(nd.subnets);
+  const vpcs:any[]=toObjArr(nd.vpcs);
+  const subs:any[]=toObjArr(nd.subnets);
   const comps:any[]=toArr(doc.components);
   const flows:any[]=toArr(doc.data_flows);
-  const edges:any[]=toArr(doc.edge_devices);
-  const extConns:any[]=toArr(doc.external_connections);
+  const edges:any[]=toObjArr(doc.edge_devices);
+  const extConns:any[]=toObjArr(doc.external_connections);
   const fw=doc.firewall_detail||{};
   const dcf=doc.dcf||{};
 
@@ -575,14 +582,22 @@ const VE=[".tf",".tfvars"];
 function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
 function isM(fileName:string){return fileName.includes("__MACOSX")||fileName.includes(".DS_Store");}
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
-function useDocx(){useEffect(()=>{if((window as any).docx)return;const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js";document.head.appendChild(s);},[]);}
-function waitForDocx(maxMs=15000):Promise<any>{
+function loadScript(src:string):Promise<void>{
+  return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error(`Failed: ${src}`));document.head.appendChild(s);});
+}
+function useDocx(){useEffect(()=>{
+  if((window as any).docx)return;
+  loadScript("https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js")
+    .catch(()=>loadScript("https://unpkg.com/docx@8.5.0/build/index.min.js"))
+    .catch(console.warn);
+},[]);}
+function waitForDocx(maxMs=20000):Promise<any>{
   return new Promise((res,rej)=>{
     if((window as any).docx)return res((window as any).docx);
     const start=Date.now();
     const poll=setInterval(()=>{
       if((window as any).docx){clearInterval(poll);res((window as any).docx);}
-      else if(Date.now()-start>maxMs){clearInterval(poll);rej(new Error("docx library failed to load — check your internet connection"));}
+      else if(Date.now()-start>maxMs){clearInterval(poll);rej(new Error("docx library failed to load. Try refreshing the page."));}
     },100);
   });
 }
@@ -653,7 +668,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
   },[tab,dark]);
   const nd=doc.network_design||{},ao=doc.architecture_overview||{},sec=doc.security||{},fw=doc.firewall_detail||{},dcf=doc.dcf||{};
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
-  const hasDCF=dcf.enabled===true||(toArr(dcf.rulesets).length>0)||(toArr(dcf.smart_groups).length>0);
+  const hasDCF=dcf.enabled===true||(toObjArr(dcf.rulesets).length>0)||(toObjArr(dcf.smart_groups).length>0);
   const hasEdge=edgeDevs.length>0||extConns.length>0;
   const tabs=[
     {id:"overview",l:"Overview"},
@@ -704,7 +719,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
         <span><strong style={{color:AV.tp}}>Pattern:</strong> {ao.pattern||"—"}</span>
         {ao.regions?.length>0&&<span><strong style={{color:AV.tp}}>Regions:</strong> {ao.regions.join(", ")}</span>}
-        <span><strong style={{color:AV.tp}}>Components:</strong> {toArr(doc.components).length||0}</span>
+        <span><strong style={{color:AV.tp}}>Components:</strong> {toObjArr(doc.components).length||0}</span>
         {!noFw&&<span><strong style={{color:AV.tp}}>Firewall:</strong> {fwLabel}</span>}
         {dcf.enabled&&<span><strong style={{color:"#A855F7"}}>DCF:</strong> Enabled</span>}
         {edgeDevs.length>0&&<span><strong style={{color:"#F97316"}}>Edge:</strong> {edgeDevs.length}</span>}
@@ -734,7 +749,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
       {tab==="network"&&<div className="space-y-6">
         <TabIntro text="Network topology extracted from your Terraform configuration, including VPCs/VNets, CIDR allocations, subnet layout, gateway instance sizes, routing model, and Network Domains."/>
         {nd.description&&<Sec title="Network Topology"><Pr t={nd.description}/></Sec>}
-        {toArr(nd.vpcs).length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{toStr(v.name)}</div><div className="grid grid-cols-2 gap-1"><KV label="CIDR" val={v.cidr}/><KV label="Type" val={v.type}/><KV label="Gateway Size" val={v.gw_size}/></div><Pr t={toStr(v.purpose)}/></div>)}</div></Sec>}
+        {toObjArr(nd.vpcs).length>0&&<Sec title="VPCs / VNets"><div className="grid gap-3">{nd.vpcs.map((v,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-1" style={{color:AV.or}}>{toStr(v.name)}</div><div className="grid grid-cols-2 gap-1"><KV label="CIDR" val={v.cidr}/><KV label="Type" val={v.type}/><KV label="Gateway Size" val={v.gw_size}/></div><Pr t={toStr(v.purpose)}/></div>)}</div></Sec>}
         {nd.subnets?.length>0&&<Sec title="Subnets"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","CIDR","AZ","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{nd.subnets.map((s,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono text-xs" style={{color:AV.or}}>{s.name}</td><td className="px-4 py-2 font-mono text-xs" style={{color:"#60A5FA"}}>{s.cidr||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.az||"—"}</td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{s.purpose}</td></tr>)}</tbody></table></div></Sec>}
         {nd.routing&&<Sec title="Routing"><Pr t={nd.routing}/></Sec>}
         {nd.network_domains&&<Sec title="Network Domains"><Pr t={nd.network_domains}/></Sec>}
@@ -818,7 +833,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         {!dcf.enabled&&<div className="rounded-xl px-4 py-6 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="text-4xl mb-3">🔒</div><p className="font-semibold" style={{color:AV.tp}}>No DCF policies detected</p></div>}
         {dcf.smart_groups?.length>0&&<Sec title={`SmartGroups (${dcf.smart_groups.length})`}><div className="grid gap-3 sm:grid-cols-2">{dcf.smart_groups.map((sg,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="flex items-center gap-2 mb-1"><span className="font-bold text-sm" style={{color:"#60A5FA"}}>{sg.name}</span><span className="text-xs px-2 py-0.5 rounded" style={{background:"#3B82F615",color:"#93C5FD"}}>{sg.filter_type}</span></div><div className="flex flex-wrap gap-1 mt-1">{(sg.members||[]).slice(0,6).map((m,j)=><span key={j} className="text-xs px-2 py-0.5 rounded font-mono" style={{background:"#3B82F610",border:"1px solid #3B82F630",color:"#93C5FD"}}>{m}</span>)}{sg.members?.length>6&&<span className="text-xs" style={{color:AV.tm}}>+{sg.members.length-6} more</span>}</div></div>)}</div></Sec>}
         {dcf.web_groups?.length>0&&<Sec title={`WebGroups (${dcf.web_groups.length})`}><div className="grid gap-3 sm:grid-cols-2">{dcf.web_groups.map((wg,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="font-bold text-sm mb-2" style={{color:"#A855F7"}}>{wg.name}</div><div className="flex flex-wrap gap-1">{(wg.domains||[]).slice(0,8).map((d,j)=><span key={j} className="text-xs px-2 py-0.5 rounded font-mono" style={{background:"#A855F710",border:"1px solid #A855F730",color:"#C084FC"}}>{d}</span>)}</div></div>)}</div></Sec>}
-        {toArr(dcf.rulesets).length>0&&dcf.rulesets.map((rs,ri)=><Sec key={ri} title={`${rs.name||"Ruleset"} (${rs.rules?.length||0} rules)`}><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-xs"><thead style={{background:AV.nl}}><tr>{["#","Name","Src","Dst","Proto","Port","Action","Log","TLS"].map(h=><th key={h} className="px-3 py-2 text-left font-bold uppercase whitespace-nowrap" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{(rs.rules||[]).map((r,rj)=>{const ac=acC[r.action]||AV.tm;return(<tr key={rj} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-3 py-2 font-mono" style={{color:AV.td}}>{r.priority??rj+1}</td><td className="px-3 py-2 font-semibold" style={{color:AV.tp}}>{r.name||"—"}</td><td className="px-3 py-2 font-mono" style={{color:"#60A5FA"}}>{r.src||"Any"}</td><td className="px-3 py-2 font-mono" style={{color:"#A855F7"}}>{r.dst||"Any"}</td><td className="px-3 py-2" style={{color:AV.tm}}>{r.protocol||"Any"}</td><td className="px-3 py-2 font-mono" style={{color:AV.tm}}>{r.port||"Any"}</td><td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full font-bold uppercase text-xs" style={{background:`${ac}15`,border:`1px solid ${ac}40`,color:ac}}>{r.action||"—"}</span></td><td className="px-3 py-2 text-center">{r.logging?<span style={{color:"#22C55E"}}>✓</span>:<span style={{color:AV.td}}>—</span>}</td><td className="px-3 py-2 text-center">{r.tls_decryption?<span style={{color:"#A855F7"}}>✓</span>:<span style={{color:AV.td}}>—</span>}</td></tr>);})}</tbody></table></div></Sec>)}
+        {toObjArr(dcf.rulesets).length>0&&dcf.rulesets.map((rs,ri)=><Sec key={ri} title={`${rs.name||"Ruleset"} (${rs.rules?.length||0} rules)`}><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-xs"><thead style={{background:AV.nl}}><tr>{["#","Name","Src","Dst","Proto","Port","Action","Log","TLS"].map(h=><th key={h} className="px-3 py-2 text-left font-bold uppercase whitespace-nowrap" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{(rs.rules||[]).map((r,rj)=>{const ac=acC[r.action]||AV.tm;return(<tr key={rj} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-3 py-2 font-mono" style={{color:AV.td}}>{r.priority??rj+1}</td><td className="px-3 py-2 font-semibold" style={{color:AV.tp}}>{r.name||"—"}</td><td className="px-3 py-2 font-mono" style={{color:"#60A5FA"}}>{r.src||"Any"}</td><td className="px-3 py-2 font-mono" style={{color:"#A855F7"}}>{r.dst||"Any"}</td><td className="px-3 py-2" style={{color:AV.tm}}>{r.protocol||"Any"}</td><td className="px-3 py-2 font-mono" style={{color:AV.tm}}>{r.port||"Any"}</td><td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full font-bold uppercase text-xs" style={{background:`${ac}15`,border:`1px solid ${ac}40`,color:ac}}>{r.action||"—"}</span></td><td className="px-3 py-2 text-center">{r.logging?<span style={{color:"#22C55E"}}>✓</span>:<span style={{color:AV.td}}>—</span>}</td><td className="px-3 py-2 text-center">{r.tls_decryption?<span style={{color:"#A855F7"}}>✓</span>:<span style={{color:AV.td}}>—</span>}</td></tr>);})}</tbody></table></div></Sec>)}
       </div>}
 
       {tab==="edge"&&<div className="space-y-6">
@@ -828,7 +843,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         {edgeDevs.length===0&&extConns.length===0&&<div className="rounded-xl px-4 py-6 text-center" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><div className="text-4xl mb-3">📡</div><p className="font-semibold" style={{color:AV.tp}}>No edge devices or external connections detected</p></div>}
       </div>}
 
-      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toArr(doc.components).length||0})`}><div className="space-y-3">{toArr(doc.components).map((c,i)=>{const name=toStr(c.name||c.resource_name||c.component_name||c.id)||`Component ${i+1}`;
+      {tab==="components"&&<div className="space-y-6"><TabIntro text="All infrastructure components identified in the Terraform configuration, categorized by function (compute, network, storage, security, etc.) with their dependencies and configuration details."/><Sec title={`Components (${toObjArr(doc.components).length||0})`}><div className="space-y-3">{toObjArr(doc.components).map((c,i)=>{const name=toStr(c.name||c.resource_name||c.component_name||c.id)||`Component ${i+1}`;
         const type=toStr(c.type||c.resource_type||c.service||c.resource_kind||"");
         const cat=toStr(c.category||c.type_category||c.kind||"other")||"other";
         const purpose=toStr(c.purpose||c.description||c.details||c.notes||"");
@@ -874,7 +889,7 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
         </div>}
       </div>
 
-      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toArr(doc.data_flows).map((f:any,i:number)=>{
+      {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toObjArr(doc.data_flows).map((f:any,i:number)=>{
           const name=toStr(f.name||f.flow_name||f.title||f.id)||`Flow ${i+1}`;
           const desc=toStr(f.description||f.details||f.summary||f.notes||"");
           const path=toArr(f.path||f.steps||f.hops||f.route||[]);
@@ -891,8 +906,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
 
       {tab==="variables"&&<div className="space-y-6">
         <TabIntro text="Terraform variables, outputs, and modules used in the configuration. Variables control the deployment parameters, outputs expose values for consumption by other configurations or CI/CD pipelines."/>
-        {doc.variables_and_parameters?.length>0&&<Sec title="Variables"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","Type","Required","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{toArr(doc.variables_and_parameters).map((v,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono font-semibold text-xs" style={{color:AV.or}}>{toStr(v.name)}</td><td className="px-4 py-2 text-xs"><code style={{color:"#C084FC"}}>{v.value_or_type}</code></td><td className="px-4 py-2 text-xs"><span style={v.required?{color:"#F472B6"}:{color:"#4ADE80"}}>{v.required?"Required":"Optional"}</span></td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{toStr(v.purpose)}</td></tr>)}</tbody></table></div></Sec>}
-        {doc.outputs?.length>0&&<Sec title="Outputs"><div className="grid gap-3">{toArr(doc.outputs).map((o,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><code className="text-sm font-bold" style={{color:AV.or}}>{toStr(o.name)}</code><p className="text-sm mt-1" style={{color:AV.tm}}>{toStr(o.description)}</p>{o.consumed_by&&<p className="text-xs mt-1" style={{color:AV.td}}>Consumed by: {toStr(o.consumed_by)}</p>}</div>)}</div></Sec>}
+        {doc.variables_and_parameters?.length>0&&<Sec title="Variables"><div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}><table className="w-full text-sm"><thead style={{background:AV.nl}}><tr>{["Name","Type","Required","Purpose"].map(h=><th key={h} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr></thead><tbody>{toObjArr(doc.variables_and_parameters).map((v,i)=><tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}><td className="px-4 py-2 font-mono font-semibold text-xs" style={{color:AV.or}}>{toStr(v.name)}</td><td className="px-4 py-2 text-xs"><code style={{color:"#C084FC"}}>{v.value_or_type}</code></td><td className="px-4 py-2 text-xs"><span style={v.required?{color:"#F472B6"}:{color:"#4ADE80"}}>{v.required?"Required":"Optional"}</span></td><td className="px-4 py-2 text-xs" style={{color:AV.tm}}>{toStr(v.purpose)}</td></tr>)}</tbody></table></div></Sec>}
+        {doc.outputs?.length>0&&<Sec title="Outputs"><div className="grid gap-3">{toObjArr(doc.outputs).map((o,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:AV.nl,border:`1px solid ${AV.nb}`}}><code className="text-sm font-bold" style={{color:AV.or}}>{toStr(o.name)}</code><p className="text-sm mt-1" style={{color:AV.tm}}>{toStr(o.description)}</p>{o.consumed_by&&<p className="text-xs mt-1" style={{color:AV.td}}>Consumed by: {toStr(o.consumed_by)}</p>}</div>)}</div></Sec>}
         {doc.modules_used?.length>0&&<Sec title="Modules"><div className="space-y-3">{doc.modules_used.map((m,i)=><div key={i} className="rounded-xl px-4 py-3" style={{background:`${AV.pu}10`,border:`1px solid ${AV.pu}30`}}><div className="font-bold text-sm" style={{color:"#C084FC"}}>{toStr(m.name)}</div><code className="text-xs" style={{color:AV.tm}}>{m.source}{m.version&&m.version!=="unknown"?` @ ${m.version}`:""}</code><Pr t={toStr(m.purpose)}/></div>)}</div></Sec>}
       </div>}
 
