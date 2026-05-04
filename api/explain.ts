@@ -40,11 +40,12 @@ const EXPLAIN_PROMPT = [
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
   if (provider === "bedrock") {
+    // Bedrock API key auth uses the Mantle OpenAI-compatible endpoint
     const region = baseUrl || "us-east-1";
-    return createAmazonBedrock({
-      region,
+    return createOpenAI({
       apiKey,
       baseURL: `https://bedrock-mantle.${region}.api.aws/v1`,
+      compatibility: "compatible",
     })(model);
   }
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
