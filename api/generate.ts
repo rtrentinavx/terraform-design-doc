@@ -38,7 +38,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, content, maxTokens = 8000 } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 

@@ -62,7 +62,7 @@ export default async function handler(req: any, res: any) {
       system: EXPLAIN_PROMPT,
       prompt: content,
       temperature: 0,
-      maxTokens: 2000,
+      maxTokens: 4000,
     });
 
     const lower = text.toLowerCase();

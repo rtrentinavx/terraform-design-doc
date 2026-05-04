@@ -28,8 +28,8 @@
   ],
   "rewrites": [{ "source": "/api/(.*)", "destination": "/api/$1" }],
   "functions": {
-    "api/generate.ts":  { "maxDuration": 60 },
-    "api/explain.ts":   { "maxDuration": 60 },
-    "api/validate.ts":  { "maxDuration": 60 }
+    "api/generate.ts":  { "maxDuration": 300 },
+    "api/explain.ts":   { "maxDuration": 300 },
+    "api/validate.ts":  { "maxDuration": 300 }
   }
 }
