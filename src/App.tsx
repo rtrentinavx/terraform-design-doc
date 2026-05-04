@@ -633,7 +633,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
   const diagMode="mermaid";
 
   const renderMermaid=useCallback(()=>{
-    const code=buildMermaid(doc,dark);
+    // Use Claude-generated diagram if available, fall back to auto-generated
+    const code=toStr(doc.mermaid_diagram)||buildMermaid(doc,dark);
     initMermaid(dark);
     const tryRender=()=>{
       if(!window.mermaid){setTimeout(tryRender,300);return;}
@@ -839,8 +840,8 @@ function DocView({doc,selModel,dark,onExport}:{doc:any,selModel:string,dark:bool
             {type&&<code className="text-xs rounded px-2 py-0.5 font-mono" style={{background:"#ffffff08",color:AV.tm,border:`1px solid ${AV.nb}`}}>{type}</code>}
             <span className="text-xs px-2 py-0.5 rounded-full capitalize" style={ct.badge}>{cat}</span>
           </div>
-          {purpose&&<Pr t={purpose}/>}
-          {config&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {config.slice(0,80)}</p>}
+          {purpose?<Pr t={purpose}/>:<p className="text-xs italic" style={{color:AV.td}}>No description available</p>}
+          {config&&<p className="text-xs mt-2 font-mono" style={{color:AV.tm}}>⚙ {config.slice(0,120)}</p>}
           {deps.length>0&&<p className="text-xs mt-1" style={{color:AV.td}}>↳ {deps.join(", ")}</p>}
         </div>);})}</div></Sec></div>}
 

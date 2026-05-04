@@ -125,22 +125,8 @@ OUTPUT SCHEMA — Return exactly this JSON structure (all fields required):
   "edge_devices": [{"name":"string","type":"selfmanaged|equinix|zscaler|platform|megaport|csp|spoke","location":"string","size":"string","ha":false,"wan":"string","lan":"string","connected_transit":"string","bgp_asn":"string"}],
   "external_connections": [{"name":"string","type":"string","local_gw":"string","remote_ip":"string","bgp_asn":"string","tunnel_protocol":"string"}],
   "dcf": {"enabled":false,"default_action":"deny|allow|unknown","smart_groups":[],"web_groups":[],"rulesets":[],"ips_profiles":[],"egress_enabled":false,"tls_decryption_enabled":false,"kubernetes_enabled":false,"transit_egress":false,"summary":"string"},
-  "caveats": ["string"],
-  "mermaid_diagram": "string (valid Mermaid flowchart code — see DIAGRAM below)"
+  "caveats": ["string"]
 }
-
-DIAGRAM — MANDATORY: Generate valid Mermaid diagram code for the mermaid_diagram field.
-Use flowchart LR layout. Show the actual architecture based on the Terraform resources found.
-Rules:
-- Show VPCs/VNets as subgraphs containing their subnets and key resources
-- Show compute (EC2, Lambda, containers) inside their subnets
-- Show databases (RDS, DynamoDB) inside private subnets
-- Show internet gateway and load balancers for public-facing resources
-- Show connections between resources where they exist (security groups, endpoints, IAM)
-- For Aviatrix: show transit gateways, spoke attachments, FireNet
-- Keep it readable: max 15-20 nodes. Group related resources.
-- Use descriptive labels showing resource name and type
-- Example for AWS: flowchart LR\n  INET(["Internet"])\n  subgraph VPC["my-vpc 10.0.0.0/16"]\n    direction TB\n    subgraph PUB["public-subnet"]\n      IGW["Internet GW"]\n      ALB["App Load Balancer"]\n    end\n    subgraph PRIV["private-subnet"]\n      EC2["EC2: web-server\nt3.medium"]\n      RDS["RDS: db.t3.micro\nMySQL"]\n    end\n  end\n  INET --> IGW --> ALB --> EC2 --> RDS
 
 VARIABLES EXTRACTION: For every variable "name" {} block in the Terraform, add an entry to variables_and_parameters[]. Include the variable name, its type or default value, description, and whether it is required (no default = required:true).
 OUTPUTS EXTRACTION: For every output "name" {} block, add an entry to outputs[].
