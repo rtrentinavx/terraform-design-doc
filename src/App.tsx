@@ -1285,6 +1285,7 @@ export default function App(){
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <button onClick={()=>setShowAbout(true)} className="text-xs px-3 py-0.5 rounded-full font-medium" style={{background:`${AV.tp}10`,border:`1px solid ${AV.nb}`,color:AV.tm}}>About</button>
+            {activeProfile&&/opus/i.test(activeProfile.model)&&!loading&&!doc&&<span title="Claude Opus is slow — consider Sonnet for faster results" className="text-xs px-2 py-0.5 rounded-full" style={{background:"#F59E0B15",border:"1px solid #F59E0B40",color:"#F59E0B"}}>⚠ Opus is slow</span>}
             {(loading||metrics)&&<span
               title={metrics?`↑ ${metrics.inputTokens.toLocaleString()} input  ↓ ${metrics.outputTokens.toLocaleString()} output  ⏱ ${(metrics.elapsedMs/1000).toFixed(1)}s  Session: ${metrics.sessionTokens.toLocaleString()} tokens`:"Analyzing…"}
               className="text-xs px-3 py-0.5 rounded-full font-mono cursor-default"
