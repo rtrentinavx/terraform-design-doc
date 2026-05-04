@@ -14,7 +14,7 @@ Sentry.init({
     Sentry.replayIntegration({ maskAllText: true, blockAllMedia: false }),
   ],
   tracesSampleRate: 0.2,
-  replaysSessionSampleRate: 0.1,
+  replaysSessionSampleRate: 1.0,  // 100% while verifying integration
   replaysOnErrorSampleRate: 1.0,
   environment: import.meta.env.MODE,
 });

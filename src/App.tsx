@@ -1518,6 +1518,7 @@ export default function App(){
 
             <div className="text-center text-xs pt-2" style={{color:AV.td}}>
               Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>rtrentin</a> · Powered by <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>Anthropic Claude</a>
+              <button onClick={()=>{try{throw new Error("Sentry test event — integration working");}catch(e){(window as any).Sentry?.captureException(e);alert("Test event sent to Sentry. Check your Issues dashboard.");}}} className="block mx-auto mt-2 text-xs underline" style={{color:AV.td}}>Send Sentry test event</button>
             </div>
           </div>
         </div>
