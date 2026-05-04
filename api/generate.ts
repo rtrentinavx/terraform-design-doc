@@ -98,9 +98,15 @@ export default async function handler(req: any, res: any) {
     if (TEXT_PROVIDERS.has(provider)) {
       const sysWithInstruction = SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.";
 
+      // Determine base URL for direct-fetch providers (custom + bedrock via Mantle)
+      const directFetch = provider === "custom" || provider === "bedrock";
+      const directBase = provider === "bedrock"
+        ? `https://bedrock-mantle.${baseUrl || "us-east-1"}.api.aws/v1`
+        : (baseUrl || "");
+
       // Pass 1: generate HLD
-      if (provider === "custom") {
-        const r1 = await chatCompletion(baseUrl || "", apiKey, model, [
+      if (directFetch) {
+        const r1 = await chatCompletion(directBase, apiKey, model, [
           { role: "system", content: sysWithInstruction },
           { role: "user", content },
         ], maxTokens);
@@ -116,8 +122,8 @@ export default async function handler(req: any, res: any) {
       // Pass 2: self-critique to fix hallucinations
       const critiquePrompt = `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`;
       try {
-        if (provider === "custom") {
-          const r2 = await chatCompletion(baseUrl || "", apiKey, model, [
+        if (directFetch) {
+          const r2 = await chatCompletion(directBase, apiKey, model, [
             { role: "system", content: CRITIQUE_PROMPT },
             { role: "user", content: critiquePrompt },
           ], Math.min(maxTokens, 12000));
