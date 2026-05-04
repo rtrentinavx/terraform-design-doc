@@ -693,9 +693,9 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
     {id:"variables",l:"Variables"},
   ];
   const PC={aws:"#FF9900",azure:"#0078D4",gcp:"#34A853",multi:AV.pu,unknown:AV.tm}[doc.provider]||AV.tm;
-  const fwColor={palo_alto:"#FA582D",fortinet:"#EE2722",checkpoint:"#E2002A",cisco:"#1BA0D7"}[doc.firewall_vendor]||AV.or;
-  const fwLabel={palo_alto:"Palo Alto Networks",fortinet:"Fortinet",checkpoint:"Check Point",cisco:"Cisco",none:"No Firewall",unknown:"Unknown"}[doc.firewall_vendor]||"Firewall";
-  const noFw=!doc.firewall_vendor||doc.firewall_vendor==="none"||doc.firewall_vendor==="unknown";
+  const fwColor={palo_alto:"#FA582D",fortinet:"#EE2722",checkpoint:"#E2002A",cisco:"#1BA0D7"}[toStr(doc.firewall_vendor)]||AV.or;
+  const fwLabel={palo_alto:"Palo Alto Networks",fortinet:"Fortinet",checkpoint:"Check Point",cisco:"Cisco",none:"No Firewall",unknown:"Unknown"}[toStr(doc.firewall_vendor)]||"Firewall";
+  const noFw=!toStr(doc.firewall_vendor)||toStr(doc.firewall_vendor)==="none"||toStr(doc.firewall_vendor)==="unknown";
   const acC={allow:"#22C55E",deny:"#EC4899","force-drop":"#EF4444",unknown:AV.tm};
   const mL=selModel||"Unknown model";
   const edTC={selfmanaged:"#F97316",equinix:"#EF4444",zscaler:"#3B82F6",platform:"#22C55E",megaport:"#EC4899",csp:"#A855F7",spoke:"#FF6B35"};
@@ -716,8 +716,8 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex-1">
           <div className="flex flex-wrap gap-2 mb-3">
-            <span style={{background:`${PC}22`,border:`1px solid ${PC}55`,color:PC}} className="text-xs font-bold uppercase tracking-widest rounded-full px-3 py-1">{(doc.provider||"?").toUpperCase()}</span>
-            <span style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}} className="text-xs font-bold rounded-full px-3 py-1">v{doc.version||"1.0"}</span>
+            <span style={{background:`${PC}22`,border:`1px solid ${PC}55`,color:PC}} className="text-xs font-bold uppercase tracking-widest rounded-full px-3 py-1">{toStr(doc.provider||"?").toUpperCase()}</span>
+            <span style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}} className="text-xs font-bold rounded-full px-3 py-1">v{toStr(doc.version||"1.0")}</span>
             <span style={{background:"#ffffff10",border:`1px solid ${AV.nb}`,color:AV.tm}} className="text-xs rounded-full px-3 py-1">{new Date().toLocaleDateString("en-CA")}</span>
           </div>
           <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
