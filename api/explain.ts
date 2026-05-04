@@ -80,8 +80,9 @@ export default async function handler(req: any, res: any) {
     if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
     let text: string;
-    if (provider === "custom") {
-      const r = await chatCompletion(baseUrl || "", apiKey, model, [
+    if (provider === "custom" || provider === "bedrock") {
+      const bedrockBase = provider === "bedrock" ? `https://bedrock-mantle.${baseUrl||"us-east-1"}.api.aws/v1` : (baseUrl || "");
+      const r = await chatCompletion(bedrockBase, apiKey, model, [
         { role: "system", content: EXPLAIN_PROMPT },
         { role: "user", content },
       ], 4000);
