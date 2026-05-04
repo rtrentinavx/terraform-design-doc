@@ -8,27 +8,27 @@ import { checkOrigin } from "./_origin.js";
 import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
+// Anthropic + Bedrock + Custom: generateText (JSON from prompt)
+// OpenAI / Gemini / Azure: generateObject (Zod schema enforced)
 const TEXT_PROVIDERS = new Set(["anthropic", "bedrock", "custom"]);
 
 const CRITIQUE_PROMPT = `You are auditing a High Level Design (HLD) document for accuracy against Terraform source code.
+Review the HLD JSON carefully. Fix ONLY verified errors:
+- Remove component names not in the Terraform
+- Fix VPCs/CIDRs that don't match the code
+- Remove invented resources, connections, or data flows
+- Correct firewall vendor/product contradictions
+- Add any obvious missed resources
+- Update caveats[] with any corrections
+Return ONLY the corrected HLD as valid JSON. If accurate, return unchanged.`;
 
-Review the HLD JSON carefully against the Terraform code provided.
-Fix ONLY verified errors — do not change anything that is correct:
-- Remove or correct component names that do not exist as resource/module names in the Terraform
-- Fix VPC/subnet CIDRs that don't match the code
-- Remove invented resources, connections, or data flows not present in the code
-- Correct firewall vendors, products, or configurations that contradict the code
-- Remove spoke attachments, VPN connections, or peering not explicitly defined
-- Add any obvious resources from the Terraform that were missed
-- Update caveats[] to reflect any fields you corrected
-
-Return ONLY the corrected HLD as valid JSON — same structure, no markdown, no explanation.
-If the HLD is already accurate, return it unchanged.`;
-
-
-// Direct chat completions fetch — bypasses Vercel AI SDK endpoint selection
-// Use for custom/OpenAI-compatible providers that only support /chat/completions
-async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string, usage: any}> {
+// Direct chat completions fetch — bypasses Vercel AI SDK endpoint selection.
+// Prevents SDK from calling /v1/responses instead of /v1/chat/completions
+// on providers that only support the classic Chat Completions API (e.g. Kimi).
+async function chatCompletion(
+  baseUrl: string, apiKey: string, model: string,
+  messages: any[], maxTokens: number
+): Promise<{ text: string; usage: any }> {
   const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
   const res = await fetch(url, {
     method: "POST",
@@ -37,24 +37,20 @@ async function chatCompletion(baseUrl: string, apiKey: string, model: string, me
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
-  const text = data.choices?.[0]?.message?.content || "";
-  const usage = data.usage || {};
-  return { text, usage };
+  return { text: data.choices?.[0]?.message?.content || "", usage: data.usage || {} };
 }
 
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
-  if (provider === "bedrock") {
-    // Bedrock API key auth uses the Mantle OpenAI-compatible endpoint
-    const region = baseUrl || "us-east-1";
-    return createOpenAI({
-      apiKey,
-      baseURL: `https://bedrock-mantle.${region}.api.aws/v1`,
-      compatibility: "compatible",
-    })(model);
-  }
+  if (provider === "bedrock") return createOpenAI({
+    apiKey,
+    baseURL: `https://bedrock-mantle.${baseUrl || "us-east-1"}.api.aws/v1`,
+    compatibility: "compatible",
+  })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
-  if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model, { structuredOutputs: true });
+  if (provider === "azure") return createOpenAI({
+    apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible",
+  })(model, { structuredOutputs: true });
   return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
 }
 
@@ -73,6 +69,15 @@ async function parseHLD(text: string): Promise<any> {
   catch { return JSON.parse(repairJson(raw)); }
 }
 
+function mergeUsage(a: any, b: any) {
+  return {
+    input_tokens:     (a?.input_tokens     || 0) + (b?.input_tokens     || b?.prompt_tokens     || 0),
+    output_tokens:    (a?.output_tokens    || 0) + (b?.output_tokens    || b?.completion_tokens || 0),
+    prompt_tokens:    (a?.prompt_tokens    || 0) + (b?.prompt_tokens    || 0),
+    completion_tokens:(a?.completion_tokens|| 0) + (b?.completion_tokens|| 0),
+  };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
@@ -86,54 +91,49 @@ export default async function handler(req: any, res: any) {
 
   try {
     initSentry();
-    const mdl = buildModel(provider, apiKey, model, baseUrl);
 
     let hld: any;
-    let usage: any;
+    let usage: any = {};
 
     if (TEXT_PROVIDERS.has(provider)) {
-      // Pass 1 — generate HLD
-      // Custom provider: use direct fetch to avoid SDK calling wrong endpoint (e.g. /responses)
-      let pass1Text: string;
+      const sysWithInstruction = SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.";
+
+      // Pass 1: generate HLD
       if (provider === "custom") {
         const r1 = await chatCompletion(baseUrl || "", apiKey, model, [
-          { role: "system", content: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation." },
+          { role: "system", content: sysWithInstruction },
           { role: "user", content },
         ], maxTokens);
-        pass1Text = r1.text;
+        hld = await parseHLD(r1.text);
         usage = r1.usage;
       } else {
-        const pass1 = await generateText({ model: mdl, system: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.", prompt: content, temperature: 0, maxTokens });
-        pass1Text = pass1.text;
-        usage = pass1.usage;
+        const mdl = buildModel(provider, apiKey, model, baseUrl);
+        const p1 = await generateText({ model: mdl, system: sysWithInstruction, prompt: content, temperature: 0, maxTokens });
+        hld = await parseHLD(p1.text);
+        usage = p1.usage;
       }
-      hld = await parseHLD(pass1Text);
 
-      // Pass 2 — self-critique
-      let pass2Text: string;
-      if (provider === "custom") {
-        const r2 = await chatCompletion(baseUrl || "", apiKey, model, [
-          { role: "system", content: CRITIQUE_PROMPT },
-          { role: "user", content: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}` },
-        ], Math.min(maxTokens, 12000));
-        pass2Text = r2.text;
-        const u2 = r2.usage;
-        if (u2) usage = { input_tokens: (usage?.input_tokens||0)+(u2.prompt_tokens||0), output_tokens: (usage?.output_tokens||0)+(u2.completion_tokens||0), prompt_tokens: (usage?.prompt_tokens||0)+(u2.prompt_tokens||0), completion_tokens: (usage?.completion_tokens||0)+(u2.completion_tokens||0) };
-      } else {
-        const pass2 = await generateText({ model: mdl, system: CRITIQUE_PROMPT, prompt: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`, temperature: 0, maxTokens: Math.min(maxTokens, 12000) });
-        pass2Text = pass2.text;
-      // Accumulate token usage across both passes
-      if (pass2.usage) {
-        usage = {
-          input_tokens: (usage?.input_tokens || 0) + (pass2.usage.input_tokens || 0),
-          output_tokens: (usage?.output_tokens || 0) + (pass2.usage.output_tokens || 0),
-          prompt_tokens: (usage?.prompt_tokens || 0) + (pass2.usage.prompt_tokens || 0),
-          completion_tokens: (usage?.completion_tokens || 0) + (pass2.usage.completion_tokens || 0),
-        };
-      }
-      try { hld = await parseHLD(pass2.text); } catch { /* keep pass1 hld if critique fails */ }
+      // Pass 2: self-critique to fix hallucinations
+      const critiquePrompt = `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`;
+      try {
+        if (provider === "custom") {
+          const r2 = await chatCompletion(baseUrl || "", apiKey, model, [
+            { role: "system", content: CRITIQUE_PROMPT },
+            { role: "user", content: critiquePrompt },
+          ], Math.min(maxTokens, 12000));
+          usage = mergeUsage(usage, r2.usage);
+          hld = await parseHLD(r2.text);
+        } else {
+          const mdl = buildModel(provider, apiKey, model, baseUrl);
+          const p2 = await generateText({ model: mdl, system: CRITIQUE_PROMPT, prompt: critiquePrompt, temperature: 0, maxTokens: Math.min(maxTokens, 12000) });
+          usage = mergeUsage(usage, p2.usage);
+          hld = await parseHLD(p2.text);
+        }
+      } catch { /* keep pass1 hld if critique fails */ }
+
     } else {
-      // OpenAI / Gemini / Custom: single pass with generateObject (schema enforced)
+      // OpenAI / Gemini / Azure: generateObject with Zod schema
+      const mdl = buildModel(provider, apiKey, model, baseUrl);
       const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: 0, maxTokens });
       hld = result.object;
       usage = result.usage;
@@ -142,6 +142,7 @@ export default async function handler(req: any, res: any) {
     const validated = HLDSchema.safeParse(hld);
     const object = validated.success ? validated.data : hld;
     return res.status(200).json({ object, usage });
+
   } catch (err: any) {
     Sentry.captureException(err);
     const msg = err?.message || (typeof err?.error === "object" ? err.error?.message : err?.error) || String(err);
