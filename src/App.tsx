@@ -1686,9 +1686,11 @@ export default function App(){
                   ["Anti-Hallucination Rules","Strict prompt rules prevent invented attachments, VPN connections, or data flows not in the code"],
                   ["AI Transparency","Disclaimer in HLD and DOCX; caveats field lists inferred values; unknown vendor stays unknown"],
                   ["Responsible AI","Body size limits, output content filtering, sanitized user instructions, no server-side key storage"],
-                  ["DOCX Export","Word document with AI disclaimer, caveats, and all HLD sections"],
+                  ["DOCX Export","Word document with AI disclaimer, caveats, and all HLD sections — bundled via npm (no CDN dependency)"],
                   ["ZIP Support","Auto-extracts .tf/.tfvars from uploaded ZIP archives"],
                   ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy; origin allowlist on API endpoints"],
+                  ["Temperature per Profile","Per-profile temperature control with model-default option for thinking/reasoning models (Kimi K2, DeepSeek R1)"],
+                  ["DCF Policy Suggestion","Generate tentative Aviatrix Distributed Cloud Firewall config (SmartGroups, WebGroups, rulesets, Terraform HCL) from discovered network segments"],
                   ["Prompt Versioning & Testing","promptfoo regression suite with versioned prompts — npm run test:prompts (current) or test:prompts:compare (all versions side-by-side); v1 Aviatrix baseline archived in prompts/"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
@@ -1704,7 +1706,7 @@ export default function App(){
               <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Roadmap</h3>
               <div className="space-y-2">
                 {[
-                  ["DOCX Export Quality","Validate all fields (caveats, edge devices, DCF, modules) exported correctly to Word"],
+
                   ["Rate Limiting","Per-IP throttling on API proxy via Upstash Redis"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">

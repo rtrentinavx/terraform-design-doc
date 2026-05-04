@@ -91,7 +91,7 @@ terraform-hld-generator/
 - **Vercel AI SDK** (`ai`, `@ai-sdk/*`) — Unified LLM client
 - **Zod** — Schema validation for structured outputs
 - **Mermaid.js** (CDN) — Network topology diagram rendering
-- **docx** (CDN) — Word document generation
+- **docx** (npm, lazy-loaded) — Word document generation (bundled, no CDN)
 - **JSZip** (CDN) — ZIP file extraction
 - **promptfoo** — Prompt regression testing
 
