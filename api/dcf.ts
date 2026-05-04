@@ -62,7 +62,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
   if (provider === "bedrock") return createOpenAI({ apiKey, baseURL: `https://bedrock-mantle.${baseUrl||"us-east-1"}.api.aws/v1`, compatibility: "compatible" })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model);
-  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
+  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
 }
 
 export default async function handler(req: any, res: any) {

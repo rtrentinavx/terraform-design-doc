@@ -37,6 +37,19 @@ const EXPLAIN_PROMPT = [
   "Be concise and technical. Use markdown formatting throughout.",
 ].join("\n");
 
+
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string}> {
+  const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
+  return { text: data.choices?.[0]?.message?.content || "" };
+}
+
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
   if (provider === "bedrock") {
@@ -50,7 +63,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
   }
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model);
-  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
+  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
 }
 
 export default async function handler(req: any, res: any) {
@@ -66,14 +79,18 @@ export default async function handler(req: any, res: any) {
     const bodySize = JSON.stringify(req.body).length;
     if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
-    const mdl = buildModel(provider, apiKey, model, baseUrl);
-    const { text } = await generateText({
-      model: mdl,
-      system: EXPLAIN_PROMPT,
-      prompt: content,
-      temperature: 0,
-      maxTokens: 4000,
-    });
+    let text: string;
+    if (provider === "custom") {
+      const r = await chatCompletion(baseUrl || "", apiKey, model, [
+        { role: "system", content: EXPLAIN_PROMPT },
+        { role: "user", content },
+      ], 4000);
+      text = r.text;
+    } else {
+      const mdl = buildModel(provider, apiKey, model, baseUrl);
+      const result = await generateText({ model: mdl, system: EXPLAIN_PROMPT, prompt: content, temperature: 0, maxTokens: 4000 });
+      text = result.text;
+    }
 
     const lower = text.toLowerCase();
     const offTopic = !lower.includes("terraform") && !lower.includes("resource") &&

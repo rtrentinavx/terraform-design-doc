@@ -25,6 +25,23 @@ Fix ONLY verified errors — do not change anything that is correct:
 Return ONLY the corrected HLD as valid JSON — same structure, no markdown, no explanation.
 If the HLD is already accurate, return it unchanged.`;
 
+
+// Direct chat completions fetch — bypasses Vercel AI SDK endpoint selection
+// Use for custom/OpenAI-compatible providers that only support /chat/completions
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string, usage: any}> {
+  const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
+  const text = data.choices?.[0]?.message?.content || "";
+  const usage = data.usage || {};
+  return { text, usage };
+}
+
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
   if (provider === "bedrock") {
@@ -38,7 +55,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
   }
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model, { structuredOutputs: true });
-  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
+  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
 }
 
 function repairJson(raw: string): string {
@@ -76,24 +93,35 @@ export default async function handler(req: any, res: any) {
 
     if (TEXT_PROVIDERS.has(provider)) {
       // Pass 1 — generate HLD
-      const pass1 = await generateText({
-        model: mdl,
-        system: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.",
-        prompt: content,
-        temperature: 0,
-        maxTokens,
-      });
-      usage = pass1.usage;
-      hld = await parseHLD(pass1.text);
+      // Custom provider: use direct fetch to avoid SDK calling wrong endpoint (e.g. /responses)
+      let pass1Text: string;
+      if (provider === "custom") {
+        const r1 = await chatCompletion(baseUrl || "", apiKey, model, [
+          { role: "system", content: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation." },
+          { role: "user", content },
+        ], maxTokens);
+        pass1Text = r1.text;
+        usage = r1.usage;
+      } else {
+        const pass1 = await generateText({ model: mdl, system: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.", prompt: content, temperature: 0, maxTokens });
+        pass1Text = pass1.text;
+        usage = pass1.usage;
+      }
+      hld = await parseHLD(pass1Text);
 
-      // Pass 2 — self-critique: compare HLD against original TF and fix hallucinations
-      const pass2 = await generateText({
-        model: mdl,
-        system: CRITIQUE_PROMPT,
-        prompt: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`,
-        temperature: 0,
-        maxTokens: Math.min(maxTokens, 12000),
-      });
+      // Pass 2 — self-critique
+      let pass2Text: string;
+      if (provider === "custom") {
+        const r2 = await chatCompletion(baseUrl || "", apiKey, model, [
+          { role: "system", content: CRITIQUE_PROMPT },
+          { role: "user", content: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}` },
+        ], Math.min(maxTokens, 12000));
+        pass2Text = r2.text;
+        const u2 = r2.usage;
+        if (u2) usage = { input_tokens: (usage?.input_tokens||0)+(u2.prompt_tokens||0), output_tokens: (usage?.output_tokens||0)+(u2.completion_tokens||0), prompt_tokens: (usage?.prompt_tokens||0)+(u2.prompt_tokens||0), completion_tokens: (usage?.completion_tokens||0)+(u2.completion_tokens||0) };
+      } else {
+        const pass2 = await generateText({ model: mdl, system: CRITIQUE_PROMPT, prompt: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`, temperature: 0, maxTokens: Math.min(maxTokens, 12000) });
+        pass2Text = pass2.text;
       // Accumulate token usage across both passes
       if (pass2.usage) {
         usage = {

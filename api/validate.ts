@@ -53,12 +53,25 @@ Evaluate for:
 Score: 100=no issues, 80-99=minor suggestions, 60-79=warnings, 40-59=significant issues, below 40=critical errors
 Be specific: reference the actual resource name or module block.`;
 
+
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string}> {
+  const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
+  return { text: data.choices?.[0]?.message?.content || "" };
+}
+
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
   if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl||"us-east-1", apiKey })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model);
-  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
+  return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
 }
 
 export default async function handler(req: any, res: any) {
