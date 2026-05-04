@@ -1068,9 +1068,10 @@ export default function App(){
     {at:5,label:"Sending to AI model…"},
     {at:15,label:"Analyzing Terraform configuration…"},
     {at:35,label:"Mapping network topology…"},
-    {at:55,label:"Evaluating security policies…"},
-    {at:75,label:"Generating design document…"},
-    {at:90,label:"Finalizing…"},
+    {at:55,label:"Generating design document…"},
+    {at:72,label:"Reviewing for accuracy…"},
+    {at:88,label:"Applying corrections…"},
+    {at:95,label:"Finalizing…"},
   ];
   const startProgress=()=>{
     let i=0;setProgress({step:0,label:progSteps[0].label});

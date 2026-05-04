@@ -8,24 +8,31 @@ import { checkOrigin } from "./_origin.js";
 import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
-// Anthropic and Bedrock: use generateText (JSON from prompt) to avoid
-// "compiled grammar too large" error from Anthropic's tool-use enforcement.
 const TEXT_PROVIDERS = new Set(["anthropic", "bedrock"]);
+
+const CRITIQUE_PROMPT = `You are auditing a High Level Design (HLD) document for accuracy against Terraform source code.
+
+Review the HLD JSON carefully against the Terraform code provided.
+Fix ONLY verified errors — do not change anything that is correct:
+- Remove or correct component names that do not exist as resource/module names in the Terraform
+- Fix VPC/subnet CIDRs that don't match the code
+- Remove invented resources, connections, or data flows not present in the code
+- Correct firewall vendors, products, or configurations that contradict the code
+- Remove spoke attachments, VPN connections, or peering not explicitly defined
+- Add any obvious resources from the Terraform that were missed
+- Update caveats[] to reflect any fields you corrected
+
+Return ONLY the corrected HLD as valid JSON — same structure, no markdown, no explanation.
+If the HLD is already accurate, return it unchanged.`;
 
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
-  if (provider === "bedrock") return createAmazonBedrock({
-    region: baseUrl || "us-east-1",
-    apiKey,  // Bedrock API key (Bearer token — simpler than IAM Access Key + Secret)
-  })(model);
+  if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl || "us-east-1", apiKey })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
-  if (provider === "azure") return createOpenAI({
-    apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible",
-  })(model, { structuredOutputs: true });
+  if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model, { structuredOutputs: true });
   return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { structuredOutputs: true });
 }
 
-// Repair truncated JSON by closing unclosed brackets/braces
 function repairJson(raw: string): string {
   let s = raw.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, "").replace(/,\s*"[^"]*$/, "").replace(/"[^"]*$/, '"..."');
   const opens = (s.match(/\{/g) || []).length - (s.match(/\}/g) || []).length;
@@ -33,6 +40,12 @@ function repairJson(raw: string): string {
   for (let i = 0; i < arrOpen; i++) s += "]";
   for (let i = 0; i < opens; i++) s += "}";
   return s;
+}
+
+async function parseHLD(text: string): Promise<any> {
+  const raw = text.replace(/```json|```/g, "").trim();
+  try { return JSON.parse(raw); }
+  catch { return JSON.parse(repairJson(raw)); }
 }
 
 export default async function handler(req: any, res: any) {
@@ -47,43 +60,52 @@ export default async function handler(req: any, res: any) {
   if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
   try {
+    initSentry();
     const mdl = buildModel(provider, apiKey, model, baseUrl);
 
+    let hld: any;
+    let usage: any;
+
     if (TEXT_PROVIDERS.has(provider)) {
-      // Anthropic / Bedrock: prompt for JSON, parse + validate manually
-      const { text, usage } = await generateText({
+      // Pass 1 — generate HLD
+      const pass1 = await generateText({
         model: mdl,
-        system: SYS + "\n\nReturn ONLY valid JSON matching the schema. No markdown fences, no explanation.",
+        system: SYS + "\n\nReturn ONLY valid JSON. No markdown fences, no explanation.",
         prompt: content,
         temperature: 0,
         maxTokens,
       });
+      usage = pass1.usage;
+      hld = await parseHLD(pass1.text);
 
-      const raw = text.replace(/```json|```/g, "").trim();
-      let parsed: any;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = JSON.parse(repairJson(raw));
+      // Pass 2 — self-critique: compare HLD against original TF and fix hallucinations
+      const pass2 = await generateText({
+        model: mdl,
+        system: CRITIQUE_PROMPT,
+        prompt: `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`,
+        temperature: 0,
+        maxTokens: Math.min(maxTokens, 12000),
+      });
+      // Accumulate token usage across both passes
+      if (pass2.usage) {
+        usage = {
+          input_tokens: (usage?.input_tokens || 0) + (pass2.usage.input_tokens || 0),
+          output_tokens: (usage?.output_tokens || 0) + (pass2.usage.output_tokens || 0),
+          prompt_tokens: (usage?.prompt_tokens || 0) + (pass2.usage.prompt_tokens || 0),
+          completion_tokens: (usage?.completion_tokens || 0) + (pass2.usage.completion_tokens || 0),
+        };
       }
-
-      // Validate with Zod (safe parse — don't crash on extra/missing fields)
-      const result = HLDSchema.safeParse(parsed);
-      const object = result.success ? result.data : parsed;
-
-      return res.status(200).json({ object, usage });
+      try { hld = await parseHLD(pass2.text); } catch { /* keep pass1 hld if critique fails */ }
     } else {
-      // OpenAI / Gemini / Custom: use generateObject with Zod schema
-      const { object, usage } = await generateObject({
-        model: mdl,
-        schema: HLDSchema,
-        system: SYS,
-        prompt: content,
-        temperature: 0,
-        maxTokens,
-      });
-      return res.status(200).json({ object, usage });
+      // OpenAI / Gemini / Custom: single pass with generateObject (schema enforced)
+      const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: 0, maxTokens });
+      hld = result.object;
+      usage = result.usage;
     }
+
+    const validated = HLDSchema.safeParse(hld);
+    const object = validated.success ? validated.data : hld;
+    return res.status(200).json({ object, usage });
   } catch (err: any) {
     Sentry.captureException(err);
     const msg = err?.message || String(err);
