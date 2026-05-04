@@ -69,7 +69,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, tfContent, hldSummary, enableEgress = true } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, tfContent, hldSummary, enableEgress = true, temperature } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
 
   const bodySize = JSON.stringify(req.body).length;

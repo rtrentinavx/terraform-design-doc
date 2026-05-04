@@ -43,7 +43,7 @@ async function chatCompletion(baseUrl: string, apiKey: string, model: string, me
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, ...(temperature !== undefined && temperature !== null ? { temperature } : {}) }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
@@ -89,7 +89,7 @@ export default async function handler(req: any, res: any) {
       text = r.text;
     } else {
       const mdl = buildModel(provider, apiKey, model, baseUrl);
-      const result = await generateText({ model: mdl, system: EXPLAIN_PROMPT, prompt: content, temperature: 0, maxTokens: 4000 });
+      const result = await generateText({ model: mdl, system: EXPLAIN_PROMPT, prompt: content, temperature: temperature ?? 0, maxTokens: 4000 });
       text = result.text;
     }
 

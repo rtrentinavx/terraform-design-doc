@@ -33,7 +33,7 @@ async function chatCompletion(
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, ...(temperature !== undefined && temperature !== null ? { temperature } : {}) }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
@@ -82,7 +82,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, content, maxTokens = 16000 } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, content, temperature, maxTokens = 16000 } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
         usage = r1.usage;
       } else {
         const mdl = buildModel(provider, apiKey, model, baseUrl);
-        const p1 = await generateText({ model: mdl, system: sysWithInstruction, prompt: content, temperature: 0, maxTokens });
+        const p1 = await generateText({ model: mdl, system: sysWithInstruction, prompt: content, temperature: temperature ?? 0, maxTokens });
         hld = await parseHLD(p1.text);
         usage = p1.usage;
       }
@@ -140,7 +140,7 @@ export default async function handler(req: any, res: any) {
     } else {
       // OpenAI / Gemini / Azure: generateObject with Zod schema
       const mdl = buildModel(provider, apiKey, model, baseUrl);
-      const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: 0, maxTokens });
+      const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: temperature ?? 0, maxTokens });
       hld = result.object;
       usage = result.usage;
     }
