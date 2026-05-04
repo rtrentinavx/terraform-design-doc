@@ -59,7 +59,7 @@ async function chatCompletion(baseUrl: string, apiKey: string, model: string, me
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
