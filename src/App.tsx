@@ -1116,11 +1116,17 @@ export default function App(){
     {at:95,label:"Finalizing…"},
   ];
   const startProgress=()=>{
-    let i=0;setProgress({step:0,label:progSteps[0].label});
+    let i=0;let elapsed=0;setProgress({step:0,label:progSteps[0].label});
     if(progTimer.current)clearInterval(progTimer.current);
     progTimer.current=setInterval(()=>{
-      i++;if(i>=progSteps.length){clearInterval(progTimer.current);return;}
-      setProgress({step:progSteps[i].at,label:progSteps[i].label});
+      elapsed+=3;
+      if(i<progSteps.length-1){i++;setProgress({step:progSteps[i].at,label:progSteps[i].label});}
+      else{
+        // Stuck at last step — keep updating label so user knows it's still working
+        const mins=Math.floor(elapsed/60),secs=elapsed%60;
+        const t=mins>0?`${mins}m ${secs}s`:`${secs}s`;
+        setProgress({step:95,label:`Still processing… (${t}) — larger files take longer`});
+      }
     },3000);
   };
   const stopProgress=(success)=>{
