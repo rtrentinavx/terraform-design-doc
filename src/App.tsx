@@ -1205,6 +1205,12 @@ export default function App(){
       // AI SDK returns { object, usage } — object is already validated against Zod schema
       let parsed:any=data.object;
       if(!parsed){setDebug({...dbg});setError("Empty response object");stopProgress(false);setLoading(false);return;}
+      // Guard: some providers return error objects as 200 responses e.g. {message,type} or {error:{...}}
+      // These look valid to JSON.parse but will crash React when rendered as JSX children
+      if(parsed.error||(!parsed.title&&!parsed.network_design&&!parsed.executive_summary)){
+        const errMsg=parsed.error?.message||parsed.message||JSON.stringify(parsed).slice(0,200);
+        setDebug({...dbg});setError("Model returned an error: "+errMsg);stopProgress(false);setLoading(false);return;
+      }
       // Rehydrate redacted PII back into the parsed document
       if(revMap.size>0){const s=JSON.stringify(parsed);let r=s;revMap.forEach((orig,tok)=>{r=r.split(tok).join(orig);});parsed=JSON.parse(r);}
       // Capture usage metrics (Anthropic: input_tokens/output_tokens; OpenAI: prompt_tokens/completion_tokens)
