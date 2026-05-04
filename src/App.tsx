@@ -92,7 +92,7 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
       const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,secretKey:p.secretKey||"",baseUrl:p.baseUrl||""})});
       const d=await r.json();
       const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
-      if(ids.length)setModels(ids);else setFetchErr(d.error||"No models returned");
+      if(ids.length)setModels(ids);else{const e=d.error;setFetchErr(typeof e==="object"?(e?.message||JSON.stringify(e)):(e||"No models returned"));}
     }catch(e:any){setFetchErr(e.message);}
     setFetching(false);
   };
