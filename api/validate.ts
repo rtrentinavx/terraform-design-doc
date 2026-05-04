@@ -78,7 +78,7 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  const { provider = "anthropic", apiKey, model, baseUrl, content } = req.body;
+  const { provider = "anthropic", apiKey, model, baseUrl, content, temperature } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
@@ -94,7 +94,7 @@ export default async function handler(req: any, res: any) {
         model: mdl,
         system: VALIDATE_PROMPT,
         prompt: content,
-        temperature: 0,
+        temperature: temperature ?? 0,
         maxTokens: 4000,
       });
       const raw = text.replace(/```json|```/g, "").trim();
@@ -109,7 +109,7 @@ export default async function handler(req: any, res: any) {
         schema: ValidationSchema,
         system: VALIDATE_PROMPT,
         prompt: content,
-        temperature: 0,
+        temperature: temperature ?? 0,
         maxTokens: 4000,
       });
       return res.status(200).json(object);
