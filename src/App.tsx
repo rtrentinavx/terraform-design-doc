@@ -79,7 +79,12 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
   const [fetchErr,setFetchErr]=useState("");
   const up=(k:keyof ModelProfile,v:string)=>setP(prev=>{
     const next={...prev,[k]:v};
-    if((k==="provider"||k==="model")&&!prev.name||prev.name===autoName(prev.provider,prev.model))
+    if(k==="provider"){
+      // Reset model, baseUrl and fetched models when switching providers
+      next.model="";next.baseUrl="";
+      setModels([]);setFetchErr("");
+    }
+    if((k==="provider"||k==="model")&&(!prev.name||prev.name===autoName(prev.provider,prev.model)))
       next.name=autoName(next.provider,next.model||prev.model);
     return next;
   });
@@ -89,7 +94,7 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
   const fetchModels=async()=>{
     setFetching(true);setFetchErr("");setModels([]);
     try{
-      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,secretKey:p.secretKey||"",baseUrl:p.baseUrl||""})});
+      const r=await fetch("/api/list-models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:p.provider,apiKey:p.apiKey,baseUrl:p.baseUrl||""})});
       const d=await r.json();
       const ids=(d.data||[]).map((m:any)=>m.id||m.name).filter(Boolean);
       if(ids.length)setModels(ids);else{const e=d.error;setFetchErr(typeof e==="object"?(e?.message||JSON.stringify(e)):(e||"No models returned"));}
