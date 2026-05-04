@@ -1,7 +1,10 @@
 import { StrictMode, Component } from "react";
 import { createRoot } from "react-dom/client";
+import { inject } from "@vercel/analytics";
 import App from "./App";
 import "./index.css";
+
+inject();
 
 class ErrorBoundary extends Component<{children:React.ReactNode},{error:Error|null}>{
   state={error:null as Error|null};
