@@ -28,17 +28,38 @@ export default async function handler(req, res) {
           if (filtered.length) return res.json({ data: filtered });
         }
       } catch {}
-      // Fallback: curated list — Amazon use direct IDs;
-      // Meta/Mistral/Cohere require cross-region inference profile IDs (us. prefix)
-      // Anthropic excluded — use the Anthropic provider directly instead
+      // Fallback curated list — use when live Mantle fetch is unavailable.
+      // Amazon Nova: direct IDs. All others: cross-region inference profile IDs (us. prefix).
+      // Anthropic/OpenAI/Google excluded — use their dedicated providers instead.
       return res.json({ data: [
-        { id: "amazon.nova-pro-v1:0" },
-        { id: "amazon.nova-lite-v1:0" },
-        { id: "amazon.nova-micro-v1:0" },
-        { id: "us.meta.llama3-3-70b-instruct-v1:0" },
-        { id: "us.meta.llama3-1-8b-instruct-v1:0" },
-        { id: "us.mistral.mistral-large-2402-v1:0" },
-        { id: "us.cohere.command-r-plus-v1:0" },
+        // Amazon Nova
+        { id: "amazon.nova-pro-v1:0",   label: "Amazon Nova Pro" },
+        { id: "amazon.nova-lite-v1:0",  label: "Amazon Nova Lite" },
+        { id: "amazon.nova-micro-v1:0", label: "Amazon Nova Micro" },
+        // Meta Llama 3.x
+        { id: "us.meta.llama3-3-70b-instruct-v1:0",  label: "Llama 3.3 70B Instruct" },
+        { id: "us.meta.llama3-2-90b-instruct-v1:0",  label: "Llama 3.2 90B Instruct" },
+        { id: "us.meta.llama3-2-11b-instruct-v1:0",  label: "Llama 3.2 11B Instruct" },
+        { id: "us.meta.llama3-2-3b-instruct-v1:0",   label: "Llama 3.2 3B Instruct" },
+        { id: "us.meta.llama3-2-1b-instruct-v1:0",   label: "Llama 3.2 1B Instruct" },
+        { id: "us.meta.llama3-1-70b-instruct-v1:0",  label: "Llama 3.1 70B Instruct" },
+        { id: "us.meta.llama3-1-8b-instruct-v1:0",   label: "Llama 3.1 8B Instruct" },
+        // Mistral
+        { id: "us.mistral.mistral-large-2402-v1:0",  label: "Mistral Large" },
+        { id: "us.mistral.mistral-small-2402-v1:0",  label: "Mistral Small" },
+        { id: "us.mistral.mixtral-8x7b-instruct-v0:1", label: "Mixtral 8x7B Instruct" },
+        // Cohere
+        { id: "us.cohere.command-r-plus-v1:0", label: "Cohere Command R+" },
+        { id: "us.cohere.command-r-v1:0",      label: "Cohere Command R" },
+        // AI21
+        { id: "us.ai21.jamba-1-5-large-v1:0", label: "AI21 Jamba 1.5 Large" },
+        { id: "us.ai21.jamba-1-5-mini-v1:0",  label: "AI21 Jamba 1.5 Mini" },
+        // Moonshot Kimi (via Bedrock)
+        { id: "moonshotai.kimi-k2-thinking",   label: "Kimi K2 Thinking" },
+        { id: "moonshotai.kimi-k2",            label: "Kimi K2" },
+        // Writer
+        { id: "us.writer.palmyra-x5:0",       label: "Writer Palmyra X5" },
+        { id: "us.writer.palmyra-x4:0",       label: "Writer Palmyra X4" },
       ]});
     }
 
