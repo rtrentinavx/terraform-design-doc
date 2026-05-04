@@ -650,7 +650,7 @@ async function exportDocx(data:any,customerName:string){
 }
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport,grounding}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,grounding?:{verified:number,total:number,unverified:string[]}|null}){
+function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
@@ -837,6 +837,20 @@ function DocView({doc,selModel,dark,onExport,grounding}:{doc:any,selModel:string
         {sec.encryption&&<Sec title="Encryption"><Pr t={sec.encryption}/></Sec>}
         {sec.access_control&&<Sec title="Access Control"><Pr t={sec.access_control}/></Sec>}
         {sec.inspection&&<Sec title="Traffic Inspection"><Pr t={sec.inspection}/></Sec>}
+        {/* DCF Policy Suggestion CTA — shown when Aviatrix present but DCF not configured */}
+        {(()=>{
+          const hasAviatrix=toObjArr(nd.vpcs).some((v:any)=>v.type==="transit"||v.type==="spoke")||
+            toObjArr(doc.components).some((c:any)=>/(aviatrix|mc-transit|mc-spoke|mc-firenet)/i.test(toStr(c.type)+toStr(c.name)));
+          if(!hasAviatrix||dcf.enabled)return null;
+          return(<div className="mt-6 rounded-2xl p-5 text-center" style={{background:`${AV.pu}08`,border:`2px dashed ${AV.pu}40`}}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mx-auto mb-3" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`}}>🛡</div>
+            <p className="font-bold mb-1" style={{color:AV.tp}}>Aviatrix Distributed Cloud Firewall not configured</p>
+            <p className="text-xs mb-4" style={{color:AV.tm}}>Generate a tentative DCF policy suggestion based on the network segments discovered in this Terraform configuration.</p>
+            <button onClick={onGenerateDcf} disabled={generatingDcf} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50" style={{background:`linear-gradient(135deg,${AV.pu},${AV.or})`}}>
+              {generatingDcf?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Generating DCF Policy…</>:<>🛡 Generate DCF Policy Suggestion</>}
+            </button>
+          </div>);
+        })()}
       </div>}
 
       {tab==="dcf"&&<div className="space-y-6">
@@ -953,6 +967,8 @@ export default function App(){
   const [extr,    setExtr]    =useState(false);
   const [doc,     setDoc]     =useState(null);
   const [grounding,setGrounding]=useState<{verified:number,total:number,unverified:string[]}|null>(null);
+  const [dcfSuggestion,setDcfSuggestion]=useState<{dcf_config:any,terraform_code:string}|null>(null);
+  const [generatingDcf,setGeneratingDcf]=useState(false);
   const [error,   setError]   =useState(null);
   const [debug,   setDebug]   =useState(null);
   const [drag,    setDrag]    =useState(false);
@@ -1259,7 +1275,8 @@ export default function App(){
       files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
       const resolved=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
       const{map:redMap}=buildRedactionMap(resolved.map(f=>f.content).join("\n"),custName);
-      const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      const combined=resolved.map((f:any)=>["### FILE: "+f.path,"```hcl",f.content,"```"].join("\n")).join("\n\n");
+
       const safe=redactText(combined,redMap);
       const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Explain this Terraform code:\n\n${safe}`})});
       const rawText=await r.text();
@@ -1294,7 +1311,8 @@ export default function App(){
       files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
       const resolved=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
       const{map:redMap}=buildRedactionMap(resolved.map(f=>f.content).join("\n"),custName);
-      const combined=resolved.map(f=>`### FILE: ${f.path}\n\`\`\`hcl\n${f.content}\n\`\`\``).join("\n\n");
+      const combined=resolved.map((f:any)=>["### FILE: "+f.path,"```hcl",f.content,"```"].join("\n")).join("\n\n");
+
       const safe=redactText(combined,redMap);
       const r=await fetch("/api/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,content:`Validate this Terraform code:\n\n${safe}`})});
       const rawText=await r.text();
@@ -1305,7 +1323,33 @@ export default function App(){
     setValidating(false);
   };
 
-  const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
+  const generateDcf=async()=>{
+    if(!activeProfile||!doc||!files.length)return;
+    setGeneratingDcf(true);setDcfSuggestion(null);setError(null);
+    try{
+      const varMap=new Map<string,string>();
+      files.filter(f=>f.name.endsWith(".tfvars")).forEach(f=>{parseTfVars(f.content).forEach((v,k)=>varMap.set(k,v));});
+      const resolved=files.map(f=>({...f,content:f.name.endsWith(".tfvars")?f.content:resolveVars(sanitizeTf(f.content),varMap)}));
+      const{map:redMap}=buildRedactionMap(resolved.map(f=>f.content).join("\n"),custName);
+      const combined=resolved.map((f:any)=>["### FILE: "+f.path,"```hcl",f.content,"```"].join("\n")).join("\n\n");
+      const safe=redactText(combined,redMap);
+      // Build compact HLD summary for DCF context
+      const hldSummary={
+        provider:doc.provider,
+        vpcs:toObjArr(doc.network_design?.vpcs).map((v:any)=>({name:toStr(v.name),cidr:toStr(v.cidr),type:toStr(v.type),purpose:toStr(v.purpose)})),
+        subnets:toObjArr(doc.network_design?.subnets).map((s:any)=>({name:toStr(s.name),cidr:toStr(s.cidr),vpc:toStr(s.vpc)})),
+        firewall:doc.firewall_detail?.present?{vendor:doc.firewall_detail.vendor,mode:doc.firewall_detail.ha_mode}:null,
+      };
+      const r=await fetch("/api/dcf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,tfContent:safe,hldSummary})});
+      const rawText=await r.text();
+      let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
+      if(!r.ok||d.error){setError("DCF generation failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
+      else setDcfSuggestion(d);
+    }catch(e:any){Sentry.captureException(e,{tags:{action:"dcf"}});setError("DCF error: "+e.message);}
+    setGeneratingDcf(false);
+  };
+
+    const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
 
   return(
     <div className="min-h-screen p-4 sm:p-8" style={{background:AV.nv}}>
@@ -1479,7 +1523,75 @@ export default function App(){
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} grounding={grounding}/>
+            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} grounding={grounding} onGenerateDcf={generateDcf} generatingDcf={generatingDcf}/>
+            {/* DCF Policy Suggestion Panel */}
+            {dcfSuggestion&&<div className="mt-6 rounded-2xl overflow-hidden" style={{border:`1px solid ${AV.pu}40`}}>
+              <div className="px-5 py-4 flex items-center justify-between" style={{background:`${AV.pu}10`,borderBottom:`1px solid ${AV.pu}30`}}>
+                <div>
+                  <p className="font-bold text-sm" style={{color:"#C084FC"}}>🛡 DCF Policy Suggestion</p>
+                  <p className="text-xs mt-0.5" style={{color:AV.tm}}>Tentative configuration based on discovered network segments — review and adjust before applying</p>
+                </div>
+                <button onClick={()=>setDcfSuggestion(null)} className="text-xs" style={{color:AV.td}}>✕ Clear</button>
+              </div>
+              <div className="p-5 space-y-5" style={{background:AV.nm}}>
+                {/* Smart Groups */}
+                {toObjArr(dcfSuggestion.dcf_config?.smart_groups).length>0&&<div>
+                  <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>SmartGroups</h3>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {toObjArr(dcfSuggestion.dcf_config.smart_groups).map((sg:any,i:number)=>(
+                      <div key={i} className="rounded-xl px-4 py-3" style={{background:`${AV.pu}08`,border:`1px solid ${AV.pu}25`}}>
+                        <p className="font-semibold text-sm" style={{color:"#C084FC"}}>{toStr(sg.name)}</p>
+                        {sg.cidr&&<p className="text-xs font-mono mt-0.5" style={{color:AV.or}}>{toStr(sg.cidr)}</p>}
+                        <p className="text-xs mt-1" style={{color:AV.td}}>{toStr(sg.description)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+                {/* Web Groups */}
+                {toObjArr(dcfSuggestion.dcf_config?.web_groups).length>0&&<div>
+                  <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>WebGroups</h3>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {toObjArr(dcfSuggestion.dcf_config.web_groups).map((wg:any,i:number)=>(
+                      <div key={i} className="rounded-xl px-4 py-3" style={{background:`${AV.or}08`,border:`1px solid ${AV.or}25`}}>
+                        <p className="font-semibold text-sm" style={{color:AV.or}}>{toStr(wg.name)}</p>
+                        <p className="text-xs mt-1" style={{color:AV.td}}>{toStr(wg.description)}</p>
+                        {toArr(wg.domains).length>0&&<div className="flex flex-wrap gap-1 mt-1">{toArr(wg.domains).slice(0,4).map((d:string,j:number)=><span key={j} className="text-xs px-1.5 py-0.5 rounded font-mono" style={{background:`${AV.or}15`,color:AV.or}}>{d}</span>)}{toArr(wg.domains).length>4&&<span className="text-xs" style={{color:AV.td}}>+{toArr(wg.domains).length-4} more</span>}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+                {/* Rules summary */}
+                {toObjArr(dcfSuggestion.dcf_config?.rulesets).length>0&&<div>
+                  <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Ruleset Preview</h3>
+                  <div className="rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+                    <table className="w-full text-xs"><thead style={{background:AV.nl}}>
+                      <tr>{["Priority","Name","Src","Dst","Action","Protocol"].map(h=><th key={h} className="px-3 py-2 text-left font-bold uppercase tracking-wider" style={{color:AV.tm}}>{h}</th>)}</tr>
+                    </thead><tbody>{toObjArr(dcfSuggestion.dcf_config.rulesets).flatMap((rs:any)=>toObjArr(rs.rules)).slice(0,10).map((r:any,i:number)=>{
+                      const ac=r.action==="PERMIT"||r.action==="allow"?"#22C55E":"#EC4899";
+                      return(<tr key={i} style={{borderTop:`1px solid ${AV.nb}`}}>
+                        <td className="px-3 py-2 font-mono" style={{color:AV.td}}>{r.priority??i+1}</td>
+                        <td className="px-3 py-2 font-semibold" style={{color:AV.tp}}>{toStr(r.name)}</td>
+                        <td className="px-3 py-2 font-mono" style={{color:"#60A5FA"}}>{toStr(r.src)}</td>
+                        <td className="px-3 py-2 font-mono" style={{color:"#A855F7"}}>{toStr(r.dst)}</td>
+                        <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full font-bold uppercase" style={{background:`${ac}15`,color:ac}}>{toStr(r.action)}</span></td>
+                        <td className="px-3 py-2" style={{color:AV.tm}}>{toStr(r.protocol||"Any")}</td>
+                      </tr>);
+                    })}</tbody></table>
+                  </div>
+                </div>}
+                {/* Terraform code */}
+                {dcfSuggestion.terraform_code&&<div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold" style={{color:AV.tp}}>Terraform Code (Tentative)</h3>
+                    <button onClick={()=>{navigator.clipboard.writeText(dcfSuggestion.terraform_code);}} className="text-xs px-3 py-1 rounded-lg" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tm}}>📋 Copy</button>
+                  </div>
+                  <div className="rounded-xl overflow-auto p-4 text-xs font-mono leading-6 max-h-96" style={{background:dark?"#0D1117":"#F8FAFC",border:`1px solid ${AV.nb}`,color:dark?"#E2E8F0":"#334155",whiteSpace:"pre"}}>
+                    {dcfSuggestion.terraform_code}
+                  </div>
+                  <p className="text-xs mt-2" style={{color:AV.td}}>⚠ This is a suggested starting point. Review all rules, CIDRs, and policies before applying to production. Adjust SmartGroup selectors to match your actual tagging strategy.</p>
+                </div>}
+              </div>
+            </div>}
           </div>
         )}
       </div>
