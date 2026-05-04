@@ -243,7 +243,7 @@ function toStr(v:any):string{
   if(!v)return"";
   if(typeof v==="string")return v;
   if(Array.isArray(v))return v.map(toStr).join(", ");
-  if(typeof v==="object")return v.description||v.text||v.value||v.summary||v.message||v.content||JSON.stringify(v);
+  if(typeof v==="object")return toStr(v.description??v.text??v.value??v.summary??v.message??v.content)||JSON.stringify(v);
   return String(v);
 }
 function toArr(v:any):string[]{
