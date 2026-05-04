@@ -51,7 +51,7 @@ export default async function handler(req: any, res: any) {
 
     if (TEXT_PROVIDERS.has(provider)) {
       // Anthropic / Bedrock: prompt for JSON, parse + validate manually
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: mdl,
         system: SYS + "\n\nReturn ONLY valid JSON matching the schema. No markdown fences, no explanation.",
         prompt: content,
@@ -71,7 +71,7 @@ export default async function handler(req: any, res: any) {
       const result = HLDSchema.safeParse(parsed);
       const object = result.success ? result.data : parsed;
 
-      return res.status(200).json({ object });
+      return res.status(200).json({ object, usage });
     } else {
       // OpenAI / Gemini / Custom: use generateObject with Zod schema
       const { object, usage } = await generateObject({
