@@ -169,18 +169,28 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
         {/* Profile name */}
         {/* Temperature */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2">
             <label className={lbl} style={{color:AV.tm}}>Temperature</label>
-            <span className="text-xs font-mono" style={{color:pc}}>{p.temperature===undefined?"model default":p.temperature?.toFixed(1)}</span>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={p.temperature===undefined}
+                onChange={e=>setP(prev=>({...prev,temperature:e.target.checked?undefined:1}))}
+                className="w-3.5 h-3.5" style={{accentColor:pc}}/>
+              <span className="text-xs" style={{color:AV.td}}>Model default</span>
+            </label>
           </div>
-          <input type="range" min="-0.1" max="2" step="0.1"
-            value={p.temperature??-0.1}
-            onChange={e=>{const v=parseFloat(e.target.value);setP(prev=>({...prev,temperature:v<0?undefined:parseFloat(v.toFixed(1))}));}}
-            className="w-full h-2 rounded-full appearance-none cursor-pointer" style={{accentColor:pc}}/>
-          <div className="flex justify-between text-xs mt-1 px-0.5" style={{color:AV.td}}>
-            <span>Default</span><span>0</span><span>1</span><span>2</span>
-          </div>
-          <p className="text-xs mt-1" style={{color:AV.td}}>Leave at default for thinking/reasoning models (Kimi K2, DeepSeek R1)</p>
+          {p.temperature!==undefined&&<>
+            <div className="flex items-center gap-3">
+              <input type="range" min="0" max="2" step="0.1"
+                value={p.temperature??1}
+                onChange={e=>setP(prev=>({...prev,temperature:parseFloat(parseFloat(e.target.value).toFixed(1))}))}
+                className="flex-1 h-2 rounded-full appearance-none cursor-pointer" style={{accentColor:pc}}/>
+              <span className="text-xs font-mono w-8 text-right shrink-0" style={{color:pc}}>{(p.temperature??1).toFixed(1)}</span>
+            </div>
+            <div className="flex justify-between text-xs mt-1" style={{color:AV.td}}>
+              <span>0 (precise)</span><span>1</span><span>2 (creative)</span>
+            </div>
+          </>}
+          {p.temperature===undefined&&<p className="text-xs" style={{color:AV.td}}>Recommended for thinking/reasoning models (Kimi K2, DeepSeek R1)</p>}
         </div>
         <div><label className={lbl} style={{color:AV.tm}}>Profile Name</label>
           <input type="text" placeholder="e.g. Claude Sonnet (Work)" value={p.name} onChange={e=>up("name",e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={inpS}/>
