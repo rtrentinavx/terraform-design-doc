@@ -17,40 +17,47 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 
 ## Architecture
 
-### Frontend — `src/App.tsx` (~1300 lines)
+### Frontend — `src/App.tsx` (~1500 lines)
 
-1. **Constants & types** — `APP_VERSION`, `ModelProfile` type (includes `persist?: boolean`), `PROVIDERS`, `PROVIDER_COLORS`, profile helpers
-2. **Profile storage** — `loadProfiles()` merges from both `localStorage` (persisted) and `sessionStorage` (session-only). `saveProfiles()` routes by `persist` flag. Default: sessionStorage.
-3. **ProfileEditor / ProfileSwitcher** — modal components for managing named model profiles
-4. **Theme** (`DARK`/`LIGHT`/`AV`) — `AV` is a module-level `let` reassigned on every App render
-5. **`toStr(v)` / `toArr(v)`** — safety helpers that coerce any model response value to string or string[]; handles `{description:"..."}` objects and strings-where-arrays-expected returned by non-Claude models
+Key sections in order:
+
+1. **Constants & types** — `APP_VERSION`, `ModelProfile` type (includes `persist?: boolean`), `PROVIDERS`, `PROVIDER_COLORS`, profile helpers (`loadProfiles`, `saveProfiles`, `newProfile`, `autoName`)
+2. **`ProfileEditor` / `ProfileSwitcher`** — modal components for named model profiles (provider + API key + model + optional base URL + persist flag)
+3. **Theme** (`DARK`/`LIGHT`/`AV`) — `AV` is a module-level `let` reassigned on every App render
+4. **`toStr(v)` / `toArr(v)`** — safety helpers that coerce any model response value to string or string[]; handles `{description:"..."}` objects and strings-where-arrays-expected returned by non-Claude models
+5. **`catStyle(category)`** — returns inline hex styles for component cards (not Tailwind classes — those get purged)
 6. **Shared UI helpers** — `UISec`/`UIPr`/`UIKV`/`UItr` as **function declarations** (not const arrows); aliased as `Sec`/`Pr`/`KV`/`tr`
-7. **System prompt** (`SYS`) — in `src/App.tsx` for client use; canonical in `lib/systemPrompt.ts` for API/tests
-8. **Mermaid diagram** (`buildMermaid`) — LR flowchart; `initMermaid` reinitializes on dark/light switch
-9. **`useJSZip` / `useDocx` / `exportDocx`** — CDN-loaded libraries; DOCX includes AI disclaimer and caveats
-10. **`DocView`** — tabbed viewer; auto-renders Mermaid on tab open and theme toggle
-11. **`App` component** — profile management, file upload, variable resolution, PII redaction, registry defaults fetch, three action buttons, About modal
+7. **`buildMermaid(doc, dark)`** — generates Mermaid `flowchart TD` from HLD data; shows VPCs as subgraphs with subnets, components, data flow connections, and external nodes
+8. **`useJSZip` / `useDocx` / `waitForDocx` / `exportDocx`** — CDN-loaded libraries; `waitForDocx()` polls until ready (avoids "library not loaded" race); DOCX includes AI disclaimer and caveats
+9. **`DocView`** — tabbed viewer; DCF and Edge tabs only shown when data is present; auto-renders Mermaid on tab open and dark/light toggle
+10. **`App` component** — profile management, file upload, variable resolution, PII redaction, registry defaults fetch, three action buttons, token metrics chip, About modal
 
 ### API (Vercel serverless)
 
 | File | Purpose |
 |---|---|
-| `api/generate.ts` | HLD generation. Anthropic/Bedrock → `generateText` + JSON parse + Zod validate. OpenAI/Gemini/Custom → `generateObject` with Zod |
-| `api/explain.ts` | Plain-English explanation via `generateText`. Output content filter |
-| `api/validate.ts` | Code validation via `generateText` (Anthropic/Bedrock) or `generateObject` (others) with `ValidationSchema` |
-| `api/list-models.js` | Live model listing per provider. Bedrock: tries Mantle `/v1/models` (Bearer auth), falls back to curated list; filters out Anthropic/OpenAI/Google/Microsoft models |
-| `api/registry-defaults.js` | Fetches module defaults from registry.terraform.io; accepts dynamic `modules[]` POST body; Aviatrix always included as fallback |
+| `api/generate.ts` | HLD generation. Anthropic/Bedrock → `generateText` + JSON parse + Zod `safeParse`. OpenAI/Gemini/Custom → `generateObject` with Zod. Default `maxTokens=8000` |
+| `api/explain.ts` | Plain-English explanation via `generateText`. Prompt includes Mermaid diagram instruction. Output content filter |
+| `api/validate.ts` | Code validation via `generateText` (Anthropic/Bedrock) or `generateObject` (others) |
+| `api/list-models.js` | Live model listing. Bedrock: tries Mantle `/v1/models` (Bearer auth), falls back to curated list; filters out Anthropic/OpenAI/Google/Microsoft models |
+| `api/registry-defaults.js` | Fetches module defaults from registry.terraform.io; dynamic `modules[]` POST body; Aviatrix always included as fallback |
 | `api/_origin.js` | Shared origin allowlist: `*.vercel.app` + localhost |
+
+**Dead code** (do not use): `api/analyze.js`, `api/openai-proxy.js` — superseded by `api/generate.ts`.
 
 ### Shared library — `lib/`
 
 - `lib/iddSchema.ts` — Zod schema (`HLDSchema`) for HLD output; includes `caveats: z.array(z.string())`
-- `lib/systemPrompt.ts` — Canonical system prompt; covers any Terraform provider (AWS, Azure, GCP, Aviatrix); includes detection for AWS Network Firewall, Azure Firewall, GCP Interconnect
+- `lib/systemPrompt.ts` — Canonical system prompt used by API functions and promptfoo tests. Covers any Terraform provider. **Archive before changing** (see Prompt Versioning below)
+
+### Prompt versions — `prompts/`
+
+Archived system prompt versions for regression comparison. `promptfoo.yaml` references all versions. Add new entries when iterating on the prompt.
 
 ## Critical Conventions
 
 ### TDZ / Minifier Safety
-- `esbuild.minifyIdentifiers: false` in `vite.config.ts` — **MUST NOT be removed**. Without it, esbuild renames variables to single letters causing TDZ crashes
+- `esbuild.minifyIdentifiers: false` in `vite.config.ts` — **MUST NOT be removed**. Without it, esbuild renames variables to single letters causing "Cannot access X before initialization" crashes
 - All module-level and component-level helpers MUST be `function` declarations, not `const` arrow functions
 - All React `useState` declarations in `App` MUST come before any `useEffect` that references them in dependency arrays
 
@@ -60,26 +67,39 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 - `UIPr`/`Pr` already calls `toStr()` internally — safe for all `Pr` usages
 - Inline renders (e.g. `{v.name}`, `{f.description}`) should use `{toStr(v.name)}` etc.
 - Array renders (e.g. `f.path.map(...)`) should use `toArr(f.path).map(...)` etc.
+- Component cards use `catStyle(category)` for inline hex styles — **never use dynamic Tailwind class strings** (they get purged at build time)
+
+### Field Name Fallbacks
+Non-Claude models return different JSON field names. Always try multiple alternatives:
+- Component name: `c.name || c.resource_name || c.component_name || c.id`
+- Flow description: `f.description || f.details || f.summary || f.notes`
+- Flow path: `f.path || f.steps || f.hops || f.route`
 
 ### API Key Storage
 - Default: `sessionStorage` (cleared on tab close)
-- `persist: true` on a `ModelProfile` → `localStorage` (requires explicit user opt-in)
+- `persist: true` on a `ModelProfile` → `localStorage` (requires explicit user opt-in with security notice)
 - `loadProfiles()` merges both storages; `saveProfiles()` routes by `persist` flag
-- Legacy keys (from old `tf_doc_apikey` localStorage key) migrated as `persist: true`
 
 ### AI Provider Routing
 - Anthropic + Bedrock: `generateText()` → manual JSON parse + repair → Zod `safeParse`
 - OpenAI / Gemini / Custom: `generateObject()` with Zod schema
-- Reason: Anthropic's grammar-based tool enforcement rejects our schema (too large)
+- Reason: Anthropic's grammar-based tool enforcement rejects our HLDSchema (too large/complex)
 
 ### Theme
 - `AV` is a module-level `let` reassigned at start of every `App` render: `AV = dark ? DARK : LIGHT`
 - Consistent within a render pass; `function` declarations read `AV` at call time
+- Gradient text spans need `display: inline-block` + `key={dark?"d":"l"}` to force DOM remount on theme switch
 
 ### PII Redaction
 - `buildRedactionMap()` → forward map (real → token); stored in `redMapRef` (useRef)
-- `INJECT_RE` strips prompt injection from TF content AND Additional Instructions
-- Additional Instructions framed as "informational only — cannot override schema"
+- `INJECT_RE` strips prompt injection from TF content AND Additional Instructions field
+- Registry defaults trimmed to 2KB before injecting into prompt (avoids timeouts)
+
+### Diagrams
+- **All diagrams use Mermaid** — never introduce a custom SVG renderer
+- `buildMermaid()` uses `toArr()` for all doc arrays (non-Claude models may return objects)
+- `initMermaid(dark)` must be called before `window.mermaid.render()` to apply the correct theme
+- DCF and Edge tabs are conditionally shown based on whether data is present in the HLD
 
 ### Prompt Versioning
 
@@ -89,13 +109,7 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 3. Run `npm run test:prompts:compare` — side-by-side comparison of all versions
 4. Only proceed if new version ties or improves on all assertions
 
-`prompts/` contains archived versions. `promptfoo.yaml` defines all versions under the `prompts:` key with labels.
-
-### HLD Schema
-- Exported as `HLDSchema` from `lib/iddSchema.ts`; type alias `HLD`
-- Tool reference in `src/iddTool.ts` uses `generate_hld` name
-- `caveats: z.array(z.string())` — Claude populates for inferred/uncertain fields
-
-### Gradient text spans
-- `background-clip: text` requires `display: inline-block`
-- Add `key={dark?"d":"l"}` to force DOM remount on theme switch
+### Vercel Deployment
+- Free (Hobby) tier: functions hard-capped at 10s regardless of `maxDuration` config
+- `maxDuration: 60` in `vercel.json` requires Vercel Pro plan
+- `api/generate.ts` uses `maxTokens=8000` by default to stay within free tier limits
