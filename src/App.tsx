@@ -619,25 +619,14 @@ const VE=[".tf",".tfvars"];
 function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
 function isM(fileName:string){return fileName.includes("__MACOSX")||fileName.includes(".DS_Store");}
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
-function loadScript(src:string):Promise<void>{
-  return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error(`Failed: ${src}`));document.head.appendChild(s);});
+// docx loaded from npm bundle — no CDN dependency, no load failures
+let _docxModule: any = null;
+async function waitForDocx(): Promise<any> {
+  if (_docxModule) return _docxModule;
+  _docxModule = await import("docx");
+  return _docxModule;
 }
-function useDocx(){useEffect(()=>{
-  if((window as any).docx)return;
-  loadScript("https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js")
-    .catch(()=>loadScript("https://unpkg.com/docx@8.5.0/build/index.min.js"))
-    .catch(console.warn);
-},[]);}
-function waitForDocx(maxMs=20000):Promise<any>{
-  return new Promise((res,rej)=>{
-    if((window as any).docx)return res((window as any).docx);
-    const start=Date.now();
-    const poll=setInterval(()=>{
-      if((window as any).docx){clearInterval(poll);res((window as any).docx);}
-      else if(Date.now()-start>maxMs){clearInterval(poll);rej(new Error("docx library failed to load. Try refreshing the page."));}
-    },100);
-  });
-}
+function useDocx() {} // no-op: docx is bundled via npm
 
 async function exportDocx(data:any,customerName:string){
   const D=await waitForDocx();
