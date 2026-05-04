@@ -27,7 +27,7 @@ Return ONLY the corrected HLD as valid JSON. If accurate, return unchanged.`;
 // on providers that only support the classic Chat Completions API (e.g. Kimi).
 async function chatCompletion(
   baseUrl: string, apiKey: string, model: string,
-  messages: any[], maxTokens: number
+  messages: any[], maxTokens: number, temperature?: number
 ): Promise<{ text: string; usage: any }> {
   const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
   const res = await fetch(url, {
@@ -109,7 +109,7 @@ export default async function handler(req: any, res: any) {
         const r1 = await chatCompletion(directBase, apiKey, model, [
           { role: "system", content: sysWithInstruction },
           { role: "user", content },
-        ], maxTokens);
+        ], maxTokens, temperature);
         hld = await parseHLD(r1.text);
         usage = r1.usage;
       } else {
@@ -126,7 +126,7 @@ export default async function handler(req: any, res: any) {
           const r2 = await chatCompletion(directBase, apiKey, model, [
             { role: "system", content: CRITIQUE_PROMPT },
             { role: "user", content: critiquePrompt },
-          ], Math.min(maxTokens, 12000));
+          ], Math.min(maxTokens, 12000), temperature);
           usage = mergeUsage(usage, r2.usage);
           hld = await parseHLD(r2.text);
         } else {
