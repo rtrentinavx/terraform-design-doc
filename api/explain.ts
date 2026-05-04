@@ -3,6 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
 
 const EXPLAIN_PROMPT = [
@@ -45,6 +46,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
 }
 
 export default async function handler(req: any, res: any) {
+  initSentry();
   try {
     if (req.method !== "POST") return res.status(405).end();
     if (!checkOrigin(req, res)) return;
@@ -73,6 +75,7 @@ export default async function handler(req: any, res: any) {
 
     res.status(200).json({ explanation: text });
   } catch (err: any) {
+    Sentry.captureException(err);
     const msg = err?.message || err?.toString?.() || "Unknown error";
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     try {

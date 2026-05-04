@@ -3,6 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
 import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
@@ -84,6 +85,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ object, usage });
     }
   } catch (err: any) {
+    Sentry.captureException(err);
     const msg = err?.message || String(err);
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     res.status(status).json({ error: msg });
