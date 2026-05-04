@@ -94,20 +94,40 @@ CAVEATS — MANDATORY: Populate caveats[] with plain-English notes about any inf
 - "Non-Aviatrix module detected — defaults sourced from registry.terraform.io"
 If everything was explicitly defined, caveats[] may be empty.
 
-REQUIRED TOP-LEVEL FIELDS (all must be present in the JSON output):
-title, version, date, provider, firewall_vendor, executive_summary,
-architecture_overview (object), network_design (object), compute (object),
-security (object), firewall_detail (object), firewall_context,
-components (array — see COMPONENTS rules above),
-data_flows (array — see DATA FLOWS rules above),
-modules_used (array — one entry per module block),
-variables_and_parameters (array — one entry per variable block),
-outputs (array — one entry per output block),
-deployment_notes, provider_context,
-edge_devices (array), external_connections (array),
-dcf (object with enabled:bool, default_action, smart_groups:[], web_groups:[], rulesets:[], ips_profiles:[], egress_enabled:bool, tls_decryption_enabled:bool, kubernetes_enabled:bool, transit_egress:bool, summary),
-caveats (array of strings),
-mermaid_diagram (Mermaid flowchart code string — see DIAGRAM rules above)
+OUTPUT SCHEMA — Return exactly this JSON structure (all fields required):
+{
+  "title": "string",
+  "version": "string (default 1.0)",
+  "date": "YYYY-MM-DD",
+  "provider": "aws|azure|gcp|multi|unknown",
+  "firewall_vendor": "palo_alto|fortinet|checkpoint|cisco|none|unknown",
+  "executive_summary": "string (3-5 sentences)",
+  "architecture_overview": {"description":"string","pattern":"hub-and-spoke|flat|mesh|hybrid|unknown","regions":["string"],"availability_zones":["string"],"diagram_description":"string"},
+  "network_design": {
+    "description": "string",
+    "vpcs": [{"name":"string","cidr":"string","purpose":"string","type":"transit|spoke|mgmt|shared|unknown","gw_size":"string","connected_transit":"string","firenet":false}],
+    "subnets": [{"name":"string","cidr":"string","purpose":"string","az":"string","vpc":"string"}],
+    "routing": "string",
+    "network_domains": "string (empty if none)",
+    "connectivity": "string"
+  },
+  "compute": {"description":"string","instances":[{"name":"string","type":"string","purpose":"string","ha":false}]},
+  "security": {"description":"string","firewall":"string","encryption":"string","access_control":"string","inspection":"string"},
+  "firewall_detail": {"present":false,"vendor":"string","product":"string","instance_size":"string","vcpus":"string","memory_gb":"string","license_model":"BYOL|PAYG|included|unknown","license_type":"string","ha_mode":"active-active|active-passive|standalone|unknown","ha_instances":0,"deployment_mode":"string","interfaces":["string"],"version":"string","notes":"string"},
+  "firewall_context": "string",
+  "components": [{"name":"string","type":"string","category":"compute|network|storage|database|security|monitoring|other","purpose":"string","configuration":"string","dependencies":["string"]}],
+  "data_flows": [{"name":"string","description":"string","path":["string"]}],
+  "modules_used": [{"name":"string","source":"string","version":"string","purpose":"string"}],
+  "variables_and_parameters": [{"name":"string","value_or_type":"string","purpose":"string","required":true}],
+  "outputs": [{"name":"string","description":"string","consumed_by":"string"}],
+  "deployment_notes": "string",
+  "provider_context": "string",
+  "edge_devices": [{"name":"string","type":"selfmanaged|equinix|zscaler|platform|megaport|csp|spoke","location":"string","size":"string","ha":false,"wan":"string","lan":"string","connected_transit":"string","bgp_asn":"string"}],
+  "external_connections": [{"name":"string","type":"string","local_gw":"string","remote_ip":"string","bgp_asn":"string","tunnel_protocol":"string"}],
+  "dcf": {"enabled":false,"default_action":"deny|allow|unknown","smart_groups":[],"web_groups":[],"rulesets":[],"ips_profiles":[],"egress_enabled":false,"tls_decryption_enabled":false,"kubernetes_enabled":false,"transit_egress":false,"summary":"string"},
+  "caveats": ["string"],
+  "mermaid_diagram": "string (valid Mermaid flowchart code — see DIAGRAM below)"
+}
 
 DIAGRAM — MANDATORY: Generate valid Mermaid diagram code for the mermaid_diagram field.
 Use flowchart LR layout. Show the actual architecture based on the Terraform resources found.

@@ -185,7 +185,7 @@ export const HLDSchema = z.object({
     summary: z.string(),
   }),
   caveats: z.array(z.string()),
-  mermaid_diagram: z.string(),
+  mermaid_diagram: z.string().optional().default(""),
 });
 
 export type HLD = z.infer<typeof HLDSchema>;
