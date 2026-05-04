@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import * as Sentry from "@sentry/react";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -1189,7 +1190,7 @@ export default function App(){
       const elapsed=Date.now()-t0;
       setMetrics(prev=>({inputTokens:inp,outputTokens:out,elapsedMs:elapsed,sessionTokens:(prev?.sessionTokens||0)+inp+out}));
       dbg.step="done";setDebug({...dbg});stopProgress(true);setDoc(parsed);
-    }catch(e){dbg.statusMsg=e.message;setDebug({...dbg});setError("Unexpected: "+e.message);stopProgress(false);}
+    }catch(e:any){Sentry.captureException(e,{tags:{action:"analyze"}});dbg.statusMsg=e.message;setDebug({...dbg});setError("Unexpected: "+e.message);stopProgress(false);}
     setLoading(false);
   };
 
@@ -1224,7 +1225,7 @@ export default function App(){
           tryRender();
         }
       }
-    }catch(e:any){setError("Explain error: "+e.message);}
+    }catch(e:any){Sentry.captureException(e,{tags:{action:"explain"}});setError("Explain error: "+e.message);}
     setExplaining(false);
   };
 
@@ -1243,7 +1244,7 @@ export default function App(){
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("Validate failed: "+(d.error||r.status));}
       else setValidation(d);
-    }catch(e:any){setError("Validate error: "+e.message);}
+    }catch(e:any){Sentry.captureException(e,{tags:{action:"validate"}});setError("Validate error: "+e.message);}
     setValidating(false);
   };
 
@@ -1518,7 +1519,7 @@ export default function App(){
 
             <div className="text-center text-xs pt-2" style={{color:AV.td}}>
               Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>rtrentin</a> · Powered by <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>Anthropic Claude</a>
-              <button onClick={()=>{try{throw new Error("Sentry test event — integration working");}catch(e){(window as any).Sentry?.captureException(e);alert("Test event sent to Sentry. Check your Issues dashboard.");}}} className="block mx-auto mt-2 text-xs underline" style={{color:AV.td}}>Send Sentry test event</button>
+              <button onClick={()=>{Sentry.captureMessage("Sentry test event from Terraform HLD Generator",{level:"info"});alert("Test event sent to Sentry — check Issues and also Performance dashboard.");}} className="block mx-auto mt-2 text-xs underline" style={{color:AV.td}}>Send Sentry test event</button>
             </div>
           </div>
         </div>
