@@ -27,7 +27,14 @@ If the HLD is already accurate, return it unchanged.`;
 
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
-  if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl || "us-east-1", apiKey })(model);
+  if (provider === "bedrock") {
+    const region = baseUrl || "us-east-1";
+    return createAmazonBedrock({
+      region,
+      apiKey,
+      baseURL: `https://bedrock-mantle.${region}.api.aws/v1`,
+    })(model);
+  }
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model, { structuredOutputs: true });
   return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model);
