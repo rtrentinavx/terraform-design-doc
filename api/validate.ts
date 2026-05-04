@@ -22,7 +22,7 @@ const ValidationSchema = z.object({
   findings: z.array(FindingSchema),
 });
 
-const TEXT_PROVIDERS = new Set(["anthropic", "bedrock"]);
+const TEXT_PROVIDERS = new Set(["anthropic", "bedrock", "custom"]);
 
 const VALIDATE_PROMPT = `You are a Terraform/OpenTofu security and best-practices auditor. Analyze the provided Terraform code and return a structured validation report as JSON.
 
