@@ -12,7 +12,14 @@ Sentry.init({
   integrations: [
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration({ maskAllText: true, blockAllMedia: false }),
-    Sentry.feedbackIntegration({ colorScheme: "system" }),
+    Sentry.feedbackIntegration({
+      colorScheme: "system",
+      autoInject: true,
+      showBranding: false,
+      buttonLabel: "Feedback",
+      submitButtonLabel: "Send Feedback",
+      formTitle: "Share Feedback",
+    }),
   ],
   tracesSampleRate: 0.2,
   replaysSessionSampleRate: 0.1,
