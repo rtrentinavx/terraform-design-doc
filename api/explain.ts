@@ -38,7 +38,7 @@ const EXPLAIN_PROMPT = [
 ].join("\n");
 
 
-async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string}> {
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number, temperature?: number): Promise<{text: string}> {
   const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
   const res = await fetch(url, {
     method: "POST",
@@ -85,7 +85,7 @@ export default async function handler(req: any, res: any) {
       const r = await chatCompletion(bedrockBase, apiKey, model, [
         { role: "system", content: EXPLAIN_PROMPT },
         { role: "user", content },
-      ], 4000);
+      ], 4000, temperature);
       text = r.text;
     } else {
       const mdl = buildModel(provider, apiKey, model, baseUrl);
