@@ -1749,6 +1749,7 @@ export default function App(){
                   ["DOCX Export","Word document with AI disclaimer, caveats, and all HLD sections — bundled via npm (no CDN dependency)"],
                   ["ZIP Support","Auto-extracts .tf/.tfvars from uploaded ZIP archives"],
                   ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy; origin allowlist on API endpoints"],
+                  ["Upstash Redis Caching","Server-side cache for Terraform Registry defaults (1h TTL) and model lists (30min TTL) — shared across all users via Upstash Redis; gracefully no-ops when env vars not set"],
                   ["Temperature per Profile","Per-profile temperature control with model-default option for thinking/reasoning models (Kimi K2, DeepSeek R1)"],
                   ["DCF Policy Suggestion","Generate tentative Aviatrix Distributed Cloud Firewall config (SmartGroups, WebGroups, rulesets, Terraform HCL) from discovered network segments"],
                   ["Prompt Versioning & Testing","promptfoo regression suite with versioned prompts — npm run test:prompts (current) or test:prompts:compare (all versions side-by-side); v1 Aviatrix baseline archived in prompts/"],
@@ -1767,7 +1768,7 @@ export default function App(){
               <div className="space-y-2">
                 {[
 
-                  ["Rate Limiting","Per-IP throttling on API proxy via Upstash Redis"],
+                  ["Rate Limiting","Upstash Redis integrated for registry/model caching — per-IP throttling on API proxy still pending"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -1778,7 +1779,7 @@ export default function App(){
             </div>
 
             <div className="text-center text-xs pt-2" style={{color:AV.td}}>
-              Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>rtrentin</a> · Powered by <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>Anthropic Claude</a>
+              Built by <a href="https://rtrentinsworld.com" target="_blank" rel="noopener noreferrer" style={{color:AV.or}}>rtrentin</a> · AI-powered · Multi-model
               <button onClick={()=>{Sentry.captureMessage("Sentry test event from Terraform HLD Generator",{level:"info"});alert("Test event sent to Sentry — check Issues and also Performance dashboard.");}} className="block mx-auto mt-2 text-xs underline" style={{color:AV.td}}>Send Sentry test event</button>
             </div>
           </div>

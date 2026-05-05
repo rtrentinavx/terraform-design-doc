@@ -41,6 +41,7 @@ Key sections in order:
 | `api/validate.ts` | Code validation via `generateText` (Anthropic/Bedrock) or `generateObject` (others) |
 | `api/list-models.js` | Live model listing. Bedrock: tries Mantle `/v1/models` (Bearer auth), falls back to curated list; filters out Anthropic/OpenAI/Google/Microsoft models |
 | `api/registry-defaults.js` | Fetches module defaults from registry.terraform.io; dynamic `modules[]` POST body; Aviatrix always included as fallback |
+| `api/_cache.js` | Upstash Redis helper: `cacheGet(key)` / `cacheSet(key, val, ttl)`. No-ops gracefully when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` env vars not set |
 | `api/_origin.js` | Shared origin allowlist: `*.vercel.app` + localhost |
 
 **Dead code** (do not use): `api/analyze.js`, `api/openai-proxy.js` — superseded by `api/generate.ts`.

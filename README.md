@@ -34,6 +34,7 @@ Open http://localhost:5173, create a model profile, and upload Terraform files.
 | **Defensive Rendering** | `toStr()`/`toArr()` coerce any model response type — prevents crashes when non-Claude models return objects or strings for array fields |
 | **DOCX Export** | Word document with AI disclaimer, caveats, and all HLD sections |
 | **ZIP Support** | Auto-extracts `.tf`/`.tfvars` from uploaded ZIP archives |
+| **Upstash Redis Caching** | Server-side cache for registry defaults (1h TTL) and model lists (30min TTL) — shared across users; set `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in Vercel |
 | **Prompt Versioning & Testing** | Versioned prompt archive in `prompts/`; `npm run test:prompts` (current) or `test:prompts:compare` (all versions side-by-side) |
 
 ## Security
@@ -62,6 +63,7 @@ terraform-hld-generator/
     validate.ts         # Code validation with scored findings
     list-models.js      # Live model listing per provider
     registry-defaults.js # Live Terraform Registry module defaults
+    _cache.js           # Upstash Redis cache helper (cacheGet/cacheSet)
     _origin.js          # Shared origin allowlist
   lib/
     iddSchema.ts        # Zod schema (HLDSchema) for the HLD output
