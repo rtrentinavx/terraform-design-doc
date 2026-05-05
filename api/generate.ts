@@ -37,6 +37,9 @@ async function chatCompletion(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
+  if (data.choices?.[0]?.finish_reason === "length") {
+    throw new Error("Response truncated: model hit token limit (finish_reason=length). Reduce input size or increase maxTokens.");
+  }
   return { text: data.choices?.[0]?.message?.content || "", usage: data.usage || {} };
 }
 
