@@ -109,7 +109,7 @@ export default async function handler(req: any, res: any) {
       try { parsed = JSON.parse(raw); }
       catch { parsed = { summary: "Parse error — raw response returned", score: 0, findings: [] }; }
       const result = ValidationSchema.safeParse(parsed);
-      return res.status(200).json({ ...(result.success ? result.data : parsed), usage });
+      return res.status(200).json({ validation: result.success ? result.data : parsed, usage });
     } else {
       const { object, usage } = await generateObject({
         model: mdl,
@@ -119,7 +119,7 @@ export default async function handler(req: any, res: any) {
         temperature: temperature ?? 0,
         maxTokens: 4000,
       });
-      return res.status(200).json({ ...object, usage });
+      return res.status(200).json({ validation: object, usage });
     }
   } catch (err: any) {
     Sentry.captureException(err);
