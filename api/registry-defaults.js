@@ -1,4 +1,5 @@
 import { checkOrigin } from "./_origin.js";
+import { cacheGet, cacheSet } from "./_cache.js";
 
 // Fallback Aviatrix modules always included
 const AVIATRIX_MODULES = [
@@ -62,15 +63,30 @@ export default async function handler(req, res) {
   const detected = req.method === "POST" ? (req.body?.modules || []) : [];
   const toFetch = [...new Set([...AVIATRIX_MODULES, ...detected])];
 
+  // Cache key based on sorted module list — shared across all users
+  const cacheKey = `registry:${toFetch.slice().sort().join(",")}`;
+
   try {
+    // Try cache first (1h TTL)
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      res.setHeader("X-Cache", "HIT");
+      res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
+      return res.json(cached);
+    }
+
     const results = await Promise.allSettled(toFetch.map(fetchModule));
 
     const modules = results
       .map((r, i) => r.status === "fulfilled" && r.value ? r.value : null)
       .filter(Boolean);
 
+    const payload = { modules, fetchedAt: new Date().toISOString() };
+    // Store in Redis for 1h — shared across all users/requests
+    await cacheSet(cacheKey, payload, 3600);
+    res.setHeader("X-Cache", "MISS");
     res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
-    res.json({ modules, fetchedAt: new Date().toISOString() });
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

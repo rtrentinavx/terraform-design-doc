@@ -1,4 +1,5 @@
 import { checkOrigin } from "./_origin.js";
+import { cacheGet, cacheSet } from "./_cache.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -7,7 +8,15 @@ export default async function handler(req, res) {
   const { provider, apiKey, secretKey, baseUrl } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
 
+  // Cache key: provider + region/baseUrl (NOT apiKey — same models for same endpoint)
+  const cacheKey = `models:${provider}:${baseUrl || "default"}`;
+
   try {
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      res.setHeader("X-Cache", "HIT");
+      return res.json(cached);
+    }
     // Bedrock: use Mantle OpenAI-compatible /v1/models endpoint (accepts Bearer token)
     // Falls back to curated list if the live fetch fails or region not provided
     if (provider === "bedrock") {
@@ -80,6 +89,11 @@ export default async function handler(req, res) {
 
     const response = await fetch(url, { headers });
     const data = await response.json();
+    // Cache successful responses for 30 min (model lists change infrequently)
+    if (response.ok && data.data?.length) {
+      await cacheSet(cacheKey, data, 1800);
+      res.setHeader("X-Cache", "MISS");
+    }
     res.status(response.status).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
