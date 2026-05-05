@@ -21,6 +21,7 @@
     "@sentry/vite-plugin": "^5.2.1",
     "@upstash/redis": "^1.38.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/firewall": "^1.2.0",
     "ai": "^6.0.174",
     "docx": "^9.6.1",
     "promptfoo": "^0.121.9",
