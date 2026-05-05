@@ -29,6 +29,51 @@ const PROVIDER_COLORS:Record<string,string>={
   anthropic:"#D97706", bedrock:"#FF9900", azure:"#0078D4", gemini:"#4285F4", custom:"#6366F1"
 };
 
+// Model temperature knowledge base
+// Returns optimal config for structured JSON generation (HLD)
+type ModelTempConfig={min:number;max:number;optimal:number|undefined;note:string;};
+function getModelTempConfig(model:string):ModelTempConfig{
+  const m=model.toLowerCase();
+  // Thinking / reasoning models — temperature must be 1 or model default
+  if(/thinking|reasoner|deepseek.?r[12]|kimi.?k[23]|o1|o3|qwq/.test(m))
+    return{min:1,max:1,optimal:undefined,note:"Thinking model — temperature fixed at model default"};
+  // OpenAI o-series reasoning
+  if(/^o[0-9]/.test(m))
+    return{min:1,max:1,optimal:undefined,note:"Reasoning model — temperature not configurable"};
+  // Anthropic Claude — 0-1, best at 0 for structured output
+  if(/claude/.test(m))
+    return{min:0,max:1,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // OpenAI GPT — 0-2, best at 0 for structured output
+  if(/gpt|turbo/.test(m))
+    return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Kimi standard (non-thinking)
+  if(/moonshot|kimi/.test(m))
+    return{min:0,max:1,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Meta Llama
+  if(/llama/.test(m))
+    return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Mistral / Mixtral
+  if(/mistral|mixtral/.test(m))
+    return{min:0,max:1,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Amazon Nova / Titan
+  if(/nova|titan/.test(m))
+    return{min:0,max:1,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Google Gemini
+  if(/gemini/.test(m))
+    return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Cohere
+  if(/command/.test(m))
+    return{min:0,max:1,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // DeepSeek non-reasoning
+  if(/deepseek/.test(m))
+    return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Qwen
+  if(/qwen/.test(m))
+    return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
+  // Default fallback
+  return{min:0,max:2,optimal:undefined,note:"Set manually or leave at model default"};
+}
+
 const autoName=(provider:string,model:string)=>{
   const short=model.split("/").pop()||model;
   const pLabel=PROVIDERS.find(p=>p.id===provider)?.label||provider;
@@ -81,9 +126,13 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
   const up=(k:keyof ModelProfile,v:string)=>setP(prev=>{
     const next={...prev,[k]:v};
     if(k==="provider"){
-      // Reset model, baseUrl and fetched models when switching providers
       next.model="";next.baseUrl="";
       setModels([]);setFetchErr("");
+    }
+    if(k==="model"&&v){
+      // Auto-configure temperature when model changes
+      const cfg=getModelTempConfig(v);
+      next.temperature=cfg.optimal;
     }
     if((k==="provider"||k==="model")&&(!prev.name||prev.name===autoName(prev.provider,prev.model)))
       next.name=autoName(next.provider,next.model||prev.model);
@@ -167,31 +216,41 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
           {fetchErr&&<p className="text-xs mt-1" style={{color:"#F9A8D4"}}>{fetchErr}</p>}
         </div>
         {/* Profile name */}
-        {/* Temperature */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className={lbl} style={{color:AV.tm}}>Temperature</label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={p.temperature===undefined}
-                onChange={e=>setP(prev=>({...prev,temperature:e.target.checked?undefined:1}))}
-                className="w-3.5 h-3.5" style={{accentColor:pc}}/>
-              <span className="text-xs" style={{color:AV.td}}>Model default</span>
-            </label>
+        {/* Temperature — auto-configured from model, overridable */}
+        {(()=>{
+          const cfg=p.model?getModelTempConfig(p.model):{min:0,max:2,optimal:undefined,note:"Select a model first"};
+          const isLocked=cfg.min===cfg.max; // thinking models: only one valid value
+          return(
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className={lbl} style={{color:AV.tm}}>Temperature</label>
+              {!isLocked&&<label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={p.temperature===undefined}
+                  onChange={e=>setP(prev=>({...prev,temperature:e.target.checked?undefined:cfg.optimal??1}))}
+                  className="w-3.5 h-3.5" style={{accentColor:pc}}/>
+                <span className="text-xs" style={{color:AV.td}}>Model default</span>
+              </label>}
+            </div>
+            {!isLocked&&p.temperature!==undefined&&<>
+              <div className="flex items-center gap-3">
+                <input type="range" min={cfg.min} max={cfg.max} step="0.1"
+                  value={p.temperature}
+                  onChange={e=>setP(prev=>({...prev,temperature:parseFloat(parseFloat(e.target.value).toFixed(1))}))}
+                  className="flex-1 h-2 rounded-full appearance-none cursor-pointer" style={{accentColor:pc}}/>
+                <span className="text-xs font-mono w-8 text-right shrink-0" style={{color:pc}}>{p.temperature.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between text-xs mt-1" style={{color:AV.td}}>
+                <span>{cfg.min} (precise)</span>
+                {cfg.max>1&&<span>1</span>}
+                <span>{cfg.max} (creative)</span>
+              </div>
+            </>}
+            <p className="text-xs mt-1.5" style={{color:isLocked?"#F59E0B":AV.td}}>
+              {isLocked?"⚠ ":p.temperature!==undefined?"✎ auto-configured — ":""}{cfg.note}
+            </p>
           </div>
-          {p.temperature!==undefined&&<>
-            <div className="flex items-center gap-3">
-              <input type="range" min="0" max="2" step="0.1"
-                value={p.temperature??1}
-                onChange={e=>setP(prev=>({...prev,temperature:parseFloat(parseFloat(e.target.value).toFixed(1))}))}
-                className="flex-1 h-2 rounded-full appearance-none cursor-pointer" style={{accentColor:pc}}/>
-              <span className="text-xs font-mono w-8 text-right shrink-0" style={{color:pc}}>{(p.temperature??1).toFixed(1)}</span>
-            </div>
-            <div className="flex justify-between text-xs mt-1" style={{color:AV.td}}>
-              <span>0 (precise)</span><span>1</span><span>2 (creative)</span>
-            </div>
-          </>}
-          {p.temperature===undefined&&<p className="text-xs" style={{color:AV.td}}>Recommended for thinking/reasoning models (Kimi K2, DeepSeek R1)</p>}
-        </div>
+          );
+        })()}
         <div><label className={lbl} style={{color:AV.tm}}>Profile Name</label>
           <input type="text" placeholder="e.g. Claude Sonnet (Work)" value={p.name} onChange={e=>up("name",e.target.value)} className="w-full rounded-xl px-4 py-2.5 text-sm" style={inpS}/>
         </div>
