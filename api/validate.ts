@@ -89,22 +89,29 @@ export default async function handler(req: any, res: any) {
     const mdl = buildModel(provider, apiKey, model, baseUrl);
 
     if (TEXT_PROVIDERS.has(provider)) {
-      // Anthropic/Bedrock: generateText to avoid grammar size limits
-      const { text } = await generateText({
-        model: mdl,
-        system: VALIDATE_PROMPT,
-        prompt: content,
-        temperature: temperature ?? 0,
-        maxTokens: 4000,
-      });
+      let text: string;
+      let usage: any = {};
+      if (provider === "custom" || provider === "bedrock") {
+        const bedrockBase = provider === "bedrock" ? `https://bedrock-mantle.${baseUrl||"us-east-1"}.api.aws/v1` : (baseUrl || "");
+        const r = await chatCompletion(bedrockBase, apiKey, model, [
+          { role: "system", content: VALIDATE_PROMPT },
+          { role: "user", content },
+        ], 4000, temperature);
+        text = r.text;
+        usage = r.usage;
+      } else {
+        const result = await generateText({ model: mdl, system: VALIDATE_PROMPT, prompt: content, temperature: temperature ?? 0, maxTokens: 4000 });
+        text = result.text;
+        usage = result.usage;
+      }
       const raw = text.replace(/```json|```/g, "").trim();
       let parsed: any;
       try { parsed = JSON.parse(raw); }
       catch { parsed = { summary: "Parse error — raw response returned", score: 0, findings: [] }; }
       const result = ValidationSchema.safeParse(parsed);
-      return res.status(200).json(result.success ? result.data : parsed);
+      return res.status(200).json({ ...(result.success ? result.data : parsed), usage });
     } else {
-      const { object } = await generateObject({
+      const { object, usage } = await generateObject({
         model: mdl,
         schema: ValidationSchema,
         system: VALIDATE_PROMPT,
@@ -112,7 +119,7 @@ export default async function handler(req: any, res: any) {
         temperature: temperature ?? 0,
         maxTokens: 4000,
       });
-      return res.status(200).json(object);
+      return res.status(200).json({ ...object, usage });
     }
   } catch (err: any) {
     Sentry.captureException(err);

@@ -80,6 +80,7 @@ export default async function handler(req: any, res: any) {
     if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
     let text: string;
+    let usage: any = {};
     if (provider === "custom" || provider === "bedrock") {
       const bedrockBase = provider === "bedrock" ? `https://bedrock-mantle.${baseUrl||"us-east-1"}.api.aws/v1` : (baseUrl || "");
       const r = await chatCompletion(bedrockBase, apiKey, model, [
@@ -87,10 +88,12 @@ export default async function handler(req: any, res: any) {
         { role: "user", content },
       ], 4000, temperature);
       text = r.text;
+      usage = r.usage;
     } else {
       const mdl = buildModel(provider, apiKey, model, baseUrl);
       const result = await generateText({ model: mdl, system: EXPLAIN_PROMPT, prompt: content, temperature: temperature ?? 0, maxTokens: 4000 });
       text = result.text;
+      usage = result.usage;
     }
 
     const lower = text.toLowerCase();
@@ -99,7 +102,7 @@ export default async function handler(req: any, res: any) {
       !lower.includes("module") && !lower.includes("provider") && text.length > 200;
     if (offTopic) return res.status(422).json({ error: "Unexpected response — ensure uploaded files contain Terraform code." });
 
-    res.status(200).json({ explanation: text });
+    res.status(200).json({ explanation: text, usage });
   } catch (err: any) {
     Sentry.captureException(err);
     const msg = err?.message || err?.toString?.() || "Unknown error";

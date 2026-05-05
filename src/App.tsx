@@ -1356,6 +1356,7 @@ export default function App(){
 
   const explain=async()=>{
     if(!activeProfile||!files.length)return;
+    const t0=Date.now();
     setExplaining(true);setExplanation("");setExplainMmSvg("");setError(null);
     try{
       const varMap=new Map<string,string>();
@@ -1370,6 +1371,8 @@ export default function App(){
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("Explain failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
       else{
+        // Update metrics with explain token usage
+        if(d.usage){const u=d.usage;const inp=u.input_tokens||u.prompt_tokens||0;const out=u.output_tokens||u.completion_tokens||0;const elapsed=Date.now()-t0;setMetrics(prev=>({inputTokens:inp,outputTokens:out,elapsedMs:elapsed,sessionTokens:(prev?.sessionTokens||0)+inp+out}));}
         const raw=d.explanation||"";
         setExplanation(raw);
         // Extract and render any Mermaid diagram block
@@ -1392,6 +1395,7 @@ export default function App(){
 
   const validate=async()=>{
     if(!activeProfile||!files.length)return;
+    const t0=Date.now();
     setValidating(true);setValidation(null);setError(null);
     try{
       const varMap=new Map<string,string>();
@@ -1405,7 +1409,7 @@ export default function App(){
       const rawText=await r.text();
       let d:any;try{d=JSON.parse(rawText);}catch{throw new Error(rawText.slice(0,300));}
       if(!r.ok||d.error){setError("Validate failed: "+(typeof d.error==="object"?JSON.stringify(d.error):d.error||r.status));}
-      else setValidation(d);
+      else{if(d.usage){const u=d.usage;const inp=u.input_tokens||u.prompt_tokens||0;const out=u.output_tokens||u.completion_tokens||0;const elapsed=Date.now()-t0;setMetrics(prev=>({inputTokens:inp,outputTokens:out,elapsedMs:elapsed,sessionTokens:(prev?.sessionTokens||0)+inp+out}));}setValidation(d);}
     }catch(e:any){Sentry.captureException(e,{tags:{action:"validate"}});setError("Validate error: "+e.message);}
     setValidating(false);
   };
