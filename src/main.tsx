@@ -1,11 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { inject } from "@vercel/analytics";
+import { Analytics } from "@vercel/analytics/react";
 import * as Sentry from "@sentry/react";
 import App from "./App";
 import "./index.css";
-
-inject();
 
 Sentry.init({
   dsn: "https://4f41f9f03808c389e13b2ed36bc9d065@o4511332226891776.ingest.us.sentry.io/4511332244193280",
@@ -40,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
       )}
     >
       <App />
+      <Analytics />
     </Sentry.ErrorBoundary>
   </StrictMode>
 );
