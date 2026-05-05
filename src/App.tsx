@@ -1448,11 +1448,8 @@ export default function App(){
       <div style={{position:"fixed",bottom:"10%",right:"10%",width:350,height:350,background:`radial-gradient(circle,${AV.pu}18 0%,transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
       <div className="max-w-5xl mx-auto relative" style={{zIndex:1}}>
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-5" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Terraform Design Document Generator
-          </div>
-          <h1 className="text-5xl font-black mb-3" style={{color:AV.tp}}>Infrastructure <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}} key={dark?"d":"l"}>Design Doc</span></h1>
+
+          <h1 className="text-4xl font-black mb-3" style={{color:AV.tp}}>Terraform <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}} key={dark?"d":"l"}>Design Document Generator</span></h1>
           <p style={{color:AV.tm}}>Upload Terraform files → formal design document → export as <strong style={{color:AV.or}}>DOCX</strong></p>
           <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>

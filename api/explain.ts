@@ -38,7 +38,7 @@ const EXPLAIN_PROMPT = [
 ].join("\n");
 
 
-async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number, temperature?: number): Promise<{text: string}> {
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number, temperature?: number): Promise<{text: string; usage: any}> {
   const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
   const res = await fetch(url, {
     method: "POST",
@@ -47,7 +47,7 @@ async function chatCompletion(baseUrl: string, apiKey: string, model: string, me
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || data.error || `HTTP ${res.status}`);
-  return { text: data.choices?.[0]?.message?.content || "" };
+  return { text: data.choices?.[0]?.message?.content || "", usage: data.usage || {} };
 }
 
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
