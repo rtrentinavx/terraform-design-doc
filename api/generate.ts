@@ -1,4 +1,5 @@
 import { generateObject, generateText } from "ai";
+import { z } from "zod";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -13,14 +14,46 @@ import { SYS } from "../lib/systemPrompt.js";
 const TEXT_PROVIDERS = new Set(["anthropic", "bedrock", "custom"]);
 
 const CRITIQUE_PROMPT = `You are auditing a High Level Design (HLD) document for accuracy against Terraform source code.
-Review the HLD JSON carefully. Fix ONLY verified errors:
-- Remove component names not in the Terraform
-- Fix VPCs/CIDRs that don't match the code
-- Remove invented resources, connections, or data flows
-- Correct firewall vendor/product contradictions
-- Add any obvious missed resources
-- Update caveats[] with any corrections
-Return ONLY the corrected HLD as valid JSON. If accurate, return unchanged.`;
+Return ONLY a JSON corrections object with these fields:
+- accurate: true if no corrections needed, false otherwise
+- remove_component_names: component names that are invented or absent from the Terraform (omit if none)
+- remove_data_flow_names: data flow names that are invented or incorrect (omit if none)
+- vpc_cidr_corrections: [{name, cidr}] for VPCs with wrong CIDRs (omit if none)
+- caveats_to_add: strings to append to caveats for any corrections or warnings (omit if none)
+Return ONLY valid JSON. No markdown fences, no explanation.`;
+
+const CorrectionSchema = z.object({
+  accurate: z.boolean(),
+  remove_component_names: z.array(z.string()).optional(),
+  remove_data_flow_names: z.array(z.string()).optional(),
+  vpc_cidr_corrections: z.array(z.object({ name: z.string(), cidr: z.string() })).optional(),
+  caveats_to_add: z.array(z.string()).optional(),
+});
+
+function applyCorrections(hld: any, c: z.infer<typeof CorrectionSchema>): any {
+  let h = { ...hld };
+  if (c.remove_component_names?.length) {
+    const rm = new Set(c.remove_component_names);
+    h.components = (h.components || []).filter((x: any) => !rm.has(x.name));
+  }
+  if (c.remove_data_flow_names?.length) {
+    const rm = new Set(c.remove_data_flow_names);
+    h.data_flows = (h.data_flows || []).filter((x: any) => !rm.has(x.name));
+  }
+  if (c.vpc_cidr_corrections?.length) {
+    const map = new Map(c.vpc_cidr_corrections.map(x => [x.name, x.cidr]));
+    if (h.network_design?.vpcs) {
+      h.network_design = {
+        ...h.network_design,
+        vpcs: h.network_design.vpcs.map((v: any) => map.has(v.name) ? { ...v, cidr: map.get(v.name) } : v),
+      };
+    }
+  }
+  if (c.caveats_to_add?.length) {
+    h.caveats = [...(h.caveats || []), ...c.caveats_to_add];
+  }
+  return h;
+}
 
 // Direct chat completions fetch — bypasses Vercel AI SDK endpoint selection.
 // Prevents SDK from calling /v1/responses instead of /v1/chat/completions
@@ -122,22 +155,26 @@ export default async function handler(req: any, res: any) {
         usage = p1.usage;
       }
 
-      // Pass 2: self-critique to fix hallucinations
-      const critiquePrompt = `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`;
+      // Pass 2: lightweight delta critique — returns only corrections, not full HLD
+      const critiqueMsg = `TERRAFORM CODE:\n${content}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`;
       try {
+        let corrRaw: string;
         if (directFetch) {
           const r2 = await chatCompletion(directBase, apiKey, model, [
             { role: "system", content: CRITIQUE_PROMPT },
-            { role: "user", content: critiquePrompt },
-          ], Math.min(maxTokens, 12000), temperature);
+            { role: "user", content: critiqueMsg },
+          ], 2000, temperature);
           usage = mergeUsage(usage, r2.usage);
-          hld = await parseHLD(r2.text);
+          corrRaw = r2.text;
         } else {
           const mdl = buildModel(provider, apiKey, model, baseUrl);
-          const p2 = await generateText({ model: mdl, system: CRITIQUE_PROMPT, prompt: critiquePrompt, temperature: 0, maxTokens: Math.min(maxTokens, 12000) });
+          const p2 = await generateText({ model: mdl, system: CRITIQUE_PROMPT, prompt: critiqueMsg, temperature: 0, maxTokens: 2000 });
           usage = mergeUsage(usage, p2.usage);
-          hld = await parseHLD(p2.text);
+          corrRaw = p2.text;
         }
+        const corrections = JSON.parse(corrRaw.replace(/```json|```/g, "").trim());
+        const parsed = CorrectionSchema.safeParse(corrections);
+        if (parsed.success && parsed.data.accurate === false) hld = applyCorrections(hld, parsed.data);
       } catch { /* keep pass1 hld if critique fails */ }
 
     } else {
@@ -154,6 +191,7 @@ export default async function handler(req: any, res: any) {
 
   } catch (err: any) {
     Sentry.captureException(err);
+    await Sentry.flush(2000);
     const msg = err?.message || (typeof err?.error === "object" ? err.error?.message : err?.error) || String(err);
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     res.status(status).json({ error: msg });

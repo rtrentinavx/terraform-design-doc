@@ -2,7 +2,6 @@ import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
 
@@ -105,6 +104,7 @@ export default async function handler(req: any, res: any) {
     res.status(200).json({ explanation: text, usage });
   } catch (err: any) {
     Sentry.captureException(err);
+    await Sentry.flush(2000);
     const msg = err?.message || err?.toString?.() || "Unknown error";
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     try {

@@ -2,7 +2,6 @@ import { generateObject, generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
 import { z } from "zod";
@@ -54,7 +53,7 @@ Score: 100=no issues, 80-99=minor suggestions, 60-79=warnings, 40-59=significant
 Be specific: reference the actual resource name or module block.`;
 
 
-async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number): Promise<{text: string}> {
+async function chatCompletion(baseUrl: string, apiKey: string, model: string, messages: any[], maxTokens: number, temperature?: number): Promise<{text: string; usage: any}> {
   const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
   const res = await fetch(url, {
     method: "POST",
@@ -68,7 +67,11 @@ async function chatCompletion(baseUrl: string, apiKey: string, model: string, me
 
 function buildModel(provider: string, apiKey: string, model: string, baseUrl?: string) {
   if (provider === "anthropic") return createAnthropic({ apiKey })(model);
-  if (provider === "bedrock") return createAmazonBedrock({ region: baseUrl||"us-east-1", apiKey })(model);
+  if (provider === "bedrock") return createOpenAI({
+    apiKey,
+    baseURL: `https://bedrock-mantle.${baseUrl || "us-east-1"}.api.aws/v1`,
+    compatibility: "compatible",
+  })(model);
   if (provider === "gemini") return createGoogleGenerativeAI({ apiKey })(model);
   if (provider === "azure") return createOpenAI({ apiKey, baseURL: `${baseUrl}/openai/deployments/${model}`, compatibility: "compatible" })(model);
   return createOpenAI({ apiKey, baseURL: baseUrl, compatibility: "compatible" })(model, { simulateStreaming: false });
@@ -86,6 +89,7 @@ export default async function handler(req: any, res: any) {
   if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
   try {
+    initSentry();
     const mdl = buildModel(provider, apiKey, model, baseUrl);
 
     if (TEXT_PROVIDERS.has(provider)) {
@@ -123,6 +127,7 @@ export default async function handler(req: any, res: any) {
     }
   } catch (err: any) {
     Sentry.captureException(err);
+    await Sentry.flush(2000);
     const msg = err?.message || (typeof err?.error === "object" ? err.error?.message : err?.error) || String(err);
     const status = msg.includes("401") ? 401 : msg.includes("429") ? 429 : 500;
     res.status(status).json({ error: msg });
