@@ -673,6 +673,165 @@ function buildMermaid(doc:any,dark=true):string{
   return L.join("\n");
 }
 
+function buildDrawio(doc:any):string{
+  const nd=doc.network_design||{};
+  const vpcs:any[]=toObjArr(nd.vpcs);
+  const subs:any[]=toObjArr(nd.subnets);
+  const comps:any[]=toArr(doc.components);
+  const flows:any[]=toArr(doc.data_flows);
+  const edges:any[]=toObjArr(doc.edge_devices);
+  const extConns:any[]=toObjArr(doc.external_connections);
+  const fw=doc.firewall_detail||{};
+  const dcf=doc.dcf||{};
+
+  let uid=2;
+  const nid=()=>String(uid++);
+  const nm=new Map<string,string>();
+  const X:string[]=[];
+  const esc=(s:string)=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  const mkCell=(cid:string,val:string,style:string,x:number,y:number,w:number,h:number,par="1")=>
+    `<mxCell id="${cid}" value="${val}" style="${style}" vertex="1" parent="${par}"><mxGeometry x="${x}" y="${y}" width="${w}" height="${h}" as="geometry"/></mxCell>`;
+  const mkEdge=(eid:string,val:string,src:string,tgt:string,dashed=false)=>
+    `<mxCell id="${eid}" value="${esc(val)}" style="edgeStyle=orthogonalEdgeStyle;${dashed?"dashed=1;":""}endArrow=open;endFill=0;" edge="1" source="${src}" target="${tgt}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+
+  const VW=300,CH=36,CW=260,CP=20,CG=8,VG=32;
+  const cs:Record<string,string>={
+    compute:"rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;",
+    network:"rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
+    security:"rounded=1;fillColor=#f8cecc;strokeColor=#b85450;",
+    database:"rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;",
+    monitoring:"rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;",
+    storage:"rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;",
+    other:"rounded=1;fillColor=#f5f5f5;strokeColor=#666666;",
+  };
+
+  const vpcComps=(v:any)=>{
+    const vs=subs.filter((s:any)=>toStr(s.vpc)===toStr(v.name));
+    return comps.filter((c:any)=>{
+      const cn=toStr(c.name).toLowerCase(),ct=toStr(c.type).toLowerCase();
+      return /vpc|subnet|security_group|route_table|internet_gateway|nat_gateway/.test(ct)?false:
+        vs.some((s:any)=>cn.includes(toStr(s.name).toLowerCase().split("_")[0]))||
+        toStr(c.configuration).toLowerCase().includes(toStr(v.name).toLowerCase())||
+        vpcs.length===1;
+    });
+  };
+
+  const vpcH=(v:any)=>{
+    const isT=v.type==="transit";
+    const ex=(isT?1:0)+(isT&&v.firenet&&fw.present?1:0)+(isT&&dcf.enabled?1:0);
+    return 30+CP+(Math.min(vpcComps(v).length,8)+ex)*(CH+CG)+CP;
+  };
+
+  let curY=40;
+  const LX=40,RX=420;
+
+  vpcs.forEach((v:any)=>{
+    const h=vpcH(v),vid=nid();
+    nm.set("vpc_"+toStr(v.name),vid);
+    const isT=v.type==="transit",isS=v.type==="spoke";
+    const fill=isT?"#dae8fc":isS?"#d5e8d4":"#f5f5f5";
+    const strk=isT?"#6c8ebf":isS?"#82b366":"#666666";
+    X.push(mkCell(vid,esc(toStr(v.name)+(v.cidr?" / "+toStr(v.cidr):"")+(isT?" [Transit]":isS?" [Spoke]":"")),`swimlane;fillColor=${fill};strokeColor=${strk};fontStyle=1;startSize=30;`,LX,curY,VW,h));
+    let cy=CP;
+    if(isT){
+      const gwid=nid();nm.set("gw_"+toStr(v.name),gwid);
+      X.push(mkCell(gwid,esc("Transit GW"+(v.gw_size?" / "+toStr(v.gw_size):"")),"rounded=1;fillColor=#0050ef;strokeColor=#001DBC;fontColor=#ffffff;fontStyle=1;",CP,cy,CW,CH,vid));
+      cy+=CH+CG;
+      if(v.firenet&&fw.present){
+        const fid=nid();nm.set("fw_"+toStr(v.name),fid);
+        X.push(mkCell(fid,esc("FireNet: "+toStr(fw.vendor||"NGFW")+(fw.instance_size?" / "+toStr(fw.instance_size):"")),"rounded=1;fillColor=#b85450;strokeColor=#6c0000;fontColor=#ffffff;fontStyle=1;",CP,cy,CW,CH,vid));
+        cy+=CH+CG;
+      }
+      if(dcf.enabled){
+        const did=nid();nm.set("dcf_"+toStr(v.name),did);
+        X.push(mkCell(did,esc("DCF / "+toStr(dcf.default_action||"deny")),"rhombus;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;",CP,cy,CW,CH,vid));
+        cy+=CH+CG;
+      }
+    }
+    vpcComps(v).slice(0,8).forEach((c:any)=>{
+      const cid=nid(),cn=toStr(c.name||c.type);nm.set("c_"+cn,cid);
+      const cfg=toStr(c.configuration)?` / ${toStr(c.configuration).slice(0,25)}`:"";
+      X.push(mkCell(cid,esc(cn+cfg),cs[toStr(c.category)]||cs.other,CP,cy,CW,CH,vid));
+      cy+=CH+CG;
+    });
+    curY+=h+VG;
+  });
+
+  if(vpcs.length===0){
+    let cy=40;
+    comps.slice(0,12).forEach((c:any)=>{
+      const cid=nid(),cn=toStr(c.name||c.type);nm.set("c_"+cn,cid);
+      X.push(mkCell(cid,esc(cn),cs[toStr(c.category)]||cs.other,LX,cy,CW,CH));
+      cy+=CH+CG;
+    });
+  }
+
+  let ry=40;
+  const hasInet=vpcs.some((v:any)=>/(public|igw|nat|internet)/i.test(toStr(v.purpose)+toStr(v.name)))||
+    comps.some((c:any)=>/(internet_gateway|igw|nat_gateway|load_balancer|alb|nlb|elb)/i.test(toStr(c.type)+toStr(c.name)));
+  if(hasInet){
+    const iid=nid();nm.set("INET",iid);
+    X.push(mkCell(iid,"Internet","ellipse;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;",RX+40,ry,120,60));
+    ry+=90;
+  }
+  edges.forEach((e:any)=>{
+    if(!e.name)return;
+    const eid=nid();nm.set("ed_"+toStr(e.name),eid);
+    X.push(mkCell(eid,esc(toStr(e.name)+(e.type?" / "+toStr(e.type):"")+(e.ha?" (HA)":"")),"rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;",RX,ry,180,CH+8));
+    ry+=CH+20;
+  });
+  extConns.forEach((c:any)=>{
+    if(!c.name)return;
+    const eid=nid();nm.set("ec_"+toStr(c.name),eid);
+    X.push(mkCell(eid,esc(toStr(c.name)+(c.type?" / "+toStr(c.type):"")+(c.bgp_asn?" ASN:"+toStr(c.bgp_asn):"")),"rounded=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;",RX,ry,180,CH+8));
+    ry+=CH+20;
+  });
+
+  const hubs=vpcs.filter((v:any)=>v.type==="transit");
+  const spokes=vpcs.filter((v:any)=>v.type==="spoke");
+  for(let i=0;i<hubs.length-1;i++){
+    const s=nm.get("gw_"+toStr(hubs[i].name)),t=nm.get("gw_"+toStr(hubs[i+1].name));
+    if(s&&t)X.push(mkEdge(nid(),"Transit Peering",s,t));
+  }
+  spokes.forEach((v:any)=>{
+    const tgt=v.connected_transit?hubs.find((h:any)=>h.name===v.connected_transit)||hubs[0]:hubs[0];
+    if(!tgt)return;
+    const s=nm.get("vpc_"+toStr(v.name)),t=nm.get("gw_"+toStr(tgt.name));
+    if(s&&t)X.push(mkEdge(nid(),"Spoke",s,t));
+  });
+  flows.slice(0,10).forEach((f:any)=>{
+    const path=toArr(f.path);
+    for(let i=0;i<path.length-1;i++){
+      const s=nm.get("c_"+path[i]),t=nm.get("c_"+path[i+1]);
+      if(s&&t&&s!==t)X.push(`<mxCell id="${nid()}" value="${esc(toStr(f.name||""))}" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;" edge="1" source="${s}" target="${t}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`);
+    }
+  });
+  extConns.forEach((c:any)=>{
+    if(!c.name)return;
+    const s=nm.get("ec_"+toStr(c.name));
+    const hub=hubs[hubs.length-1]||vpcs[0];if(!hub)return;
+    const t=nm.get("gw_"+toStr(hub.name))||nm.get("vpc_"+toStr(hub.name));
+    if(s&&t)X.push(mkEdge(nid(),toStr(c.type||"BGP"),s,t,true));
+  });
+  edges.forEach((e:any)=>{
+    if(!e.name)return;
+    const s=nm.get("ed_"+toStr(e.name));
+    const hub=hubs[0]||vpcs[0];if(!hub)return;
+    const t=nm.get("gw_"+toStr(hub.name))||nm.get("vpc_"+toStr(hub.name));
+    if(s&&t)X.push(mkEdge(nid(),"Edge",s,t,true));
+  });
+  if(hasInet){
+    const iid=nm.get("INET");
+    const igw=comps.find((c:any)=>/(internet_gateway|igw)/i.test(toStr(c.type)+toStr(c.name)));
+    const lb=comps.find((c:any)=>/(load_balancer|alb|nlb|elb)/i.test(toStr(c.type)+toStr(c.name)));
+    const tc=igw||lb;
+    const t=tc?nm.get("c_"+toStr(tc.name)):vpcs[0]?nm.get("vpc_"+toStr(vpcs[0].name)):null;
+    if(iid&&t)X.push(mkEdge(nid(),"public",iid,t));
+  }
+
+  return`<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/>${X.join("")}</root></mxGraphModel>`;
+}
+
 // ── ZIP helpers ────────────────────────────────────────────────────────────
 const VE=[".tf",".tfvars"];
 function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
@@ -787,6 +946,17 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
     finally{setTimeout(()=>setExporting(false),1500);}
   };
 
+  const doDrawio=()=>{
+    const xml=buildDrawio(doc);
+    const blob=new Blob([xml],{type:"application/xml"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`${(toStr(doc.title)||"diagram").replace(/[^a-zA-Z0-9]/g,"-")}.drawio`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return(<div className="rounded-2xl overflow-hidden" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
     {/* Header */}
     <div style={{background:AV.nv,borderBottom:`1px solid ${AV.nb}`,padding:"2rem"}}>
@@ -801,9 +971,15 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
           <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
           <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
         </div>
-        <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
-          {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Export draw.io
+          </button>
+          <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
+            {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
+          </button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
         <span><strong style={{color:AV.tp}}>Pattern:</strong> {ao.pattern||"—"}</span>
@@ -1035,10 +1211,16 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
         <span className="px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
         <span className="px-2 py-0.5 rounded-full font-mono" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC"}}>{mL}</span>
       </div>
-      <button onClick={doExport} className="flex items-center gap-1 text-xs font-semibold" style={{color:AV.or}}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export DOCX
-      </button>
+      <div className="flex gap-3">
+        <button onClick={doDrawio} className="flex items-center gap-1 text-xs font-semibold" style={{color:AV.or}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          draw.io
+        </button>
+        <button onClick={doExport} className="flex items-center gap-1 text-xs font-semibold" style={{color:AV.or}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          DOCX
+        </button>
+      </div>
     </div>
   </div>);
 }

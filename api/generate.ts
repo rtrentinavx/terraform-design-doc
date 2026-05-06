@@ -106,12 +106,11 @@ async function parseHLD(text: string): Promise<any> {
 }
 
 function mergeUsage(a: any, b: any) {
-  return {
-    input_tokens:     (a?.input_tokens     || 0) + (b?.input_tokens     || b?.prompt_tokens     || 0),
-    output_tokens:    (a?.output_tokens    || 0) + (b?.output_tokens    || b?.completion_tokens || 0),
-    prompt_tokens:    (a?.prompt_tokens    || 0) + (b?.prompt_tokens    || 0),
-    completion_tokens:(a?.completion_tokens|| 0) + (b?.completion_tokens|| 0),
-  };
+  const ai = a?.input_tokens || a?.inputTokens || a?.prompt_tokens || a?.promptTokens || 0;
+  const ao = a?.output_tokens || a?.outputTokens || a?.completion_tokens || a?.completionTokens || 0;
+  const bi = b?.input_tokens || b?.inputTokens || b?.prompt_tokens || b?.promptTokens || 0;
+  const bo = b?.output_tokens || b?.outputTokens || b?.completion_tokens || b?.completionTokens || 0;
+  return { input_tokens: ai + bi, output_tokens: ao + bo };
 }
 
 export default async function handler(req: any, res: any) {
