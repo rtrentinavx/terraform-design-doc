@@ -41,7 +41,11 @@ async function localChat(baseUrl:string,model:string,messages:any[],maxTokens:nu
   const body:any={model,messages,max_tokens:maxTokens,stream:false};
   if(temperature!==undefined&&temperature!==null)body.temperature=temperature;
   const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`HTTP ${res.status}: ${res.statusText}`);}
+  if(!res.ok){
+    let msg=`HTTP ${res.status}: ${res.statusText}`;
+    try{const raw=await res.text();const j=JSON.parse(raw);msg=j?.error?.message||(typeof j?.error==="string"?j.error:null)||j?.message||raw.slice(0,300)||msg;}catch{}
+    throw new Error(msg);
+  }
   const data=await res.json();
   return{text:data.choices?.[0]?.message?.content||"",usage:data.usage||{}};
 }
