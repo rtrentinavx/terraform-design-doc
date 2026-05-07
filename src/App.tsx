@@ -2219,7 +2219,7 @@ export default function App(){
               <div className="space-y-2">
                 {[
 
-                  ["Rate Limiting","Upstash Redis integrated for registry/model caching — per-IP throttling on API proxy still pending"],
+                  ["Rate Limiting","Per-IP sliding window throttle on all AI endpoints (20 req/h) and share endpoint (30 req/h) via Upstash Redis; gracefully passes through when Redis is not configured"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

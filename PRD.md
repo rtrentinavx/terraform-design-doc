@@ -189,7 +189,7 @@ Browser (React SPA)
 
 | Item | Status |
 |---|---|
-| Rate limiting per-IP on API proxy | Planned (Redis infrastructure already in place) |
+| Rate limiting per-IP on API proxy | Done — sliding window, 20 req/h (AI), 30 req/h (share) via Upstash Redis |
 | PDF export | Considering |
 | Multi-file diff / infrastructure change detection | Exploring |
 | Saved document history | Exploring |

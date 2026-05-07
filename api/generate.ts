@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
+import { rateLimit } from "./_ratelimit.js";
 import { HLDSchema } from "../lib/iddSchema.js";
 import { SYS } from "../lib/systemPrompt.js";
 
@@ -116,6 +117,7 @@ function mergeUsage(a: any, b: any) {
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
+  if (await rateLimit(req, res)) return;
 
   const { provider = "anthropic", apiKey, model, baseUrl, content, temperature, maxTokens = 16000 } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });

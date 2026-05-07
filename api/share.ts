@@ -1,11 +1,13 @@
 import { cacheGet, cacheSet } from "./_cache.js";
 import { checkOrigin } from "./_origin.js";
+import { rateLimit } from "./_ratelimit.js";
 
 const SHARE_TTL = 60 * 60 * 24 * 30; // 30 days
 const MAX_BYTES = 512 * 1024;         // 512 KB
 
 export default async function handler(req: any, res: any) {
   if (!checkOrigin(req, res)) return;
+  if (await rateLimit(req, res, "share")) return;
 
   if (req.method === "POST") {
     const { hld } = req.body || {};

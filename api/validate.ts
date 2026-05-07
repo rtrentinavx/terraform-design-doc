@@ -4,6 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { initSentry, Sentry } from "./_sentry.js";
 import { checkOrigin } from "./_origin.js";
+import { rateLimit } from "./_ratelimit.js";
 import { z } from "zod";
 
 const FindingSchema = z.object({
@@ -80,6 +81,7 @@ function buildModel(provider: string, apiKey: string, model: string, baseUrl?: s
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
+  if (await rateLimit(req, res)) return;
 
   const { provider = "anthropic", apiKey, model, baseUrl, content, temperature } = req.body;
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
