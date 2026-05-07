@@ -110,7 +110,29 @@ Non-Claude models return different JSON field names. Always try multiple alterna
 3. Run `npm run test:prompts:compare` — side-by-side comparison of all versions
 4. Only proceed if new version ties or improves on all assertions
 
+### Local Models (LM Studio / Ollama)
+
+For local providers, all three actions (Generate HLD, Explain, Validate) call the model **directly from the browser** — Vercel is not involved. This works because both LM Studio and Ollama expose an OpenAI-compatible API on localhost.
+
+**Browser compatibility:** tested and working on **Firefox** and **Safari**. Chrome/Chromium-based browsers (including Comet) block HTTPS→localhost requests via the Private Network Access policy and the flag to disable it has been removed in recent versions.
+
+**LM Studio setup:**
+- Enable the local server in LM Studio → Local Server tab
+- Enable CORS in Server Settings
+- Default endpoint: `http://localhost:1234/v1`
+
+**Ollama setup:**
+- Must be started with `OLLAMA_ORIGINS` set to allow the app's domain:
+  ```bash
+  OLLAMA_ORIGINS="https://your-app.vercel.app" ollama serve
+  ```
+- Use `~/ollama-start.sh` (created during setup) for on-demand start
+- Disable Ollama auto-start: System Settings → General → Login Items → remove Ollama
+- Default endpoint: `http://localhost:11434/v1`
+
+**Thinking models:** temperature is passed as-is from the profile (`undefined` for thinking models, which omits the field from the request). Never default to `0` for local calls.
+
 ### Vercel Deployment
+- Pro plan required for `maxDuration > 60s` — currently set to 300s in `vercel.json`
 - Free (Hobby) tier: functions hard-capped at 10s regardless of `maxDuration` config
-- `maxDuration: 60` in `vercel.json` requires Vercel Pro plan
-- `api/generate.ts` uses `maxTokens=8000` by default to stay within free tier limits
+- `api/generate.ts` uses two-pass generation: Pass 1 (full HLD) + Pass 2 (lightweight delta critique, 2000 tokens max)
