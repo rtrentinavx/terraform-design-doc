@@ -5,7 +5,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.2.0";
+const APP_VERSION  = "1.3.0";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -2033,7 +2033,9 @@ export default function App(){
               <div className="space-y-2">
                 {[
                   ["HLD Generation","Analyzes any Terraform/OpenTofu files and generates a structured High Level Design with network design, security, firewall, DCF, edge devices, components, and data flows"],
-                  ["Multi-Provider Models","Named profiles for Anthropic, AWS Bedrock (live model list via Mantle API), Azure OpenAI, Google Gemini, or any OpenAI-compatible endpoint; keys in session memory by default"],
+                  ["Multi-Provider Models","Named profiles for Anthropic, AWS Bedrock (live model list via Mantle API), Azure OpenAI, Google Gemini, any OpenAI-compatible endpoint, LM Studio, and Ollama; keys in session memory by default"],
+                  ["Local Model Support","LM Studio and Ollama run entirely in the browser — no data sent to Vercel; model list fetched directly from localhost; tested on Firefox and Safari (Chrome blocks HTTPS→localhost via Private Network Access policy)"],
+                  ["draw.io Export","Exports HLD topology as draw.io XML (.drawio) with VPC swimlane containers, colour-coded components by category, transit/spoke/FireNet/DCF nodes, edge devices, and data flow edges — open in diagrams.net or import into Visio"],
                   ["Explain Code","Plain-English explanation: summary, resources, architecture, security, variables, dependencies, and potential issues"],
                   ["Validate Code","Scored code review (0–100) with findings by severity and category: security, best-practice, cost, reliability, Aviatrix-specific, syntax"],
                   ["Mermaid Diagram","Auto-rendered LR network topology; re-renders on dark/light switch; shows transit/spoke/firenet/DCF/edge/external connections"],
@@ -2043,6 +2045,7 @@ export default function App(){
                   ["Client-side PII Redaction","Public IPs, customer names, BGP ASNs, domains, emails scrubbed before API call and rehydrated after; redaction map never leaves the browser"],
                   ["Prompt Injection Protection","TF content and Additional Instructions sanitized against injection patterns before sending"],
                   ["Variable Resolution","Resolves var.X references from .tfvars client-side so the model sees actual values"],
+                  ["Two-Pass HLD Generation","Pass 1 generates the full HLD; Pass 2 runs a lightweight delta critique (2k tokens) that removes invented components, fixes wrong CIDRs, and appends caveats — applied programmatically without regenerating the full document"],
                   ["Anti-Hallucination Rules","Strict prompt rules prevent invented attachments, VPN connections, or data flows not in the code"],
                   ["AI Transparency","Disclaimer in HLD and DOCX; caveats field lists inferred values; unknown vendor stays unknown"],
                   ["Responsible AI","Body size limits, output content filtering, sanitized user instructions, no server-side key storage"],
