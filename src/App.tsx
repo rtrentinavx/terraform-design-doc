@@ -1581,13 +1581,13 @@ export default function App(){
         dbg.step="local_fetch";
         const localBase=activeProfile.baseUrl||"http://localhost:1234/v1";
         const sysFull=SYS+"\n\nReturn ONLY valid JSON. No markdown fences, no explanation.";
-        const r1=await localChat(localBase,activeProfile.model,[{role:"system",content:sysFull},{role:"user",content:genContent}],16000,activeProfile.temperature??0);
+        const r1=await localChat(localBase,activeProfile.model,[{role:"system",content:sysFull},{role:"user",content:genContent}],16000,activeProfile.temperature);
         let hld:any;
         try{hld=JSON.parse(r1.text.replace(/```json|```/g,"").trim());}
         catch{hld=JSON.parse(repairLocalJson(r1.text));}
         let lu=r1.usage;
         try{
-          const r2=await localChat(localBase,activeProfile.model,[{role:"system",content:LOCAL_CRITIQUE_PROMPT},{role:"user",content:`TERRAFORM CODE:\n${genContent}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`}],2000,0);
+          const r2=await localChat(localBase,activeProfile.model,[{role:"system",content:LOCAL_CRITIQUE_PROMPT},{role:"user",content:`TERRAFORM CODE:\n${genContent}\n\nGENERATED HLD:\n${JSON.stringify(hld)}`}],2000,activeProfile.temperature);
           const corr=JSON.parse(r2.text.replace(/```json|```/g,"").trim());
           lu={input_tokens:(lu.prompt_tokens||lu.input_tokens||0)+(r2.usage.prompt_tokens||r2.usage.input_tokens||0),output_tokens:(lu.completion_tokens||lu.output_tokens||0)+(r2.usage.completion_tokens||r2.usage.output_tokens||0)};
           if(corr.accurate===false)hld=applyLocalCorrections(hld,corr);
@@ -1652,7 +1652,7 @@ export default function App(){
       const safe=redactText(combined,redMap);
       let d:any;
       if(isLocalProvider(activeProfile.provider)){
-        const r1=await localChat(activeProfile.baseUrl||"http://localhost:1234/v1",activeProfile.model,[{role:"system",content:LOCAL_EXPLAIN_PROMPT},{role:"user",content:`Explain this Terraform code:\n\n${safe}`}],4000,activeProfile.temperature??0);
+        const r1=await localChat(activeProfile.baseUrl||"http://localhost:1234/v1",activeProfile.model,[{role:"system",content:LOCAL_EXPLAIN_PROMPT},{role:"user",content:`Explain this Terraform code:\n\n${safe}`}],4000,activeProfile.temperature);
         d={explanation:r1.text,usage:r1.usage};
       }else{
         const r=await fetch("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:activeProfile.provider,apiKey:activeProfile.apiKey,model:activeProfile.model,baseUrl:activeProfile.baseUrl||undefined,temperature:activeProfile.temperature,content:`Explain this Terraform code:\n\n${safe}`})});
@@ -1696,7 +1696,7 @@ export default function App(){
       const safe=redactText(combined,redMap);
       let d:any;
       if(isLocalProvider(activeProfile.provider)){
-        const r1=await localChat(activeProfile.baseUrl||"http://localhost:1234/v1",activeProfile.model,[{role:"system",content:LOCAL_VALIDATE_PROMPT},{role:"user",content:`Validate this Terraform code:\n\n${safe}`}],4000,activeProfile.temperature??0);
+        const r1=await localChat(activeProfile.baseUrl||"http://localhost:1234/v1",activeProfile.model,[{role:"system",content:LOCAL_VALIDATE_PROMPT},{role:"user",content:`Validate this Terraform code:\n\n${safe}`}],4000,activeProfile.temperature);
         let vp:any;try{vp=JSON.parse(r1.text.replace(/```json|```/g,"").trim());}catch{vp={summary:"Parse error — raw response returned",score:0,findings:[]};}
         d={validation:vp,usage:r1.usage};
       }else{
