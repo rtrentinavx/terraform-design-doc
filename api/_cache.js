@@ -1,6 +1,4 @@
-// Shared Upstash Redis cache helper.
-// Gracefully no-ops if env vars are not set — cache is optional,
-// app works fine without it (falls back to direct fetch every time).
+import { Redis } from "@upstash/redis";
 
 let _redis = null;
 
@@ -9,9 +7,7 @@ function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
-  // Lazy import to avoid errors when package isn't installed
   try {
-    const { Redis } = require("@upstash/redis");
     _redis = new Redis({ url, token });
   } catch {
     _redis = null;

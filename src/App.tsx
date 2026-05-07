@@ -1504,7 +1504,7 @@ export default function App(){
     setSharedDocLoading(true);
     fetch(`/api/share?id=${encodeURIComponent(id)}`)
       .then(r=>r.json())
-      .then(d=>{if(d.hld)setDoc(d.hld);else setError("Shared document not found or expired.");})
+      .then(d=>{if(d.hld){setDoc(d.hld);window.history.replaceState({},"",window.location.pathname);}else setError("Shared document not found or expired.");})
       .catch(()=>setError("Failed to load shared document."))
       .finally(()=>setSharedDocLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
