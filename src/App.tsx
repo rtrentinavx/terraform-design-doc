@@ -601,6 +601,72 @@ function useMermaid(){
   },[]);
 }
 
+// ── Connectivity matrix ────────────────────────────────────────────────────
+type ConnCell={label:string,color:"self"|"blue"|"green"|"orange"|"purple"|"teal"|"gray"|"none"};
+type ConnEntity={name:string,type:string};
+
+function buildConnMatrix(doc:any):{entities:ConnEntity[],cells:ConnCell[][]}{
+  const vpcs:any[]=toObjArr(doc.network_design?.vpcs);
+  const extConns:any[]=toObjArr(doc.external_connections);
+  const edgeDevs:any[]=toObjArr(doc.edge_devices);
+  const dcf=doc.dcf||{};
+  const fw=doc.firewall_detail||{};
+  const hubs=vpcs.filter((v:any)=>v.type==="transit");
+
+  const entities:ConnEntity[]=[
+    ...vpcs.map((v:any)=>({name:toStr(v.name),type:toStr(v.type)||"unknown"})),
+    ...extConns.map((c:any)=>({name:toStr(c.name),type:"external"})),
+    ...(edgeDevs.length>0?[{name:"Edge Devices",type:"edge"}]:[]),
+  ];
+
+  const n=entities.length;
+  const cells:ConnCell[][]=Array.from({length:n},()=>Array.from({length:n},()=>({label:"Blocked",color:"gray"} as ConnCell)));
+
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      if(i===j){cells[i][j]={label:"—",color:"self"};continue;}
+      const a=entities[i],b=entities[j];
+
+      // External / edge nodes
+      const aExt=a.type==="external"||a.type==="edge";
+      const bExt=b.type==="external"||b.type==="edge";
+      if(aExt&&bExt){cells[i][j]={label:"—",color:"none"};continue;}
+      if(aExt||bExt){
+        const vpc=aExt?entities[j]:entities[i];
+        if(vpc.type==="transit")cells[i][j]={label:"VPN / BGP",color:"teal"};
+        else if(hubs.length>0)cells[i][j]={label:"Via Transit",color:"green"};
+        continue;
+      }
+
+      const aVpc=vpcs.find((v:any)=>toStr(v.name)===a.name);
+      const bVpc=vpcs.find((v:any)=>toStr(v.name)===b.name);
+      if(!aVpc||!bVpc)continue;
+
+      const aIsT=aVpc.type==="transit",bIsT=bVpc.type==="transit";
+      const aIsS=aVpc.type==="spoke", bIsS=bVpc.type==="spoke";
+
+      if(aIsT&&bIsT){
+        cells[i][j]={label:"Peering",color:"blue"};
+      } else if((aIsT&&bIsS)||(aIsS&&bIsT)){
+        const spoke=aIsS?aVpc:bVpc,hub=aIsT?aVpc:bVpc;
+        const linked=!spoke.connected_transit||spoke.connected_transit===toStr(hub.name)||hubs.length===1;
+        if(!linked){cells[i][j]={label:"Blocked",color:"gray"};}
+        else if(hub.firenet&&fw.present){cells[i][j]={label:"Transit GW\n+ FireNet",color:"orange"};}
+        else if(dcf.enabled){cells[i][j]={label:"Transit GW\n+ DCF",color:"purple"};}
+        else{cells[i][j]={label:"Transit GW",color:"blue"};}
+      } else if(aIsS&&bIsS){
+        const aHub=aVpc.connected_transit?hubs.find((h:any)=>toStr(h.name)===aVpc.connected_transit):hubs[0];
+        const bHub=bVpc.connected_transit?hubs.find((h:any)=>toStr(h.name)===bVpc.connected_transit):hubs[0];
+        if(!aHub&&!bHub){cells[i][j]={label:"Blocked",color:"gray"};}
+        else if((aHub?.firenet||bHub?.firenet)&&fw.present){cells[i][j]={label:"Via Transit\n+ FireNet",color:"orange"};}
+        else if(dcf.enabled){cells[i][j]={label:"Via Transit\n+ DCF",color:"purple"};}
+        else{cells[i][j]={label:"Via Transit",color:"green"};}
+      }
+    }
+  }
+  return{entities,cells};
+}
+
 // ── Mermaid diagram builder ────────────────────────────────────────────────
 function buildMermaid(doc:any,dark=true):string{
   const nd=doc.network_design||{};
@@ -1005,6 +1071,8 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
   const edgeDevs=doc.edge_devices||[],extConns=doc.external_connections||[];
   const hasDCF=dcf.enabled===true||(toObjArr(dcf.rulesets).length>0)||(toObjArr(dcf.smart_groups).length>0);
   const hasEdge=edgeDevs.length>0||extConns.length>0;
+  const connMatrix=buildConnMatrix(doc);
+  const hasMatrix=connMatrix.entities.length>=2;
   const tabs=[
     {id:"overview",l:"Overview"},
     {id:"network",l:"Network"},
@@ -1013,6 +1081,7 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
     ...(hasEdge?[{id:"edge",l:"Edge & Ext"}]:[]),
     {id:"components",l:"Components"},
     {id:"diagram",l:"Diagram"},
+    ...(hasMatrix?[{id:"matrix",l:"Connectivity"}]:[]),
     {id:"flows",l:"Data Flows"},
     {id:"variables",l:"Variables"},
   ];
@@ -1290,6 +1359,52 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
           </div>}
         </div>}
       </div>
+
+      {tab==="matrix"&&hasMatrix&&(()=>{
+        const cellBg:Record<string,string>=dark?{self:AV.nv,blue:"#1E3A5F",green:"#14532D",orange:"#7C2D12",purple:"#3B0764",teal:"#164E63",gray:"#1F2937",none:AV.nm}:{self:AV.nv,blue:"#DBEAFE",green:"#DCFCE7",orange:"#FEE2E2",purple:"#F5F3FF",teal:"#CFFAFE",gray:"#F3F4F6",none:AV.nm};
+        const cellFg:Record<string,string>=dark?{self:AV.td,blue:"#93C5FD",green:"#86EFAC",orange:"#FCA5A5",purple:"#D8B4FE",teal:"#67E8F9",gray:"#6B7280",none:AV.tm}:{self:AV.td,blue:"#1E40AF",green:"#166534",orange:"#991B1B",purple:"#5B21B6",teal:"#155E75",gray:"#6B7280",none:AV.tm};
+        const typeLabel:Record<string,string>={transit:"Transit",spoke:"Spoke",unknown:"VPC",external:"External",edge:"Edge"};
+        return(
+        <div className="space-y-4">
+          <TabIntro text="Path type between each pair of network entities. Read row → column. Symmetric paths are shown on both sides of the diagonal."/>
+          <div className="overflow-x-auto rounded-xl" style={{border:`1px solid ${AV.nb}`}}>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr style={{background:AV.nv}}>
+                  <th className="p-3 text-left font-semibold" style={{color:AV.tm,borderBottom:`1px solid ${AV.nb}`,borderRight:`1px solid ${AV.nb}`}}>From / To</th>
+                  {connMatrix.entities.map((e,j)=>(
+                    <th key={j} className="p-3 text-center" style={{color:AV.tp,borderBottom:`1px solid ${AV.nb}`,borderRight:`1px solid ${AV.nb}`,minWidth:100}}>
+                      <div className="font-bold">{e.name}</div>
+                      <div className="font-normal opacity-60">{typeLabel[e.type]||e.type}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {connMatrix.entities.map((rowE,i)=>(
+                  <tr key={i}>
+                    <td className="p-3 font-semibold" style={{color:AV.tp,background:AV.nv,borderBottom:`1px solid ${AV.nb}`,borderRight:`1px solid ${AV.nb}`}}>
+                      <div>{rowE.name}</div>
+                      <div className="font-normal text-xs opacity-60">{typeLabel[rowE.type]||rowE.type}</div>
+                    </td>
+                    {connMatrix.cells[i].map((cell,j)=>(
+                      <td key={j} className="p-3 text-center font-semibold" style={{background:cellBg[cell.color],color:cellFg[cell.color],borderBottom:`1px solid ${AV.nb}`,borderRight:`1px solid ${AV.nb}`,whiteSpace:"pre-line",lineHeight:1.4}}>
+                        {cell.label}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs pt-1">
+            {([["Transit GW","blue"],["Peering","blue"],["Via Transit","green"],["+ FireNet","orange"],["+ DCF","purple"],["VPN / BGP","teal"],["Blocked","gray"]] as [string,string][]).map(([l,c])=>(
+              <span key={l} className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{background:cellBg[c],color:cellFg[c]}}>{l}</span>
+            ))}
+          </div>
+        </div>
+        );
+      })()}
 
       {tab==="flows"&&<div className="space-y-6"><TabIntro text="Traffic and data flow paths through the infrastructure, showing how requests traverse from source to destination across gateways, firewalls, and network segments."/><Sec title="Traffic & Data Flows"><div className="space-y-5">{toObjArr(doc.data_flows).map((f:any,i:number)=>{
           const name=toStr(f.name||f.flow_name||f.title||f.id)||`Flow ${i+1}`;
