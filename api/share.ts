@@ -13,7 +13,10 @@ export default async function handler(req: any, res: any) {
     const json = JSON.stringify(hld);
     if (json.length > MAX_BYTES) return res.status(413).json({ error: "Document too large to share (max 512 KB)" });
     const id = crypto.randomUUID();
-    await cacheSet(`share:${id}`, json, SHARE_TTL);
+    const key = `share:${id}`;
+    await cacheSet(key, json, SHARE_TTL);
+    const verify = await cacheGet(key);
+    if (!verify) return res.status(503).json({ error: "Redis not configured — set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel environment variables." });
     return res.status(200).json({ id, expiresIn: "30 days" });
   }
 

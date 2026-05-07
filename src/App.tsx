@@ -1105,13 +1105,14 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
   const doShare=async()=>{
     if(!onShare)return;
     setSharing(true);setShareUrl("");
-    try{const url=await onShare();setShareUrl(url);}
+    try{
+      const url=await onShare();
+      await navigator.clipboard.writeText(url);
+      setShareUrl("copied");
+      setTimeout(()=>setShareUrl(""),2500);
+    }
     catch(e:any){alert("Share failed: "+e.message);}
     finally{setSharing(false);}
-  };
-
-  const doCopy=()=>{
-    navigator.clipboard.writeText(shareUrl);
   };
 
   const doDrawio=()=>{
@@ -1139,25 +1140,22 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
           <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
           <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex gap-2">
-            {onShare&&<button onClick={doShare} disabled={sharing} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0 disabled:opacity-60" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
-              {sharing?<svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>}
-              {sharing?"Sharing…":"Share"}
-            </button>}
-            <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              Export draw.io
-            </button>
-            <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
-              {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
-            </button>
-          </div>
-          {shareUrl&&<div className="flex items-center gap-2 rounded-xl px-3 py-2 w-full" style={{background:`${AV.or}10`,border:`1px solid ${AV.or}30`}}>
-            <input readOnly value={shareUrl} className="flex-1 text-xs font-mono bg-transparent outline-none min-w-0" style={{color:AV.tm}}/>
-            <button onClick={doCopy} className="text-xs font-bold px-2 py-1 rounded-lg shrink-0" style={{background:`${AV.or}20`,color:AV.or}}>Copy</button>
-            <span className="text-xs shrink-0" style={{color:AV.td}}>expires 30d</span>
-          </div>}
+        <div className="flex gap-2 shrink-0">
+          {onShare&&<button onClick={doShare} disabled={sharing||shareUrl==="copied"} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0 disabled:opacity-60" style={shareUrl==="copied"?{color:"#22C55E",border:"1.5px solid #22C55E50",background:"#22C55E08"}:{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
+            {sharing
+              ?<svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+              :shareUrl==="copied"
+                ?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>
+                :<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>}
+            {sharing?"Sharing…":shareUrl==="copied"?"Copied!":"Share"}
+          </button>}
+          <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Export draw.io
+          </button>
+          <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
+            {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
+          </button>
         </div>
       </div>
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
