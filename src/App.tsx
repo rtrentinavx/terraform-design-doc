@@ -972,10 +972,12 @@ async function exportDocx(data:any,customerName:string){
 }
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean,dcfEgress?:boolean,onToggleEgress?:()=>void}){
+function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,onShare?:()=>Promise<string>,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean,dcfEgress?:boolean,onToggleEgress?:()=>void}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
+  const [sharing,setSharing]=useState(false);
+  const [shareUrl,setShareUrl]=useState("");
   const [mmSvg,setMmSvg]=useState("");
   const [mmErr,setMmErr]=useState<string|null>(null);
   const mmRef=useRef(null);
@@ -1031,6 +1033,18 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
     finally{setTimeout(()=>setExporting(false),1500);}
   };
 
+  const doShare=async()=>{
+    if(!onShare)return;
+    setSharing(true);setShareUrl("");
+    try{const url=await onShare();setShareUrl(url);}
+    catch(e:any){alert("Share failed: "+e.message);}
+    finally{setSharing(false);}
+  };
+
+  const doCopy=()=>{
+    navigator.clipboard.writeText(shareUrl);
+  };
+
   const doDrawio=()=>{
     const xml=buildDrawio(doc);
     const blob=new Blob([xml],{type:"application/xml"});
@@ -1056,14 +1070,25 @@ function DocView({doc,selModel,dark,onExport,grounding,onGenerateDcf,generatingD
           <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
           <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-            Export draw.io
-          </button>
-          <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
-            {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
-          </button>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex gap-2">
+            {onShare&&<button onClick={doShare} disabled={sharing} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0 disabled:opacity-60" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
+              {sharing?<svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>}
+              {sharing?"Sharing…":"Share"}
+            </button>}
+            <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Export draw.io
+            </button>
+            <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
+              {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
+            </button>
+          </div>
+          {shareUrl&&<div className="flex items-center gap-2 rounded-xl px-3 py-2 w-full" style={{background:`${AV.or}10`,border:`1px solid ${AV.or}30`}}>
+            <input readOnly value={shareUrl} className="flex-1 text-xs font-mono bg-transparent outline-none min-w-0" style={{color:AV.tm}}/>
+            <button onClick={doCopy} className="text-xs font-bold px-2 py-1 rounded-lg shrink-0" style={{background:`${AV.or}20`,color:AV.or}}>Copy</button>
+            <span className="text-xs shrink-0" style={{color:AV.td}}>expires 30d</span>
+          </div>}
         </div>
       </div>
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
@@ -1333,6 +1358,7 @@ export default function App(){
   const [validation,setValidation]=useState<any>(null);
   const [validating,setValidating]=useState(false);
   const [explaining,setExplaining]=useState(false);
+  const [sharedDocLoading,setSharedDocLoading]=useState(false);
   const [profiles,setProfiles]=useState<ModelProfile[]>(()=>{
     // Migrate legacy single-key storage to profile system on first load
     const existing=loadProfiles();
@@ -1355,6 +1381,19 @@ export default function App(){
   // Auto-open editor on first visit (no profiles)
   useEffect(()=>{
     if(profiles.length===0){setEditingProfile(newProfile());setShowEditor(true);}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  // Load shared document from URL param ?doc=UUID
+  useEffect(()=>{
+    const id=new URLSearchParams(window.location.search).get("doc");
+    if(!id)return;
+    setSharedDocLoading(true);
+    fetch(`/api/share?id=${encodeURIComponent(id)}`)
+      .then(r=>r.json())
+      .then(d=>{if(d.hld)setDoc(d.hld);else setError("Shared document not found or expired.");})
+      .catch(()=>setError("Failed to load shared document."))
+      .finally(()=>setSharedDocLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
@@ -1714,6 +1753,13 @@ export default function App(){
     setValidating(false);
   };
 
+  const shareDoc=async():Promise<string>=>{
+    const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({hld:doc})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Share failed");
+    return`${window.location.origin}/?doc=${d.id}`;
+  };
+
   const generateDcf=async()=>{
     if(!activeProfile||!doc||!files.length)return;
     setGeneratingDcf(true);setDcfSuggestion(null);setError(null);
@@ -1911,7 +1957,7 @@ export default function App(){
             <button onClick={()=>{setDoc(null);setDebug(null);setError(null);}} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
             </button>
-            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} grounding={grounding} onGenerateDcf={generateDcf} generatingDcf={generatingDcf} dcfEgress={dcfEgress} onToggleEgress={()=>setDcfEgress(v=>!v)}/>
+            <DocView doc={doc} selModel={activeProfile?.model||""} dark={dark} onExport={()=>exportDocx(doc,custName)} onShare={shareDoc} grounding={grounding} onGenerateDcf={generateDcf} generatingDcf={generatingDcf} dcfEgress={dcfEgress} onToggleEgress={()=>setDcfEgress(v=>!v)}/>
             {/* DCF Policy Suggestion Panel */}
             {dcfSuggestion&&<div className="mt-6 rounded-2xl overflow-hidden" style={{border:`1px solid ${AV.pu}40`}}>
               <div className="px-5 py-4 flex items-center justify-between" style={{background:`${AV.pu}10`,borderBottom:`1px solid ${AV.pu}30`}}>
