@@ -1130,33 +1130,14 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
     {/* Header */}
     <div style={{background:AV.nv,borderBottom:`1px solid ${AV.nb}`,padding:"2rem"}}>
       <div style={{height:3,background:`linear-gradient(90deg,${AV.or},${AV.pu})`,borderRadius:2,marginBottom:"1.5rem"}}/>
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex-1">
-          <div className="flex flex-wrap gap-2 mb-3">
-            <span style={{background:`${PC}22`,border:`1px solid ${PC}55`,color:PC}} className="text-xs font-bold uppercase tracking-widest rounded-full px-3 py-1">{toStr(doc.provider||"?").toUpperCase()}</span>
-            <span style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}} className="text-xs font-bold rounded-full px-3 py-1">v{toStr(doc.version||"1.0")}</span>
-            <span style={{background:"#ffffff10",border:`1px solid ${AV.nb}`,color:AV.tm}} className="text-xs rounded-full px-3 py-1">{new Date().toLocaleDateString("en-CA")}</span>
-          </div>
-          <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
-          <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
+      <div>
+        <div className="flex flex-wrap gap-2 mb-3">
+          <span style={{background:`${PC}22`,border:`1px solid ${PC}55`,color:PC}} className="text-xs font-bold uppercase tracking-widest rounded-full px-3 py-1">{toStr(doc.provider||"?").toUpperCase()}</span>
+          <span style={{background:`${AV.or}15`,border:`1px solid ${AV.or}40`,color:AV.or}} className="text-xs font-bold rounded-full px-3 py-1">v{toStr(doc.version||"1.0")}</span>
+          <span style={{background:"#ffffff10",border:`1px solid ${AV.nb}`,color:AV.tm}} className="text-xs rounded-full px-3 py-1">{new Date().toLocaleDateString("en-CA")}</span>
         </div>
-        <div className="flex gap-2 shrink-0">
-          {onShare&&<button onClick={doShare} disabled={sharing||shareUrl==="copied"} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0 disabled:opacity-60" style={shareUrl==="copied"?{color:"#22C55E",border:"1.5px solid #22C55E50",background:"#22C55E08"}:{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
-            {sharing
-              ?<svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-              :shareUrl==="copied"
-                ?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>
-                :<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>}
-            {sharing?"Sharing…":shareUrl==="copied"?"Copied!":"Share"}
-          </button>}
-          <button onClick={doDrawio} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm shrink-0" style={{color:AV.or,border:`1.5px solid ${AV.or}50`,background:`${AV.or}08`}}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-            Export draw.io
-          </button>
-          <button onClick={doExport} disabled={exporting} className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white shrink-0 disabled:opacity-60" style={{background:`linear-gradient(135deg,${AV.or},${AV.pu})`,boxShadow:`0 4px 16px ${AV.or}30`}}>
-            {exporting?<><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>Exporting…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export DOCX</>}
-          </button>
-        </div>
+        <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
+        <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
       </div>
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
         <span><strong style={{color:AV.tp}}>Pattern:</strong> {ao.pattern||"—"}</span>
@@ -1435,6 +1416,14 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
         <span className="px-2 py-0.5 rounded-full font-mono" style={{background:`${AV.pu}15`,border:`1px solid ${AV.pu}35`,color:"#C084FC"}}>{mL}</span>
       </div>
       <div className="flex gap-3">
+        {onShare&&<button onClick={doShare} disabled={sharing||shareUrl==="copied"} className="flex items-center gap-1 text-xs font-semibold disabled:opacity-60" style={shareUrl==="copied"?{color:"#22C55E"}:{color:AV.or}}>
+          {sharing
+            ?<svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+            :shareUrl==="copied"
+              ?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3"><polyline points="20 6 9 17 4 12"/></svg>
+              :<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>}
+          {sharing?"Sharing…":shareUrl==="copied"?"Copied!":"Share"}
+        </button>}
         <button onClick={doDrawio} className="flex items-center gap-1 text-xs font-semibold" style={{color:AV.or}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
           draw.io
@@ -1908,7 +1897,7 @@ export default function App(){
       <div className="max-w-5xl mx-auto relative" style={{zIndex:1}}>
         <div className="text-center mb-10">
 
-          <h1 className="text-4xl font-black mb-3" style={{color:AV.tp}}>Terraform <span style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}} key={dark?"d":"l"}>Design Document Generator</span></h1>
+          <h1 className="text-4xl font-black mb-3" style={{background:`linear-gradient(90deg,${AV.or},${AV.pu})`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",color:"transparent",display:"inline-block"}} key={dark?"d":"l"}>Terraform Design Document Generator</h1>
           <p style={{color:AV.tm}}>Upload Terraform files → formal design document → export as <strong style={{color:AV.or}}>DOCX</strong></p>
           <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
