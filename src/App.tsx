@@ -1150,11 +1150,11 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
     </div>
 
     {/* Tabs */}
-    <div className="flex overflow-x-auto" style={{background:AV.nv,borderBottom:`1px solid ${AV.nb}`}}>
-      {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={tab===t.id?{color:AV.or,borderBottom:`2px solid ${AV.or}`,background:`${AV.or}0A`}:{color:AV.tm,borderBottom:"2px solid transparent"}} className="px-5 py-3 text-sm font-semibold whitespace-nowrap">{t.l}</button>)}
+    <div className="flex overflow-x-auto" style={{background:AV.nv,borderBottom:`1px solid ${AV.nb}`,paddingLeft:"2rem"}}>
+      {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={tab===t.id?{color:AV.or,borderBottom:`2px solid ${AV.or}`,background:`${AV.or}0A`}:{color:AV.tm,borderBottom:"2px solid transparent"}} className="px-4 py-3 text-sm font-semibold whitespace-nowrap">{t.l}</button>)}
     </div>
 
-    <div className="p-6" style={{background:AV.nm}}>
+    <div style={{padding:"1.5rem 2rem",background:AV.nm}}>
 
       {tab==="overview"&&<div className="space-y-6">
         <TabIntro text="High-level summary of the infrastructure architecture, including the design pattern, cloud provider strategy, compute resources, and deployment considerations."/>
@@ -1409,7 +1409,7 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
 
     </div>
 
-    <div className="px-6 py-4 flex justify-between items-center text-xs" style={{background:AV.nv,borderTop:`1px solid ${AV.nb}`,color:AV.td}}>
+    <div className="py-4 flex justify-between items-center text-xs" style={{padding:"0.75rem 2rem",background:AV.nv,borderTop:`1px solid ${AV.nb}`,color:AV.td}}>
       <div className="flex items-center gap-2 flex-wrap">
         <span>High Level Design · Terraform source</span>
         <span className="px-2 py-0.5 rounded-full font-mono font-bold" style={{background:`${AV.or}15`,border:`1px solid ${AV.or}35`,color:AV.or}}>v{APP_VERSION}</span>
