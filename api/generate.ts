@@ -123,6 +123,12 @@ export default async function handler(req: any, res: any) {
   if (!apiKey) return res.status(401).json({ error: "Missing apiKey" });
   if (!content) return res.status(400).json({ error: "Missing content" });
 
+  // Thinking/reasoning models must use model-default temperature.
+  // Sending temperature: 0 to models like Kimi K2 on Bedrock causes token-limit issues
+  // because the model's internal reasoning is affected, producing truncated outputs.
+  const isThinkingModel = /thinking|reasoner|deepseek.?r[12]|kimi.?k[23]|o1|o3|qwq/i.test(model || "");
+  const effectiveTemperature = isThinkingModel ? undefined : temperature;
+
   const bodySize = JSON.stringify(req.body).length;
   if (bodySize > 5 * 1024 * 1024) return res.status(413).json({ error: "Request too large (max 5 MB)" });
 
@@ -146,12 +152,12 @@ export default async function handler(req: any, res: any) {
         const r1 = await chatCompletion(directBase, apiKey, model, [
           { role: "system", content: sysWithInstruction },
           { role: "user", content },
-        ], maxTokens, temperature);
+        ], maxTokens, effectiveTemperature);
         hld = await parseHLD(r1.text);
         usage = r1.usage;
       } else {
         const mdl = buildModel(provider, apiKey, model, baseUrl);
-        const p1 = await generateText({ model: mdl, system: sysWithInstruction, prompt: content, temperature: temperature ?? 0, maxTokens });
+        const p1 = await generateText({ model: mdl, system: sysWithInstruction, prompt: content, temperature: effectiveTemperature ?? 0, maxTokens });
         hld = await parseHLD(p1.text);
         usage = p1.usage;
       }
@@ -164,7 +170,7 @@ export default async function handler(req: any, res: any) {
           const r2 = await chatCompletion(directBase, apiKey, model, [
             { role: "system", content: CRITIQUE_PROMPT },
             { role: "user", content: critiqueMsg },
-          ], 2000, temperature);
+          ], 2000, effectiveTemperature);
           usage = mergeUsage(usage, r2.usage);
           corrRaw = r2.text;
         } else {
@@ -181,7 +187,7 @@ export default async function handler(req: any, res: any) {
     } else {
       // OpenAI / Gemini / Azure: generateObject with Zod schema
       const mdl = buildModel(provider, apiKey, model, baseUrl);
-      const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: temperature ?? 0, maxTokens });
+      const result = await generateObject({ model: mdl, schema: HLDSchema, system: SYS, prompt: content, temperature: effectiveTemperature ?? 0, maxTokens });
       hld = result.object;
       usage = result.usage;
     }
