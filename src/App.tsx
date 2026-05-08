@@ -1896,6 +1896,8 @@ export default function App(){
   };
 
     const grouped=files.reduce((a,f)=>{const p=(f.path||f.name).split("/");const folder=p.length>1?p.slice(0,-1).join("/"):"(root)";(a[folder]=a[folder]||[]).push(f);return a;},{});
+  const inputHidden=loading||explaining||validating||!!explanation||!!validation;
+  const startOver=()=>{setExplanation("");setExplainMmSvg("");setValidation(null);setDebug(null);setError(null);setFiles([]);};
 
   return(
     <div className="min-h-screen p-4 sm:p-8" style={{background:AV.nv}}>
@@ -1927,8 +1929,12 @@ export default function App(){
 
         {!doc?(
           <div className="rounded-2xl p-6" style={{background:AV.nm,border:`1px solid ${AV.nb}`}}>
+            {inputHidden&&!loading&&!explaining&&!validating&&<button onClick={startOver} className="mb-4 flex items-center gap-2 text-sm" style={{color:AV.tm}}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Start over
+            </button>}
+            {!inputHidden&&<>
             <div className="mb-4"><label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{color:AV.tm}}>Customer Name</label><input type="text" placeholder="e.g. Acme Corp" value={custName} onChange={e=>{setCustName(e.target.value);ss("tf_doc_cust",e.target.value);}} className="w-full rounded-xl px-4 py-2.5 text-sm" style={{background:AV.nl,border:`1px solid ${AV.nb}`,color:AV.tp,outline:"none"}}/></div>
-          <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={onDrop} onClick={()=>ref.current.click()} className="rounded-xl p-10 text-center cursor-pointer transition-all" style={{border:`2px dashed ${drag?AV.or:AV.nb}`,background:drag?`${AV.or}08`:`${AV.nl}80`}}>
+          {files.length===0&&<div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={onDrop} onClick={()=>ref.current.click()} className="rounded-xl p-10 text-center cursor-pointer transition-all" style={{border:`2px dashed ${drag?AV.or:AV.nb}`,background:drag?`${AV.or}08`:`${AV.nl}80`}}>
               <input ref={ref} type="file" multiple accept=".tf,.tfvars,.zip" className="hidden" onChange={e=>handleFiles(e.target.files)}/>
               <div className="flex flex-col items-center gap-3">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{background:drag?`${AV.or}20`:AV.nl,border:`1px solid ${drag?AV.or:AV.nb}`}}>
@@ -1936,7 +1942,7 @@ export default function App(){
                 </div>
                 <div><p className="font-semibold" style={{color:AV.tp}}>{extr?"Extracting…":"Drop Terraform files or ZIP"}</p><p className="text-sm mt-1" style={{color:AV.tm}}><code style={{color:AV.or}}>.tf</code> · <code style={{color:AV.or}}>.tfvars</code> · <code style={{color:"#FCD34D"}}>.zip</code></p></div>
               </div>
-            </div>
+            </div>}
 
             {files.length>0&&<div className="mt-5 space-y-3">
               <div className="flex items-center justify-between">
@@ -1953,6 +1959,7 @@ export default function App(){
                 </div>
               ))}
             </div>}
+            </>}
 
             {error&&<div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{background:"#EC489910",border:"1px solid #EC489940",color:"#F9A8D4"}}><div className="font-semibold mb-1">⚠ Error</div><pre className="text-xs whitespace-pre-wrap break-all">{error}</pre></div>}
             {debug&&debug.step!=="done"&&<div className="mt-3 rounded-xl px-4 py-3 text-xs" style={{background:"#0A0E1A",border:`1px solid ${AV.nb}`,color:AV.tm}}><div className="font-bold mb-2" style={{color:AV.or}}>Debug</div><div>Step: <span style={{color:AV.tp}}>{debug.step}</span> · HTTP: <span style={{color:debug.apiStatus===200?"#22C55E":"#EC4899"}}>{debug.apiStatus??"—"}</span> · Stop: {debug.stopReason||"—"}</div>{debug.statusMsg&&<div className="mt-1" style={{color:"#FCA5A5"}}>{debug.statusMsg}</div>}{debug.apiBody&&<details className="mt-2"><summary style={{color:AV.or,cursor:"pointer"}}>API response</summary><pre className="mt-1 whitespace-pre-wrap break-all" style={{color:"#94A3B8"}}>{debug.apiBody}</pre></details>}</div>}
@@ -1967,6 +1974,7 @@ export default function App(){
               </div>
             </div>}
 
+            {!inputHidden&&<>
             <div className="mt-5">
               <button onClick={()=>setShowExtra(s=>!s)} className="flex items-center gap-2 text-xs font-semibold mb-2" style={{color:AV.tm}}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" style={{transition:"transform 0.2s",transform:showExtra?"rotate(90deg)":"rotate(0deg)"}}><polyline points="9 18 15 12 9 6"/></svg>
@@ -1990,6 +1998,7 @@ export default function App(){
                 {validating?<span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span>:"Validate"}
               </button>
             </div>
+            </>}
 
             {/* Explanation panel */}
             {/* Validation results */}
