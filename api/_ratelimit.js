@@ -36,6 +36,8 @@ function getIp(req) {
  * Writes a 429 response and returns true; caller should return immediately.
  * Silently passes through if Redis is not configured.
  */
+const TIMEOUT_MS = 1500;
+
 export async function rateLimit(req, res, limiterKey = "ai") {
   const limiters = getLimiters();
   if (!limiters) return false;
@@ -43,10 +45,18 @@ export async function rateLimit(req, res, limiterKey = "ai") {
   if (!limiter) return false;
   try {
     const ip = getIp(req);
-    const { success, limit, remaining, reset } = await limiter.limit(ip);
-    res.setHeader("X-RateLimit-Limit", limit);
-    res.setHeader("X-RateLimit-Remaining", remaining);
-    res.setHeader("X-RateLimit-Reset", reset);
+    const result = await Promise.race([
+      limiter.limit(ip),
+      new Promise((resolve) =>
+        setTimeout(() => resolve({ success: true, limit: 0, remaining: -1, reset: 0 }), TIMEOUT_MS)
+      ),
+    ]);
+    const { success, limit, remaining, reset } = result;
+    if (remaining >= 0) {
+      res.setHeader("X-RateLimit-Limit", limit);
+      res.setHeader("X-RateLimit-Remaining", remaining);
+      res.setHeader("X-RateLimit-Reset", reset);
+    }
     if (!success) {
       res.status(429).json({ error: "Too many requests — please wait before trying again." });
       return true;
