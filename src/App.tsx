@@ -1559,6 +1559,7 @@ export default function App(){
   };
   const selectProfile=(id:string)=>{setActiveId(id);ss("tf_doc_active",id);};
   const [showExtra,setShowExtra]=useState(false);
+  const [filesExpanded,setFilesExpanded]=useState(false);
   const [dark,    setDark]    =useState(()=>sg("tf_doc_dark")!=="false");
   const [metrics, setMetrics] =useState<{inputTokens:number,outputTokens:number,elapsedMs:number,sessionTokens:number}|null>(null);
   AV=dark?DARK:LIGHT;
@@ -1578,6 +1579,7 @@ export default function App(){
     return Promise.all(valid.map(({path,entry})=>entry.async("string").then(content=>({name:path.split("/").pop(),path,content}))));
   },[]);
 
+  const collapseTimerRef=useRef<number|null>(null);
   const handleFiles=useCallback(async nf=>{
     setError(null);setExtr(true);const added=[];let err=null;
     for(const f of Array.from(nf)){
@@ -1585,7 +1587,12 @@ export default function App(){
       else if(isV(f.name)){try{added.push(await readText(f));}catch(e){err=e.message;setError(err);}}
     }
     setExtr(false);
-    if(added.length)setFiles(p=>[...p,...added]);
+    if(added.length){
+      setFiles(p=>[...p,...added]);
+      setFilesExpanded(true);
+      if(collapseTimerRef.current!==null)clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current=window.setTimeout(()=>setFilesExpanded(false),3000);
+    }
     else if(!err)setError("No .tf or .tfvars files found.");
   },[extractZip]);
 
@@ -1932,8 +1939,14 @@ export default function App(){
             </div>
 
             {files.length>0&&<div className="mt-5 space-y-3">
-              <div className="flex items-center justify-between"><p className="text-sm font-semibold" style={{color:AV.tp}}>{files.length} file{files.length>1?"s":""} ready</p><button onClick={()=>setFiles([])} className="text-xs" style={{color:AV.tm}}>Clear all</button></div>
-              {Object.entries(grouped).map(([folder,fls])=>(
+              <div className="flex items-center justify-between">
+                <button onClick={()=>setFilesExpanded(s=>!s)} className="flex items-center gap-2 text-sm font-semibold" style={{color:AV.tp}}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5" style={{transition:"transform 0.2s",transform:filesExpanded?"rotate(90deg)":"rotate(0deg)"}}><polyline points="9 18 15 12 9 6"/></svg>
+                  {files.length} file{files.length>1?"s":""} ready
+                </button>
+                <button onClick={()=>setFiles([])} className="text-xs" style={{color:AV.tm}}>Clear all</button>
+              </div>
+              {filesExpanded&&Object.entries(grouped).map(([folder,fls])=>(
                 <div key={folder} className="rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
                   <div className="px-4 py-2 text-xs font-bold uppercase tracking-wider" style={{background:AV.nl,color:AV.tm}}>📁 {folder}</div>
                   {fls.map((f,i)=><div key={i} className="flex items-center gap-3 px-4 py-2 text-sm" style={{borderTop:`1px solid ${AV.nb}`}}><span style={{color:AV.or}}>📄</span><span className="font-mono" style={{color:AV.tp}}>{toStr(f.name)}</span><span className="ml-auto text-xs" style={{color:AV.tm}}>{(f.content.length/1024).toFixed(1)} KB</span><button onClick={()=>setFiles(fs=>fs.filter(x=>x.path!==f.path))} style={{color:AV.tm}}>✕</button></div>)}
