@@ -2214,28 +2214,14 @@ export default function App(){
                   ["ZIP Support","Auto-extracts .tf/.tfvars from uploaded ZIP archives"],
                   ["Security Headers","CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy; origin allowlist on API endpoints"],
                   ["Upstash Redis Caching","Server-side cache for Terraform Registry defaults (1h TTL) and model lists (30min TTL) — shared across all users via Upstash Redis; gracefully no-ops when env vars not set"],
+                  ["Rate Limiting","Per-IP sliding window throttle on all AI endpoints (20 req/h) and share endpoint (30 req/h) via Upstash Redis; gracefully passes through when Redis is not configured"],
+                  ["Share Document","Generate a shareable URL for any HLD via Upstash Redis (30-day TTL, 512 KB max); recipients open the URL with no API key required and see the same document with all tabs, diagrams, and exports"],
                   ["Temperature per Profile","Per-profile temperature control with model-default option for thinking/reasoning models (Kimi K2, DeepSeek R1)"],
                   ["DCF Policy Suggestion","Generate tentative Aviatrix Distributed Cloud Firewall config (SmartGroups, WebGroups, rulesets, Terraform HCL) from discovered network segments"],
                   ["Prompt Versioning & Testing","promptfoo regression suite with versioned prompts — npm run test:prompts (current) or test:prompts:compare (all versions side-by-side); v1 Aviatrix baseline archived in prompts/"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
-                    <div><span className="text-xs font-semibold" style={{color:AV.tp}}>{title}</span><span className="text-xs" style={{color:AV.tm}}> — {desc}</span></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Roadmap */}
-            <div style={{borderTop:`1px solid ${AV.nb}`,paddingTop:"1.25rem"}}>
-              <h3 className="text-sm font-bold mb-3" style={{color:AV.tp}}>Roadmap</h3>
-              <div className="space-y-2">
-                {[
-
-                  ["Rate Limiting","Per-IP sliding window throttle on all AI endpoints (20 req/h) and share endpoint (30 req/h) via Upstash Redis; gracefully passes through when Redis is not configured"],
-                ].map(([title,desc])=>(
-                  <div key={title} className="flex gap-3">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0 mt-0.5" style={{color:AV.or}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                     <div><span className="text-xs font-semibold" style={{color:AV.tp}}>{title}</span><span className="text-xs" style={{color:AV.tm}}> — {desc}</span></div>
                   </div>
                 ))}
