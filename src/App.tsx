@@ -1137,7 +1137,7 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
           <span style={{background:"#ffffff10",border:`1px solid ${AV.nb}`,color:AV.tm}} className="text-xs rounded-full px-3 py-1">{new Date().toLocaleDateString("en-CA")}</span>
         </div>
         <h1 className="text-3xl font-black mb-3" style={{color:AV.tp}}>{toStr(doc.title)}</h1>
-        <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary)}</p>
+        <p className="text-sm leading-7 max-w-2xl" style={{color:AV.tm}}>{toStr(doc.executive_summary).trim()}</p>
       </div>
       <div className="flex flex-wrap gap-4 mt-6 text-xs" style={{color:AV.tm}}>
         <span><strong style={{color:AV.tp}}>Pattern:</strong> {ao.pattern||"—"}</span>
