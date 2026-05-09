@@ -2001,6 +2001,36 @@ export default function App(){
             </>}
 
             {/* Explanation panel */}
+            {/* Validation placeholder */}
+            {validating&&!validation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Validation Report</span>
+                <span className="text-xs flex items-center gap-1.5" style={{color:AV.td}}>
+                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                  Analyzing…
+                </span>
+              </div>
+              <div className="p-8 flex flex-col items-center justify-center gap-3" style={{background:AV.nm}}>
+                <svg className="animate-spin w-7 h-7" viewBox="0 0 24 24" fill="none" stroke={AV.or} strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                <p className="text-sm font-semibold" style={{color:AV.tp}}>Validating your Terraform configuration…</p>
+                <p className="text-xs text-center max-w-md" style={{color:AV.tm}}>Checking for security issues, best practices, Aviatrix patterns, and misconfigurations.</p>
+              </div>
+            </div>}
+            {/* Explanation placeholder */}
+            {explaining&&!explanation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{color:AV.tm}}>Code Explanation</span>
+                <span className="text-xs flex items-center gap-1.5" style={{color:AV.td}}>
+                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                  Generating…
+                </span>
+              </div>
+              <div className="p-8 flex flex-col items-center justify-center gap-3" style={{background:AV.nm}}>
+                <svg className="animate-spin w-7 h-7" viewBox="0 0 24 24" fill="none" stroke={AV.or} strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                <p className="text-sm font-semibold" style={{color:AV.tp}}>Explaining your Terraform code…</p>
+                <p className="text-xs text-center max-w-md" style={{color:AV.tm}}>Building summary, architecture, security analysis, and a topology diagram.</p>
+              </div>
+            </div>}
             {/* Validation results */}
             {validation&&<div className="mt-4 rounded-xl overflow-hidden" style={{border:`1px solid ${AV.nb}`}}>
               <div className="flex items-center justify-between px-4 py-2.5" style={{background:AV.nl,borderBottom:`1px solid ${AV.nb}`}}>
