@@ -13,11 +13,15 @@ providers:
 # Run: npm run test:prompts:compare  — compare all versions side-by-side
 prompts:
   - id: file://lib/systemPrompt.ts
-    label: "v2 (current) — universal Terraform"
+    label: "v8 (current) — DCF SmartGroup/WebGroup extraction"
+  - id: file://prompts/v7-prose-fields.ts
+    label: "v7 — prose field list (pre-DCF-extraction)"
+  - id: file://prompts/v6-json-template.ts
+    label: "v6 — inline JSON template"
   - id: file://prompts/v3-no-aviatrix-bias.ts
-    label: "v3 — no-Aviatrix-bias (previous)"
+    label: "v3 — no-Aviatrix-bias"
   - id: file://prompts/v2-universal.ts
-    label: "v2 — universal TF (archived)"
+    label: "v2 — universal TF"
   - id: file://prompts/v1-aviatrix.ts
     label: "v1 — Aviatrix-focused (baseline)"
 
@@ -257,4 +261,105 @@ tests:
         value: |
           const d = JSON.parse(output);
           return (d.network_design?.vpcs || []).length > 0;
+        threshold: 1
+
+  # ── DCF extraction: SmartGroups, WebGroups, policy list ────────────────
+  - description: "Aviatrix DCF — SmartGroups have non-empty members"
+    vars:
+      terraform_content: |
+        ### FILE: main.tf
+        ```hcl
+        {{file://test/fixtures/aviatrix-dcf-policies.tf}}
+        ```
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.dcf?.enabled === true;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.dcf?.default_action === 'deny';
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          // 5 smart_group resources in the fixture
+          return (d.dcf?.smart_groups || []).length >= 5;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          // Every smart_group must have a non-empty members[] array
+          const sgs = d.dcf?.smart_groups || [];
+          return sgs.length > 0 && sgs.every(sg => Array.isArray(sg.members) && sg.members.length > 0);
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const sgs = d.dcf?.smart_groups || [];
+          // The CIDR smart_group should contain its CIDR
+          return sgs.some(sg => (sg.members||[]).some(m => String(m).includes('10.20.0.0/16')));
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          // 2 web_group resources in the fixture
+          return (d.dcf?.web_groups || []).length >= 2;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const wgs = d.dcf?.web_groups || [];
+          // Every web_group must have a non-empty domains[] array
+          return wgs.length > 0 && wgs.every(wg => Array.isArray(wg.domains) && wg.domains.length > 0);
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const wgs = d.dcf?.web_groups || [];
+          // Allowed-saas WebGroup should reference one of the configured SNI filters
+          return wgs.some(wg => (wg.domains||[]).some(dom =>
+            String(dom).toLowerCase().includes('salesforce') ||
+            String(dom).toLowerCase().includes('office365') ||
+            String(dom).toLowerCase().includes('github')
+          ));
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const rulesets = d.dcf?.rulesets || [];
+          // The policy_list contains 5 policies
+          const allRules = rulesets.flatMap(r => r.rules || []);
+          return allRules.length >= 5;
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const rulesets = d.dcf?.rulesets || [];
+          const allRules = rulesets.flatMap(r => r.rules || []);
+          // Both allow and deny actions must be present
+          const actions = new Set(allRules.map(r => r.action));
+          return actions.has('allow') && actions.has('deny');
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const rulesets = d.dcf?.rulesets || [];
+          const allRules = rulesets.flatMap(r => r.rules || []);
+          // src/dst must be resolved smart_group NAMES, not bare UUIDs
+          // (UUIDs are 8-4-4-4-12 hex pattern). At least one rule should
+          // have human-readable names.
+          const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+          return allRules.some(r => r.src && !uuidLike.test(r.src) && r.dst && !uuidLike.test(r.dst));
+        threshold: 1
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          const rulesets = d.dcf?.rulesets || [];
+          const allRules = rulesets.flatMap(r => r.rules || []);
+          // The TLS-inspected policy (decrypt_policy=DECRYPT_ALLOWED) should
+          // be flagged tls_decryption=true on at least one rule.
+          return allRules.some(r => r.tls_decryption === true);
         threshold: 1

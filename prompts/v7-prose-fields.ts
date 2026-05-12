@@ -85,54 +85,7 @@ EDGE (Aviatrix-specific): aviatrix_edge_gateway_selfmanaged→selfmanaged, aviat
 
 EXTERNAL CONNECTIONS: aviatrix_transit_external_device_conn, aws_vpn_connection, aws_dx_connection, azurerm_express_route_circuit, google_compute_interconnect_attachment → external_connections[].
 
-DCF (Aviatrix Distributed Cloud Firewall) — REQUIRED extraction rules. dcf.smart_groups[], dcf.web_groups[], and dcf.rulesets[] MUST be populated when the corresponding resources exist. Empty objects are NOT acceptable.
-
-ENABLEMENT — set dcf.enabled=true if ANY of these are present: aviatrix_distributed_firewalling_config with enable_distributed_firewalling=true, OR any aviatrix_distributed_firewalling_policy_list, OR any aviatrix_smart_group, OR any aviatrix_web_group, OR any aviatrix_distributed_firewalling_default_action_rule.
-
-DEFAULT ACTION — from aviatrix_distributed_firewalling_default_action_rule.action: PERMIT→"allow", DENY→"deny". If no default_action_rule resource exists but DCF is enabled, set "allow" (controller default).
-
-SMART GROUPS — for EVERY aviatrix_smart_group resource, append one entry to dcf.smart_groups[] with:
-- name = the value of the resource's "name" attribute (NOT the Terraform local label).
-- description = 1-sentence summary inferred from the resource label and match expressions (e.g. "Production VPC CIDR range" or "Geo-block external feed for RU").
-- filter_type = the dominant selector kind. If selector.match_expressions contains:
-    cidr → "cidr"; fqdn → "fqdn"; site → "site"; s2c → "s2c"; external → "external/" + the external value (e.g. "external/geo", "external/threatiq"); type → the type value ("vm", "vpc", "subnet", "k8s", "k8s_node", "serverless"). If multiple match_expressions blocks use different kinds, join with " + ".
-- members[] — MUST be populated, one string per selector.match_expressions block, summarising the block:
-    cidr "X" → "X"
-    fqdn "X" → "fqdn:X"
-    site "X" → "site:X"
-    s2c "X" → "s2c:X"
-    type=vm with filters → "vm[" + comma-joined non-empty filters chosen from account_name, account_id, region, zone, res_id, name, tags=<k=v,k=v> + "]"
-    type=k8s with filters → "k8s[" + comma-joined non-empty filters chosen from k8s_cluster_id, k8s_namespace, k8s_service, k8s_pod + "]"
-    type=k8s_node → "k8s_node[cluster=<k8s_cluster_id>]"
-    type=serverless → "serverless:" + the name filter
-    external=X with ext_args → "X(" + comma-joined ext_args as k=v + ")"
-  members[] MUST never be empty when match_expressions blocks exist. If you cannot summarise an expression, emit its raw HCL key=value form.
-
-WEB GROUPS — for EVERY aviatrix_web_group resource, append one entry to dcf.web_groups[] with:
-- name = the resource's "name" attribute value.
-- domains[] — MUST be populated, one string per selector.match_expressions block:
-    snifilter "X" → "sni:X"
-    urlfilter "X" → "url:X"
-
-POLICY LISTS — for EVERY aviatrix_distributed_firewalling_policy_list resource, append one entry to dcf.rulesets[]:
-- name = the Terraform local label of the resource (e.g. "main", "default").
-- type = "user".
-- rules[] = one entry per policies{} block, in source order, with:
-    name = the policy's "name" attribute.
-    priority = the "priority" integer (default 0 if absent).
-    src = RESOLVE src_smart_groups[] UUIDs back to the smart_group "name" values via the Terraform reference graph. References like `aviatrix_smart_group.prod_vpc.uuid` → look up the aviatrix_smart_group resource whose Terraform local label is "prod_vpc" → use its "name" attribute (e.g. "prod-vpc"). Comma-join when multiple. If a UUID cannot be resolved, keep it as-is.
-    dst = same resolution for dst_smart_groups[]. If the policy also has web_groups[], append " + WebGroups: " + comma-joined resolved web_group names.
-    protocol = the "protocol" string (TCP/UDP/ICMP/ANY).
-    port = if any port_ranges{} block: format as "<lo>-<hi>" (or just "<lo>" if hi is absent or equal to lo). Comma-join when multiple port_ranges. If no port_ranges and protocol is ICMP or ANY: "Any". Otherwise "Any".
-    action = "allow" for action="PERMIT" or action="DEEP_PACKET_INSPECTION_PERMIT"; "deny" for action="DENY"; "force-drop" only when explicitly set.
-    logging = the boolean value of the "logging" attribute (default false).
-    tls_decryption = true if either decrypt_policy is set to a value containing "DECRYPT" (e.g. "DECRYPT_ALLOWED") OR tls_profile is set; otherwise false.
-    ips_profile = value of tls_profile if set, else value of log_profile if set, else empty string.
-
-PREDEFINED UUIDs: "def000ad-0000-0000-0000-000000000000"=Any (Anywhere), "def000ad-0000-0000-0000-000000000001"=Public Internet. Use these names when src/dst references match.
-
-DCF SUMMARY — dcf.summary must be a 2-3 sentence description of the DCF posture: number of smart_groups, number of web_groups, total rule count across rulesets, default action, and whether any policy uses DEEP_PACKET_INSPECTION_PERMIT / decrypt_policy / tls_profile (TLS inspection).
-dcf.tls_decryption_enabled = true if ANY policy has tls_decryption=true. dcf.kubernetes_enabled = true if ANY smart_group has filter_type containing "k8s". dcf.egress_enabled = true if ANY web_group exists OR ANY policy references a web_group.
+DCF (Aviatrix-specific): aviatrix_distributed_firewalling_policy_list policies→rules (PERMIT→allow, DENY→deny). aviatrix_distributed_firewalling_default_action_rule→default_action.
 
 CAVEATS — MANDATORY: Populate caveats[] with plain-English notes about any inferred, defaulted, or uncertain fields. Examples:
 - "Gateway sizes use module defaults — gw_size not explicitly set in code"
