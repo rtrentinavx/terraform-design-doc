@@ -120,7 +120,7 @@ POLICY LISTS — for EVERY aviatrix_distributed_firewalling_policy_list resource
 - rules[] = one entry per policies{} block, in source order, with:
     name = the policy's "name" attribute.
     priority = the "priority" integer (default 0 if absent).
-    src = RESOLVE src_smart_groups[] UUIDs back to the smart_group "name" values via the Terraform reference graph. References like `aviatrix_smart_group.prod_vpc.uuid` → look up the aviatrix_smart_group resource whose Terraform local label is "prod_vpc" → use its "name" attribute (e.g. "prod-vpc"). Comma-join when multiple. If a UUID cannot be resolved, keep it as-is.
+    src = RESOLVE src_smart_groups[] UUIDs back to the smart_group "name" values via the Terraform reference graph. References like 'aviatrix_smart_group.prod_vpc.uuid' → look up the aviatrix_smart_group resource whose Terraform local label is "prod_vpc" → use its "name" attribute (e.g. "prod-vpc"). Comma-join when multiple. If a UUID cannot be resolved, keep it as-is.
     dst = same resolution for dst_smart_groups[]. If the policy also has web_groups[], append " + WebGroups: " + comma-joined resolved web_group names.
     protocol = the "protocol" string (TCP/UDP/ICMP/ANY).
     port = if any port_ranges{} block: format as "<lo>-<hi>" (or just "<lo>" if hi is absent or equal to lo). Comma-join when multiple port_ranges. If no port_ranges and protocol is ICMP or ANY: "Any". Otherwise "Any".
