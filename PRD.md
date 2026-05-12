@@ -53,6 +53,7 @@ Analyzes any Terraform/OpenTofu configuration and produces a structured High Lev
 - **Variables & Outputs** — Terraform variable declarations, outputs, and module dependencies
 - **Connectivity Matrix** — VPC-to-VPC reachability grid computed from `connected_transit` fields
 - **Mermaid Diagram** — auto-rendered network topology, re-renders on dark/light theme switch
+- **Aviatrix DCF Policies** — `aviatrix_smart_group`, `aviatrix_web_group`, and `aviatrix_distributed_firewalling_policy_list` resources extracted into the HLD's DCF tab with members, domains, and rule rows; UUID references resolved back to smart_group / web_group names via the Terraform reference graph; TLS decryption flagged from `decrypt_policy` / `tls_profile`
 
 **Two-pass generation:** Pass 1 generates the full HLD. Pass 2 runs a lightweight delta critique (2,000 tokens max) that removes invented components, corrects wrong CIDRs, and appends caveats — applied programmatically without regenerating the full document.
 
@@ -181,7 +182,7 @@ Browser (React SPA)
 **Frontend state management:** React `useState` / `useRef` — no external state library.  
 **AI SDK:** Vercel AI SDK (`generateText` for Anthropic/Bedrock, `generateObject` for OpenAI/Gemini/Azure).  
 **Schema validation:** Zod (`HLDSchema`) — output validated on every generation path.  
-**Prompt versioning:** `lib/systemPrompt.ts` versioned in `prompts/`; `promptfoo` regression suite.
+**Prompt versioning:** `lib/systemPrompt.ts` versioned in `prompts/` (current iteration: v8 — DCF SmartGroup / WebGroup extraction). `promptfoo` regression suite is wired up but the templating layer is currently broken on `^0.121.x`; manual fixture validation via the dev server is the workaround until the harness is repinned or rewritten.
 
 ---
 

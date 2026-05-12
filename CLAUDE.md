@@ -11,8 +11,8 @@ Single-page React app that analyzes any Terraform/OpenTofu configurations via AI
 - `npm run dev` — Start Vite dev server (localhost:5173)
 - `npm run build` — Production build to `dist/`
 - `npm run preview` — Preview production build
-- `npm run test:prompts` — Test current prompt (v2) against all cases (requires `ANTHROPIC_API_KEY`)
-- `npm run test:prompts:compare` — Compare all prompt versions side-by-side
+- `npm run test:prompts` — Test current prompt (v8) against all cases (requires `ANTHROPIC_API_KEY`). **Currently broken** — see Prompt Versioning below
+- `npm run test:prompts:compare` — Compare all prompt versions side-by-side (same harness issue applies)
 - `npm run test:prompts:view` — Open promptfoo browser UI
 
 ## Architecture
@@ -102,13 +102,26 @@ Non-Claude models return different JSON field names. Always try multiple alterna
 - `initMermaid(dark)` must be called before `window.mermaid.render()` to apply the correct theme
 - DCF and Edge tabs are conditionally shown based on whether data is present in the HLD
 
+### DCF (Aviatrix Distributed Cloud Firewall) extraction
+The prompt has explicit rules (see `DCF (Aviatrix Distributed Cloud Firewall)` section in `lib/systemPrompt.ts`) for extracting:
+- `aviatrix_smart_group` → `dcf.smart_groups[]` with `members[]` summarised from `selector.match_expressions` (cidr / fqdn / site / s2c / type=vm|k8s|serverless / external+ext_args)
+- `aviatrix_web_group` → `dcf.web_groups[]` with `domains[]` from `snifilter` and `urlfilter`
+- `aviatrix_distributed_firewalling_policy_list` → `dcf.rulesets[]` with UUIDs resolved back to smart_group / web_group `name` attributes via the Terraform reference graph
+- TLS decryption is flagged from `decrypt_policy` containing `DECRYPT` or `tls_profile` being set
+
+The renderer in `App.tsx` for SmartGroup / WebGroup cards uses `toObjArr` / `toArr` / `toStr` and falls back across field-name variants (`members`/`cidrs`/`values`; `domains`/`snifilter`/`urlfilter`). If both `members`/`domains` and `description` are empty it shows an italic "No selector members extracted" hint rather than a blank card. The regression fixture at `test/fixtures/aviatrix-dcf-policies.tf` mirrors the canonical examples from the Aviatrix provider docs.
+
 ### Prompt Versioning
 
 **Before changing `lib/systemPrompt.ts`:**
-1. Archive it: `cp lib/systemPrompt.ts prompts/vN-label.ts`
+1. Archive it: `cp lib/systemPrompt.ts prompts/vN-label.ts` (latest archive is `prompts/v7-prose-fields.ts`; the live prompt in `lib/systemPrompt.ts` is the post-v7 / "v8 — DCF extraction" iteration)
 2. Make changes to `lib/systemPrompt.ts`
 3. Run `npm run test:prompts:compare` — side-by-side comparison of all versions
 4. Only proceed if new version ties or improves on all assertions
+
+**Template-literal gotcha:** the prompt body lives inside an `export const SYS = \`...\`` template literal. Any backticks used inside the prompt content close the literal early. Use apostrophes for inline code references (e.g. write `'aviatrix_smart_group.foo.uuid'`, not the backtick form).
+
+**Test harness is currently broken.** `npm run test:prompts` / `:compare` both fail with a Nunjucks `Template render error: expected variable end` whenever a test substitutes a fixture via `{{file://test/fixtures/*.tf}}`. The fixtures themselves contain no Nunjucks tokens; the failure is in promptfoo's template pipeline (likely a regression in a recent `^0.121.x` patch). Tests that use inline TF content still execute correctly. Fixing the harness is its own work item — pin promptfoo, rewrite the runner as a small Node script that calls the Anthropic SDK directly, or use a JSON/YAML messages file with `{% raw %}` wrappers around the user content. Until then, validate prompt changes by running the app against the `test/fixtures/*.tf` files manually.
 
 ### Local Models (LM Studio / Ollama)
 

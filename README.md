@@ -29,6 +29,7 @@ Open http://localhost:5173, create a model profile, and upload Terraform files.
 | **PII Redaction** | IPs, names, BGP ASNs, domains, emails scrubbed client-side before API call; rehydrated after |
 | **Variable Resolution** | Resolves `var.X` references from `.tfvars` client-side |
 | **Anti-Hallucination** | Strict prompt rules — no invented attachments, VPN connections, or data flows |
+| **Aviatrix DCF Extraction** | `aviatrix_smart_group`, `aviatrix_web_group`, and `aviatrix_distributed_firewalling_policy_list` resources are parsed into the HLD's `dcf` section with members, domains, and policy rules. UUID references resolve back to smart_group/web_group names; TLS decryption is flagged from `decrypt_policy` / `tls_profile` |
 | **AI Transparency** | Disclaimer + caveats in HLD and DOCX; unknown vendor stays unknown |
 | **Responsible AI** | Body size limits, output filtering, injection sanitization, no server-side key storage |
 | **Defensive Rendering** | `toStr()`/`toArr()` coerce any model response type — prevents crashes when non-Claude models return objects or strings for array fields |
@@ -77,9 +78,20 @@ terraform-hld-generator/
     favicon.svg         # Browser tab icon
   prompts/
     v1-aviatrix.ts      # Archived v1 prompt (Aviatrix-focused baseline)
-    README.md           # Versioning workflow
+    v2-universal.ts     # Snapshot before broadening to universal Terraform
+    v3-no-aviatrix-bias.ts
+    v4-component-rules.ts
+    v5-schema-template.ts
+    v6-json-template.ts
+    v7-prose-fields.ts  # Snapshot before adding DCF extraction rules (v8 = live)
+    README.md           # Versioning workflow + harness status
   test/
-    fixtures/           # Terraform fixtures for promptfoo tests
+    fixtures/                       # Terraform fixtures for promptfoo tests
+      aws-firenet-palo.tf
+      aws-firenet-tfvars.tf
+      aws-plain-vpc.tf
+      no-firewall.tf
+      aviatrix-dcf-policies.tf      # SmartGroups / WebGroups / policy_list
   promptfoo.yaml        # Prompt regression & versioning test configuration
   vite.config.ts        # Dev server + esbuild (minifyIdentifiers: false)
   vercel.json           # Security headers + rewrites
@@ -113,16 +125,18 @@ terraform-hld-generator/
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-npm run test:prompts          # Test current prompt (v2) only — fast
+npm run test:prompts          # Test current prompt (v8) only — fast (when working)
 npm run test:prompts:compare  # Compare all versions side-by-side
 npm run test:prompts:view     # Open promptfoo browser UI
 ```
 
+> ⚠️ **The harness is currently broken** — every test that substitutes a fixture via `{{file://...}}` fails with a Nunjucks template-render error (regression in `promptfoo ^0.121.x`). Tests with inline TF content still execute. See [`prompts/README.md`](prompts/README.md) for the status and two recommended fixes (pin promptfoo, or replace the runner with a small Node script that calls the Anthropic SDK directly).
+
 ### Changing the prompt
 
-1. Archive current: `cp lib/systemPrompt.ts prompts/v2-universal.ts`
-2. Edit `lib/systemPrompt.ts`
-3. Run `npm run test:prompts:compare` — verify no regression before merging
+1. Archive current: `cp lib/systemPrompt.ts prompts/vN-<label>.ts` (latest archive is `v7-prose-fields.ts`; the live prompt is v8 — DCF extraction)
+2. Edit `lib/systemPrompt.ts`. **Don't put backticks in the prompt body** — they close the surrounding `\`...\`` template literal. Use apostrophes for inline code references.
+3. Run `npm run test:prompts:compare` — verify no regression before merging (or, while the harness is broken, run the dev server against the `test/fixtures/*.tf` files manually)
 
 ## Local Development
 
