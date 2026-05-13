@@ -5,7 +5,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.6.0";
+const APP_VERSION  = "1.7.0";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -886,6 +886,60 @@ async function waitForDocx(): Promise<any> {
 }
 function useDocx() {} // no-op: docx is bundled via npm
 
+// Wait until the CDN-loaded mermaid script finishes initializing
+async function waitForMermaid(timeoutMs = 5000): Promise<any> {
+  const start = Date.now();
+  while (!(window as any).mermaid) {
+    if (Date.now() - start > timeoutMs) throw new Error("Mermaid library did not load in time");
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return (window as any).mermaid;
+}
+
+// Rasterise a Mermaid-produced SVG into a PNG byte array for embedding in DOCX.
+// Pixel-ratio 2x for sharper printing; widthPx caps the rendered width.
+async function svgToPng(svgString: string, widthPx: number): Promise<{ data: Uint8Array; width: number; height: number }> {
+  // Native dimensions: prefer viewBox; fall back to width/height attrs; finally default
+  let nativeW = 800, nativeH = 600;
+  const vb = svgString.match(/viewBox\s*=\s*"([^"]+)"/);
+  if (vb) {
+    const parts = vb[1].split(/\s+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) { nativeW = parts[2]; nativeH = parts[3]; }
+  } else {
+    const wm = svgString.match(/<svg[^>]*\bwidth\s*=\s*"(\d+(?:\.\d+)?)/);
+    const hm = svgString.match(/<svg[^>]*\bheight\s*=\s*"(\d+(?:\.\d+)?)/);
+    if (wm) nativeW = parseFloat(wm[1]);
+    if (hm) nativeH = parseFloat(hm[1]);
+  }
+  const outW = Math.min(widthPx, nativeW);
+  const outH = Math.round((outW / nativeW) * nativeH);
+  const pixelRatio = 2;
+  const canvasW = outW * pixelRatio;
+  const canvasH = outH * pixelRatio;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const canvas = window.document.createElement("canvas");
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Canvas 2D context unavailable")); return; }
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => {
+        if (!b) { reject(new Error("canvas.toBlob returned null")); return; }
+        b.arrayBuffer().then(ab => resolve({ data: new Uint8Array(ab), width: outW, height: outH }));
+      }, "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Browser failed to load SVG into an <img>")); };
+    img.src = url;
+  });
+}
+
 async function exportDocx(data:any,customerName:string){
   const D=await waitForDocx();
   // toStr ensures objects from non-Claude models don't crash D.TextRun
@@ -913,9 +967,11 @@ async function exportDocx(data:any,customerName:string){
   const addSection=(title:string,val:any)=>{const text=safe(val);if(text){sections.push(h2(title));sections.push(p(text));}};
   addSection("Executive Summary",data.executive_summary);
 
-  // Architecture Overview — description + meta (pattern, regions, AZs, diagram description)
+  // Architecture Overview — description + meta + topology diagram
   const ao=data.architecture_overview||{};
-  if(safe(ao.description)||ao.pattern||toArr(ao.regions).length||toArr(ao.availability_zones).length||safe(ao.diagram_description)){
+  const mermaidCode=toStr(data.mermaid_diagram)||buildMermaid(data,false);
+  const hasArchContent=safe(ao.description)||ao.pattern||toArr(ao.regions).length||toArr(ao.availability_zones).length||safe(ao.diagram_description)||mermaidCode.trim();
+  if(hasArchContent){
     sections.push(h2("Architecture Overview"));
     if(ao.description)sections.push(p(toStr(ao.description)));
     const meta=[
@@ -925,6 +981,24 @@ async function exportDocx(data:any,customerName:string){
     ].filter(Boolean).join(" | ");
     if(meta)sections.push(p(meta));
     if(ao.diagram_description)sections.push(p(toStr(ao.diagram_description)));
+    // Best-effort Mermaid → PNG embed. Any failure (CDN slow, SVG render error,
+    // tainted canvas, etc.) leaves a small italic note but doesn't abort the export.
+    if(mermaidCode.trim()){
+      try{
+        const mermaidLib=await waitForMermaid(3000);
+        initMermaid(false);
+        const{svg}=await mermaidLib.render("docx-mm-"+Date.now(),mermaidCode);
+        const{data:pngBytes,width,height}=await svgToPng(svg,640);
+        sections.push(h3("Topology Diagram"));
+        sections.push(new D.Paragraph({
+          children:[new D.ImageRun({data:pngBytes,transformation:{width,height},type:"png"})],
+          spacing:{before:120,after:120},
+        }));
+      }catch(e:any){
+        Sentry.captureException(e,{tags:{action:"docx-mermaid"}});
+        sections.push(new D.Paragraph({children:[new D.TextRun({text:`(Topology diagram could not be embedded: ${e?.message||"unknown error"}. Open the app to view it.)`,italics:true,size:18,color:"888888"})],spacing:{after:120}}));
+      }
+    }
   }
 
   // Network Design — description + VPCs table + Subnets table + routing/domains/connectivity
