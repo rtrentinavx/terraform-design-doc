@@ -102,6 +102,16 @@ Non-Claude models return different JSON field names. Always try multiple alterna
 - `initMermaid(dark)` must be called before `window.mermaid.render()` to apply the correct theme
 - DCF and Edge tabs are conditionally shown based on whether data is present in the HLD
 
+### Versioning policy
+
+Three sources MUST stay in lockstep: `APP_VERSION` in `src/App.tsx`, `version` in `package.json`, and the `**Version:**` line in `PRD.md`. Bump them **as part of the commit that ships the change**, not in a separate "version bump" commit.
+
+- **PATCH** (e.g. 1.4.0 → 1.4.1) — bug fixes, internal cleanup, doc-only changes
+- **MINOR** (e.g. 1.4.0 → 1.5.0) — user-visible features or behaviour changes
+- **MAJOR** (e.g. 1.x → 2.0.0) — breaking changes (schema breaks, removed actions)
+
+Do NOT bump on every commit — semver isn't a commit counter. Group fixes into a single PATCH bump, group features into a single MINOR bump.
+
 ### DCF (Aviatrix Distributed Cloud Firewall) extraction
 The prompt has explicit rules (see `DCF (Aviatrix Distributed Cloud Firewall)` section in `lib/systemPrompt.ts`) for extracting:
 - `aviatrix_smart_group` → `dcf.smart_groups[]` with `members[]` summarised from `selector.match_expressions` (cidr / fqdn / site / s2c / type=vm|k8s|serverless / external+ext_args)

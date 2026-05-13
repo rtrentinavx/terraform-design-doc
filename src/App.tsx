@@ -5,7 +5,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.3.0";
+const APP_VERSION  = "1.4.0";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
