@@ -6,7 +6,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.7.1";
+const APP_VERSION  = "1.7.2";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -896,6 +896,8 @@ async function waitForMermaid(timeoutMs = 5000): Promise<any> {
 
 // Rasterise a Mermaid-produced SVG into a PNG byte array for embedding in DOCX.
 // Pixel-ratio 2x for sharper printing; widthPx caps the rendered width.
+// Tries blob:URL first, falls back to a data:URL — some browser / CSP combos
+// reject blob: for inline SVG even when the policy nominally allows it.
 async function svgToPng(svgString: string, widthPx: number): Promise<{ data: Uint8Array; width: number; height: number }> {
   // Native dimensions: prefer viewBox; fall back to width/height attrs; finally default
   let nativeW = 800, nativeH = 600;
@@ -914,28 +916,53 @@ async function svgToPng(svgString: string, widthPx: number): Promise<{ data: Uin
   const pixelRatio = 2;
   const canvasW = outW * pixelRatio;
   const canvasH = outH * pixelRatio;
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    img.onload = () => {
-      const canvas = window.document.createElement("canvas");
-      canvas.width = canvasW;
-      canvas.height = canvasH;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Canvas 2D context unavailable")); return; }
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      ctx.drawImage(img, 0, 0, canvasW, canvasH);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(b => {
-        if (!b) { reject(new Error("canvas.toBlob returned null")); return; }
-        b.arrayBuffer().then(ab => resolve({ data: new Uint8Array(ab), width: outW, height: outH }));
-      }, "image/png");
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Browser failed to load SVG into an <img>")); };
-    img.src = url;
-  });
+
+  const rasterise = (srcUrl: string, cleanup: () => void): Promise<{ data: Uint8Array; width: number; height: number }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const timer = window.setTimeout(() => { cleanup(); reject(new Error("SVG-to-PNG timed out after 8 s")); }, 8000);
+      img.onload = () => {
+        window.clearTimeout(timer);
+        const canvas = window.document.createElement("canvas");
+        canvas.width = canvasW;
+        canvas.height = canvasH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { cleanup(); reject(new Error("Canvas 2D context unavailable")); return; }
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        try { ctx.drawImage(img, 0, 0, canvasW, canvasH); }
+        catch (e: any) { cleanup(); reject(new Error("drawImage failed (canvas tainted?): " + (e?.message || e))); return; }
+        cleanup();
+        canvas.toBlob(b => {
+          if (!b) { reject(new Error("canvas.toBlob returned null")); return; }
+          b.arrayBuffer().then(ab => resolve({ data: new Uint8Array(ab), width: outW, height: outH }));
+        }, "image/png");
+      };
+      img.onerror = () => {
+        window.clearTimeout(timer);
+        cleanup();
+        reject(new Error("Browser refused the SVG (likely <foreignObject> in the source — Mermaid should be initialised with htmlLabels:false for DOCX rendering)"));
+      };
+      img.src = srcUrl;
+    });
+
+  // First attempt: blob URL (smaller, no encoding cost)
+  const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    return await rasterise(blobUrl, () => URL.revokeObjectURL(blobUrl));
+  } catch (blobErr) {
+    // Fallback: data URL — encode the SVG as base64. Slower but works under
+    // strict CSP setups that reject blob: for <img>.
+    try {
+      const b64 = window.btoa(unescape(encodeURIComponent(svgString)));
+      const dataUrl = "data:image/svg+xml;base64," + b64;
+      return await rasterise(dataUrl, () => {});
+    } catch (dataErr: any) {
+      throw new Error(`SVG→PNG failed via blob (${(blobErr as any)?.message || blobErr}) and via data URL (${dataErr?.message || dataErr})`);
+    }
+  }
 }
 
 async function exportDocx(data:any,customerName:string){
@@ -984,7 +1011,16 @@ async function exportDocx(data:any,customerName:string){
     if(mermaidCode.trim()){
       try{
         const mermaidLib=await waitForMermaid(3000);
-        initMermaid(false);
+        // Force pure-SVG text labels (htmlLabels:false) so the rendered SVG
+        // doesn't contain <foreignObject> — which most browsers refuse to
+        // rasterise via <img>+canvas. Light theme for white-paper readability.
+        mermaidLib.initialize({
+          startOnLoad:false,
+          theme:"default",
+          flowchart:{htmlLabels:false,curve:"basis"},
+          sequence:{htmlLabels:false},
+          class:{htmlLabels:false},
+        });
         const{svg}=await mermaidLib.render("docx-mm-"+Date.now(),mermaidCode);
         const{data:pngBytes,width,height}=await svgToPng(svg,640);
         sections.push(h3("Topology Diagram"));
