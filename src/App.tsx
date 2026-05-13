@@ -5,7 +5,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.4.0";
+const APP_VERSION  = "1.5.0";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -137,6 +137,21 @@ function getModelTempConfig(model:string):ModelTempConfig{
     return{min:0,max:2,optimal:0,note:"Best at 0 for deterministic structured JSON"};
   // Default fallback
   return{min:0,max:2,optimal:undefined,note:"Set manually or leave at model default"};
+}
+
+// Models known to handle the 17 KB system prompt and produce the full HLD schema reliably.
+// Used for a ✓ recommendation badge in the model picker; does NOT filter the list.
+// Embeddings / image / TTS / moderation / legacy completion models are explicit non-matches.
+function isRecommendedModel(id:string):boolean{
+  const m=id.toLowerCase();
+  // Categorical rejects (wrong API surface): embeddings, image gen, audio, moderation, stability
+  if(/embed|moderation|whisper|tts|dall.?e|imagen|stable.?diffusion|stability\.|titan-image|^aqa$/.test(m))return false;
+  // Legacy OpenAI completion models
+  if(/^(babbage|davinci|curie|ada|text-davinci|text-curie|text-ada|text-babbage|code-)/.test(m))return false;
+  // Old / tiny chat models: known to truncate or hallucinate on the HLD schema
+  if(/claude-(instant|1\.|2\.)|gpt-3\.5|gpt-3-|gemini-pro$|gemini-1\.0|nova-micro|llama.?3-2-(1|3)b|llama.?3-1-8b|llama-?3-8b|mistral.?small|jamba.?1-5.?mini/.test(m))return false;
+  // Accept known-good chat / reasoning models across providers
+  return /claude-(opus|sonnet|haiku|3-5|3-7)|gpt-4|gpt-5|^o[1-9]|gemini-(1\.5|2\.|3\.|exp)|nova-(pro|lite)|llama.?3-3-70b|llama.?3-2-90b|llama.?3-1-70b|mistral.?large|mixtral|command-r|jamba.?1-5.?large|kimi|palmyra-x[4-9]|deepseek-(r1|v3)/.test(m);
 }
 
 const autoName=(provider:string,model:string)=>{
@@ -290,12 +305,21 @@ function ProfileEditor({initial,onSave,onCancel}:{initial:ModelProfile,onSave:(p
               {fetching?"Fetching…":"Fetch models"}
             </button>
           </div>
-          {models.length>0?(
-            <select value={p.model} onChange={e=>up("model",e.target.value)} className={inp} style={inpS}>
-              <option value="">Select a model…</option>
-              {models.map(m=><option key={m} value={m} style={{background:AV.nm}}>{m}</option>)}
-            </select>
-          ):(
+          {models.length>0?(()=>{
+            const recommended=models.filter(isRecommendedModel).slice().sort();
+            const others=models.filter(m=>!isRecommendedModel(m)).slice().sort();
+            const sorted=[...recommended,...others];
+            const recCount=recommended.length;
+            return(<>
+              <select value={p.model} onChange={e=>up("model",e.target.value)} className={inp} style={inpS}>
+                <option value="">Select a model…</option>
+                {sorted.map(m=><option key={m} value={m} style={{background:AV.nm}}>{isRecommendedModel(m)?`✓ ${m}`:m}</option>)}
+              </select>
+              <p className="text-xs mt-1.5" style={{color:AV.td}}>
+                <span style={{color:"#22C55E"}}>✓</span> marks models suited to the full HLD schema ({recCount} of {models.length}). Unmarked models may be too small, too old, or the wrong API surface (embeddings, image, TTS).
+              </p>
+            </>);
+          })():(
             <input type="text" placeholder="e.g. claude-sonnet-4-20250514 or fetch above" value={p.model} onChange={e=>up("model",e.target.value)} className={inp} style={inpS}/>
           )}
           {fetchErr&&<p className="text-xs mt-1" style={{color:"#F9A8D4"}}>{fetchErr}</p>}
