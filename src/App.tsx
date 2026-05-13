@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as Sentry from "@sentry/react";
+import * as Docx from "docx";
 import { HLDSchema } from "../lib/iddSchema";
 import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.7.0";
+const APP_VERSION  = "1.7.1";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -877,14 +878,11 @@ const VE=[".tf",".tfvars"];
 function isV(fileName:string){return VE.some(ext=>fileName.endsWith(ext));}
 function isM(fileName:string){return fileName.includes("__MACOSX")||fileName.includes(".DS_Store");}
 function useJSZip(){useEffect(()=>{if(window.JSZip)return;const s=window.document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";window.document.head.appendChild(s);},[]);}
-// docx loaded from npm bundle — no CDN dependency, no load failures
-let _docxModule: any = null;
-async function waitForDocx(): Promise<any> {
-  if (_docxModule) return _docxModule;
-  _docxModule = await import("docx");
-  return _docxModule;
-}
-function useDocx() {} // no-op: docx is bundled via npm
+// docx imported statically — loaded with the main bundle so the chunk can't
+// go stale between page load and an Export click. waitForDocx() is kept as a
+// no-op shim so existing callers don't need to change.
+async function waitForDocx(): Promise<any> { return Docx; }
+function useDocx() {} // no-op
 
 // Wait until the CDN-loaded mermaid script finishes initializing
 async function waitForMermaid(timeoutMs = 5000): Promise<any> {
@@ -1300,7 +1298,17 @@ function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,gen
   const doExport=async()=>{
     setExporting(true);
     try{await onExport();}
-    catch(e){alert("Export failed: "+e.message);}
+    catch(e:any){
+      const msg=String(e?.message||e);
+      // Stale-chunk failure: deploy happened while the tab was open, so a
+      // dynamic import 404s. Offer a reload — the only real fix.
+      if(/Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(msg)){
+        if(window.confirm("The app has been updated since you loaded this page. Reload now to enable export?\n\nNote: this will clear the current view; you'll need to re-upload your Terraform files."))
+          window.location.reload();
+      }else{
+        alert("Export failed: "+msg);
+      }
+    }
     finally{setTimeout(()=>setExporting(false),1500);}
   };
 
