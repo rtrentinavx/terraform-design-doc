@@ -1,12 +1,16 @@
 import { checkOrigin } from "./_origin.js";
 import { cacheGet, cacheSet } from "./_cache.js";
 
-// Fallback Aviatrix modules always included
+// Aviatrix modules — fetched only when the detected module list contains
+// an Aviatrix source, OR on a bare GET (legacy fallback for clients that
+// don't post a module list). Avoids paying the registry-fetch cost on
+// every non-Aviatrix HLD generation.
 const AVIATRIX_MODULES = [
   "terraform-aviatrix-modules/mc-transit/aviatrix",
   "terraform-aviatrix-modules/mc-spoke/aviatrix",
   "terraform-aviatrix-modules/mc-firenet/aviatrix",
 ];
+const isAviatrixSource = (src) => /aviatrix/i.test(src);
 
 // Variables to extract per module (curated list; for unknown modules extract all non-null defaults)
 const CURATED = {
@@ -59,9 +63,13 @@ export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") return res.status(405).end();
   if (!checkOrigin(req, res)) return;
 
-  // Accept dynamic module list from client (POST) or fall back to Aviatrix defaults (GET)
+  // Accept dynamic module list from client (POST) or fall back to Aviatrix defaults (GET).
+  // Only include the hardcoded Aviatrix module set when the detected list itself
+  // contains an Aviatrix source — otherwise we'd burn registry fetches on every
+  // plain-AWS/Azure/GCP HLD generation.
   const detected = req.method === "POST" ? (req.body?.modules || []) : [];
-  const toFetch = [...new Set([...AVIATRIX_MODULES, ...detected])];
+  const includeAviatrix = req.method === "GET" || detected.some(isAviatrixSource);
+  const toFetch = [...new Set([...(includeAviatrix ? AVIATRIX_MODULES : []), ...detected])];
 
   // Cache key based on sorted module list — shared across all users
   const cacheKey = `registry:${toFetch.slice().sort().join(",")}`;

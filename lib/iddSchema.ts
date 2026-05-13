@@ -5,9 +5,12 @@ const VpcSchema = z.object({
   cidr: z.string(),
   purpose: z.string(),
   type: z.enum(["transit","spoke","mgmt","shared","unknown"]),
-  gw_size: z.string(),
-  connected_transit: z.string(),
-  firenet: z.boolean(),
+  gw_size: z.string().default(""),
+  // Aviatrix-specific — default to safe empty values so non-Aviatrix configs
+  // don't have to emit these fields explicitly. The prompt still populates
+  // them for Aviatrix VPCs.
+  connected_transit: z.string().default(""),
+  firenet: z.boolean().default(false),
 });
 
 const SubnetSchema = z.object({

@@ -448,141 +448,6 @@ function catStyle(category:string):{card:any,text:any,badge:any}{
   };
 }
 
-// ── System prompt ──────────────────────────────────────────────────────────
-const SYS=`You are a senior cloud infrastructure architect writing a formal High Level Design (HLD). You will be given a tool called generate_hld — call it exactly once with all fields populated.
-
-ANTI-HALLUCINATION — CRITICAL: You MUST only document what is EXPLICITLY present in the Terraform code. Do NOT infer, assume, or fabricate:
-- Do NOT add spoke-to-transit attachments unless aviatrix_spoke_transit_attachment or mc-spoke with transit_gateway parameter exists in the code
-- Do NOT add VPN/Direct Connect/ExpressRoute connections unless aviatrix_transit_external_device_conn or equivalent resources are explicitly defined
-- Do NOT add data flows that assume connectivity paths not defined in the code
-- Do NOT confuse AWS Transit Gateway (TGW) with Aviatrix Transit Gateway — they are different. TGW = aws_ec2_transit_gateway; Aviatrix Transit = aviatrix_transit_gateway
-- Do NOT assume a VPC is a "spoke" just because it is not a transit — check if aviatrix_spoke_gateway or mc-spoke exists for that VPC
-- For external_connections: type must match the actual resource (aviatrix_transit_external_device_conn with connection_type="bgp" → type="bgp", with "directconnect" → type="direct_connect")
-- VPCs with no spoke gateway or transit attachment are standalone VPCs — set type="unknown" and connected_transit=""
-- For data_flows: only describe paths that can be traced through actual resources (gateways, attachments, firenet policies). Do NOT invent traffic paths
-- If a customer name reference (e.g. "TGWO") appears in resource names, include it in the title and diagrams
-
-IMPORTANT — DESCRIPTIONS: Every "description" field must be a meaningful 2-4 sentence explanation. Do NOT leave descriptions empty or generic. Explain the WHY and HOW:
-- executive_summary: Summarize the full architecture purpose, cloud provider, key design patterns, HA strategy, and security posture in 3-5 sentences.
-- architecture_overview.description: Explain the topology pattern, how transit/spoke VPCs interconnect, regional strategy, and connectivity model.
-- network_design.description: Explain the IP addressing strategy, CIDR allocation, subnet layout, and how traffic routes between VPCs.
-- Each VPC purpose: Explain what workloads or services the VPC hosts and why it exists.
-- security.description: Explain the overall security architecture including firewall placement, inspection model, encryption, and access control strategy.
-- compute.description: Explain the compute instances deployed, their roles, sizing rationale, and HA configuration.
-- Each component purpose: Explain what the component does in the architecture and why it is needed.
-- Each data_flow description: Explain the traffic path, what triggers it, and any inspection/encryption along the way.
-- routing: Explain the routing model (BGP, static, dynamic), route propagation, and any route filtering.
-- network_domains: Explain Aviatrix Network Domains strategy and how domains are isolated. Only populate if enable_segmentation=true is set on transit gateways; leave empty string if not enabled.
-- connectivity: Explain how on-prem, edge, and cloud networks interconnect.
-- deployment_notes: Explain deployment order, dependencies, prerequisites, and any automation considerations.
-
-AVIATRIX TERRAFORM DEFAULTS — Use these when values are NOT explicitly set in the uploaded Terraform files:
-
-mc-transit module defaults:
-  gw_size: AWS=t3.medium, Azure=Standard_B1ms, GCP=n1-standard-1, OCI=VM.Standard2.2
-  gw_size (insane_mode=true or firenet): AWS=c5n.xlarge, Azure=Standard_D3_v2, GCP=n1-highcpu-4, OCI=VM.Standard2.4
-  ha_gw=true, insane_mode=false, connected_transit=true, bgp_ecmp=false, enable_segmentation=false, single_az_ha=true, bgp_polling_time=50s, tunnel_detection_time=60s
-
-mc-spoke module defaults:
-  gw_size: AWS=t3.medium, Azure=Standard_B1ms, GCP=n1-standard-1, OCI=VM.Standard2.2
-  ha_gw=true, insane_mode=false, attached=true, single_az_ha=true, enable_bgp=false, tunnel_detection_time=60s
-
-mc-firenet module defaults:
-  fw instance_size: AWS=c5.xlarge, Azure=Standard_D3_v2, GCP=n1-standard-4, OCI=VM.Standard2.4
-  fw_amount=2, inspection_enabled=true, egress_enabled=false, attached=true
-
-aviatrix_transit_gateway resource defaults:
-  gw_size=REQUIRED, ha_gw_size inherits gw_size if omitted, single_az_ha=false, connected_transit=false, enable_segmentation=false, insane_mode=false, bgp_ecmp=false, bgp_polling_time=50, tunnel_detection_time=60
-
-aviatrix_spoke_gateway resource defaults:
-  gw_size=REQUIRED, ha_gw_size inherits gw_size if omitted, single_az_ha=false, manage_transit_gateway_attachment=true, tunnel_detection_time=60
-
-aviatrix_firenet resource defaults:
-  inspection_enabled=true, egress_enabled=false, hashing_algorithm=5-Tuple, manage_firewall_instance_association=true
-
-GATEWAY SIZES: For each VPC, extract the Aviatrix gateway VM instance size (gw_size). Look at gw_size in aviatrix_transit_gateway, aviatrix_spoke_gateway resources, OR instance_size in mc-transit/mc-spoke modules. If not explicitly set, apply the defaults above based on cloud provider and whether insane_mode/firenet is enabled. Always include the VM instance type string (e.g. "t3.medium", "c5n.xlarge", "Standard_D3_v2"). If HA is enabled (ha_gw=true or ha_subnet set), append " (HA)" to gw_size.
-
-SPOKE/MGMT VPC TRANSIT ATTACHMENT — CRITICAL: For every non-transit VPC, you MUST populate connected_transit with the exact name of the transit VPC it attaches to. Look at:
-- mc-spoke module: transit_gateway parameter specifies the transit gateway name
-- aviatrix_spoke_transit_attachment resource: spoke_gw_name and transit_gw_name
-- aviatrix_spoke_gateway: transit_gw parameter
-- Any resource linking a spoke/mgmt gateway to a transit gateway
-The connected_transit value MUST exactly match the "name" of one of the transit VPCs in the vpcs array. If a spoke connects to multiple transits, comma-separate them. NEVER leave connected_transit empty for spoke/mgmt VPCs.
-
-FIREWALL — CRITICAL: This is the MOST IMPORTANT section. Search ALL uploaded files thoroughly for ANY mention of firewalls.
-Set firewall_detail.present=true if ANY of these are found ANYWHERE in the code: aviatrix_firewall_instance, aviatrix_firewall_instance_association, aviatrix_firenet, aviatrix_transit_firenet_policy, mc-firenet module, enable_firenet=true, firewall_image, firewall_size, fw_amount, firenet_gw_name, firewall_name, lan_interface, management_interface, egress_interface, or any string containing "Palo Alto", "FortiGate", "CloudGuard", "VM-Series", "Bundle 1", "Bundle 2", "BYOL", "PAYG", "NGFW", "firenet", "-fw1", "-fw2".
-
-STATE EXPORT PATTERN: Terraform state exports often have aviatrix_firewall_instance_association (with firewall_name, lan/mgmt/egress interfaces) and aviatrix_firenet (with inspection_enabled, hashing_algorithm) but NO aviatrix_firewall_instance resource. In this case you MUST still set present=true and infer all details:
-- Count firewall_instance_association resources to determine fw_amount and ha_mode
-- Parse firewall_name (e.g. "aws-aviatrix-transit-pri-fw1") to identify the transit gateway
-- Interfaces (lan, management, egress) confirm it is a Transit FireNet deployment
-- Use per-cloud defaults for all missing fields (vendor, product, instance_size, etc.)
-
-ZERO TOLERANCE FOR "unknown" or "Unknown" — When present=true, you MUST populate EVERY field with a real value. NEVER write "unknown", "Unknown", or empty string for ANY firewall_detail field.
-
-VARIABLE RESOLUTION — MANDATORY: When firewall_image references var.firewall_image, you MUST search ALL .tfvars files AND variable "firewall_image" { default = "..." } blocks for its actual string value. Parse the FULL image string to extract vendor, product, and license info.
-
-mc-firenet MODULE DEFAULTS (from registry.terraform.io — use when values not explicitly set):
-  fw_amount = 2 (must be even)
-  inspection_enabled = true
-  egress_enabled = false
-  attached = true
-  firewall_image = REQUIRED (no default — see fallback rules below)
-  firewall_image_version = null (uses latest)
-  instance_size = null (falls back to per-cloud defaults below)
-  hashing_algorithm = 5-Tuple
-  password = "Aviatrix#1234" (Azure only)
-
-mc-firenet INSTANCE SIZE DEFAULTS (from locals.tf instance_size_map):
-  AWS: c5.xlarge (4 vCPU, 8 GB)
-  Azure: Standard_D3_v2 (4 vCPU, 14 GB)
-  GCP: n1-standard-4 (4 vCPU, 15 GB)
-  OCI: VM.Standard2.4 (4 vCPU, 60 GB)
-
-FIREWALL IMAGE STRINGS (from registry.terraform.io examples):
-  AWS Palo Alto: "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1" → vendor=Palo Alto Networks, product=VM-Series, license_model=PAYG, license_type=Bundle 1
-  AWS Palo Alto BYOL: "Palo Alto Networks VM-Series Next-Generation Firewall (BYOL)" → BYOL
-  AWS Fortinet: "Fortinet FortiGate Next-Generation Firewall" → vendor=Fortinet, product=FortiGate, license_model=PAYG
-  AWS Fortinet BYOL: "Fortinet FortiGate (BYOL) Next-Gen Firewall" → BYOL
-  Azure Check Point BYOL: "Check Point CloudGuard IaaS Single Gateway R80.40 - Bring Your Own License" → vendor=Check Point, product=CloudGuard, license_model=BYOL
-  Azure Check Point PAYG: "Check Point CloudGuard IaaS Single Gateway R80.40 - Pay As You Go (NGTP)" → PAYG
-  GCP Palo Alto: "Palo Alto Networks VM-Series Next-Generation Firewall BUNDLE1" → vendor=Palo Alto Networks, product=VM-Series, license_model=PAYG
-  AWS FQDN Egress: "aviatrix" → vendor=Aviatrix, product=FQDN Egress Gateway
-
-VENDOR DETECTION (from mc-firenet locals.tf):
-  "check point" in lowercase firewall_image → Check Point
-  "palo" in lowercase firewall_image → Palo Alto Networks
-  "fortinet" or "fortigate" in lowercase firewall_image → Fortinet
-  "aviatrix" in lowercase firewall_image → Aviatrix FQDN
-
-FALLBACK RULES (when firewall_image cannot be resolved from code):
-  1. If mc-firenet is used but firewall_image is var reference with no resolvable value → default to "Palo Alto Networks VM-Series Next-Generation Firewall (BYOL)" for AWS/GCP, "Palo Alto Networks VM-Series Next-Generation Firewall Bundle 1" for Azure
-  2. vendor=Palo Alto Networks, product=VM-Series, license_model=BYOL, license_type=BYOL
-
-Field extraction rules:
-- vendor: Parse from resolved firewall_image string. Fallback: "Palo Alto Networks"
-- product: Palo Alto=VM-Series, Fortinet=FortiGate, Check Point=CloudGuard, Aviatrix=FQDN Egress Gateway
-- instance_size: From instance_size/firewall_size in mc-firenet or aviatrix_firewall_instance. Fallback: use mc-firenet defaults above
-- vcpus: Map from instance_size. c5.xlarge=4, c5.2xlarge=8, c5n.xlarge=4, c5.4xlarge=16, Standard_D3_v2=4, n1-standard-4=4, VM.Standard2.4=4
-- memory_gb: c5.xlarge=8, c5.2xlarge=16, c5n.xlarge=10.5, c5.4xlarge=32, Standard_D3_v2=14, n1-standard-4=15, VM.Standard2.4=60
-- license_model: "BYOL" if image contains BYOL; "PAYG" if image contains Bundle/Pay As You Go/NGTP. Fallback: "BYOL"
-- license_type: Extract from image: "Bundle 1", "Bundle 2", "BYOL", "NGTP", etc. Fallback: "BYOL"
-- ha_mode: fw_amount>=2 → "active-active"; fw_amount=1 → "standalone". Default fw_amount=2 → "active-active"
-- ha_instances: fw_amount value. Default: 2
-- deployment_mode: "Transit FireNet" if enable_transit_firenet=true or transit+firenet; "FireNet" otherwise
-- interfaces: ["management","egress","lan"] for Transit FireNet
-- version: from firewall_image_version if set, or from image string (e.g. R80.40). Fallback: "latest"
-- notes: 2-3 sentence explanation of deployment, inspection (5-Tuple hashing), and HA. NEVER leave empty.
-  Standard_D3_v2=4vCPU/14GB, Standard_D4_v2=8vCPU/28GB
-  n1-standard-4=4vCPU/15GB, n1-standard-8=8vCPU/30GB
-
-EDGE: aviatrix_edge_gateway_selfmanaged→selfmanaged, aviatrix_edge_equinix→equinix, aviatrix_edge_zscaler→zscaler, aviatrix_edge_platform→platform, aviatrix_edge_megaport→megaport, aviatrix_edge_spoke→spoke. Extract gw_name, site_id→location, gw_size→size, wan_interface_names→wan, lan_interface_names→lan, bgp_local_as_num→bgp_asn. aviatrix_edge_spoke_transit_attachment→connected_transit. HA resource→ha=true. Edge devices connect to TRANSIT gateways only, never spoke VPCs.
-
-EXTERNAL: aviatrix_transit_external_device_conn→external_connections[].
-
-DCF: aviatrix_distributed_firewalling_policy_list policies{}→rules (PERMIT→allow, DENY→deny). aviatrix_distributed_firewalling_default_action_rule→default_action. Predefined: "any"=def000ad-0000-0000-0000-000000000000, "internet"=def000ad-0000-0000-0000-000000000001. Default action: 1)default_action_rule 2)policy named default/Greenfield 3)if DCF enabled→allow 4)unknown.`;
-
-
 
 // ── Mermaid Diagram ───────────────────────────────────────────────────────
 function initMermaid(dark=true){
@@ -1027,6 +892,99 @@ async function exportDocx(data:any,customerName:string){
     sections.push(p(`License: ${safe(fw.license_type)} | Deployment: ${safe(fw.deployment_mode)}`));
     sections.push(p(fw.notes));
   }
+
+  // DCF Policies — only when there's Aviatrix DCF content to show
+  const dcf=data.dcf||{};
+  const smartGroups=toObjArr(dcf.smart_groups);
+  const webGroups=toObjArr(dcf.web_groups);
+  const rulesets=toObjArr(dcf.rulesets);
+  if(dcf.enabled||smartGroups.length||webGroups.length||rulesets.length){
+    sections.push(h2("Aviatrix DCF Policies"));
+    if(dcf.summary)sections.push(p(toStr(dcf.summary)));
+    const flags=[
+      ["Status",dcf.enabled?"Enabled":"Not detected"],
+      ["Default Action",safe(dcf.default_action)||"—"],
+      dcf.egress_enabled&&["Egress","On"],
+      dcf.tls_decryption_enabled&&["TLS Inspection","On"],
+      dcf.kubernetes_enabled&&["Kubernetes","On"],
+    ].filter(Boolean) as [string,string][];
+    sections.push(p(flags.map(([l,v])=>`${l}: ${v}`).join(" | ")));
+    if(smartGroups.length){
+      sections.push(new D.Paragraph({children:[new D.TextRun({text:`SmartGroups (${smartGroups.length})`,bold:true,size:24,color:"333333"})],spacing:{before:120,after:60}}));
+      smartGroups.forEach((sg:any)=>{
+        const mem=toArr(sg.members||sg.cidrs||sg.values||sg.matches);
+        const ft=toStr(sg.filter_type||sg.type);
+        const head=`• ${toStr(sg.name)}${ft?` [${ft}]`:""}`;
+        sections.push(p(head));
+        if(mem.length)sections.push(p(`    Members: ${mem.join(", ")}`));
+        else if(sg.description)sections.push(p(`    ${toStr(sg.description)}`));
+      });
+    }
+    if(webGroups.length){
+      sections.push(new D.Paragraph({children:[new D.TextRun({text:`WebGroups (${webGroups.length})`,bold:true,size:24,color:"333333"})],spacing:{before:120,after:60}}));
+      webGroups.forEach((wg:any)=>{
+        const dom=toArr(wg.domains||wg.snifilter||wg.urlfilter||wg.filters);
+        sections.push(p(`• ${toStr(wg.name)}`));
+        if(dom.length)sections.push(p(`    Domains: ${dom.join(", ")}`));
+        else if(wg.description)sections.push(p(`    ${toStr(wg.description)}`));
+      });
+    }
+    rulesets.forEach((rs:any)=>{
+      const rules=toObjArr(rs.rules);
+      sections.push(new D.Paragraph({children:[new D.TextRun({text:`${toStr(rs.name)||"Ruleset"} (${rules.length} rules)`,bold:true,size:24,color:"333333"})],spacing:{before:120,after:60}}));
+      if(!rules.length)return;
+      const headerCells=["#","Name","Src","Dst","Proto","Port","Action","Log","TLS"].map(h=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:h,bold:true,size:18,color:"FFFFFF"})]})],shading:{fill:"333333"}}));
+      const rows=[new D.TableRow({children:headerCells,tableHeader:true})].concat(
+        rules.map((r:any,i:number)=>new D.TableRow({children:[
+          String(r.priority??i+1),
+          toStr(r.name)||"—",
+          toStr(r.src)||"Any",
+          toStr(r.dst)||"Any",
+          toStr(r.protocol)||"Any",
+          toStr(r.port)||"Any",
+          toStr(r.action)||"—",
+          r.logging?"✓":"—",
+          r.tls_decryption?"✓":"—",
+        ].map(text=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:String(text),size:16})]})]}))}))
+      );
+      sections.push(new D.Table({rows,width:{size:100,type:D.WidthType.PERCENTAGE}}));
+    });
+  }
+
+  // Edge devices (Aviatrix-specific resource types)
+  const edges=toObjArr(data.edge_devices);
+  if(edges.length){
+    sections.push(h2(`Edge Devices (${edges.length})`));
+    edges.forEach((e:any)=>{
+      sections.push(p(`• ${toStr(e.name)} — ${toStr(e.type)}${e.ha?" (HA)":""}`));
+      const kv=[
+        e.location&&`Location: ${toStr(e.location)}`,
+        e.size&&`Size: ${toStr(e.size)}`,
+        e.wan&&`WAN: ${toStr(e.wan)}`,
+        e.lan&&`LAN: ${toStr(e.lan)}`,
+        e.connected_transit&&`Connected Transit: ${toStr(e.connected_transit)}`,
+        e.bgp_asn&&`BGP ASN: ${toStr(e.bgp_asn)}`,
+      ].filter(Boolean).join(" | ");
+      if(kv)sections.push(p(`    ${kv}`));
+    });
+  }
+
+  // External connections (VPN / Direct Connect / ExpressRoute / Interconnect)
+  const ext=toObjArr(data.external_connections);
+  if(ext.length){
+    sections.push(h2(`External Connections (${ext.length})`));
+    ext.forEach((c:any)=>{
+      sections.push(p(`• ${toStr(c.name)} — ${toStr(c.type)}`));
+      const kv=[
+        c.tunnel_protocol&&`Tunnel: ${toStr(c.tunnel_protocol)}`,
+        c.local_gw&&`Local GW: ${toStr(c.local_gw)}`,
+        c.remote_ip&&`Remote IP: ${toStr(c.remote_ip)}`,
+        c.bgp_asn&&`BGP ASN: ${toStr(c.bgp_asn)}`,
+      ].filter(Boolean).join(" | ");
+      if(kv)sections.push(p(`    ${kv}`));
+    });
+  }
+
   addSection("Deployment Notes",data.deployment_notes);
   const title=safe(data.title)||"HLD";
   const doc=new D.Document({sections:[{children:sections.filter(Boolean)}],creator:"Terraform Design Doc Generator",title,description:"AI-generated High Level Design — verify before use"});
@@ -2257,7 +2215,7 @@ export default function App(){
                   ["Share Document","Generate a shareable URL for any HLD via Upstash Redis (30-day TTL, 512 KB max); recipients open the URL with no API key required and see the same document with all tabs, diagrams, and exports"],
                   ["Temperature per Profile","Per-profile temperature control with model-default option for thinking/reasoning models (Kimi K2, DeepSeek R1)"],
                   ["DCF Policy Suggestion","Generate tentative Aviatrix Distributed Cloud Firewall config (SmartGroups, WebGroups, rulesets, Terraform HCL) from discovered network segments"],
-                  ["Prompt Versioning & Testing","promptfoo regression suite with versioned prompts — npm run test:prompts (current) or test:prompts:compare (all versions side-by-side); v1 Aviatrix baseline archived in prompts/"],
+                  ["Prompt Versioning & Testing","Versioned prompts under prompts/ (v1 Aviatrix baseline → v8 DCF SmartGroup/WebGroup extraction, live in lib/systemPrompt.ts). promptfoo regression suite is wired up (test:prompts / test:prompts:compare) but currently broken on promptfoo ^0.121.x — manual fixture validation via the dev server is the workaround"],
                 ].map(([title,desc])=>(
                   <div key={title} className="flex gap-3">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0 mt-0.5" style={{color:"#22C55E"}}><polyline points="20 6 9 17 4 12"/></svg>
