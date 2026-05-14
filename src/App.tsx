@@ -6,7 +6,7 @@ import { SYS } from "../lib/systemPrompt";
 // IDD_TOOL kept in iddTool.ts for reference; generation now handled server-side via AI SDK
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const APP_VERSION  = "1.7.2";
+const APP_VERSION  = "1.7.3";
 const GENERATE_URL = "/api/generate";
 
 type ModelProfile = {
@@ -1737,11 +1737,30 @@ export default function App(){
     const id=new URLSearchParams(window.location.search).get("doc");
     if(!id)return;
     setSharedDocLoading(true);
-    fetch(`/api/share?id=${encodeURIComponent(id)}`)
-      .then(r=>r.json())
-      .then(d=>{if(d.hld){setDoc(d.hld);window.history.replaceState({},"",window.location.pathname);}else setError("Shared document not found or expired.");})
-      .catch(()=>setError("Failed to load shared document."))
-      .finally(()=>setSharedDocLoading(false));
+    (async()=>{
+      try{
+        const r=await fetch(`/api/share?id=${encodeURIComponent(id)}`);
+        const d=await r.json().catch(()=>({}));
+        if(r.ok&&d.hld){
+          setDoc(d.hld);
+          window.history.replaceState({},"",window.location.pathname);
+          return;
+        }
+        // Surface the actual reason — 404 vs 503 vs 429 vs other.
+        // The legitimate "expired" case is a 404 with the expired error text.
+        const apiMsg=d?.error&&typeof d.error==="string"?d.error:"";
+        let userMsg:string;
+        if(r.status===404)userMsg=`Shared document not found or expired (id: ${id.slice(0,8)}…). Links expire after 30 days; ask the sender for a fresh one.`;
+        else if(r.status===503)userMsg=`Share service unavailable: ${apiMsg||"server-side Redis is not configured. Contact the deployer."}`;
+        else if(r.status===429)userMsg=`Rate limited: ${apiMsg||"too many share-load requests"}. Wait a minute and try again.`;
+        else userMsg=`Failed to load shared document (HTTP ${r.status})${apiMsg?": "+apiMsg:""}.`;
+        setError(userMsg);
+      }catch(e:any){
+        setError(`Failed to load shared document — network or parse error: ${e?.message||e}`);
+      }finally{
+        setSharedDocLoading(false);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 

@@ -25,6 +25,13 @@ export async function cacheGet(key) {
   }
 }
 
+// Synchronous check: are the Upstash Redis env vars set? Doesn't ping the
+// server — only confirms client construction succeeded. Use to distinguish
+// "key not found" (404) from "service not configured" (503) in callers.
+export function isRedisAvailable() {
+  return getRedis() !== null;
+}
+
 export async function cacheSet(key, value, ttlSeconds = 3600) {
   try {
     const r = getRedis();

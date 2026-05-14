@@ -1,4 +1,4 @@
-import { cacheGet, cacheSet } from "./_cache.js";
+import { cacheGet, cacheSet, isRedisAvailable } from "./_cache.js";
 import { checkOrigin } from "./_origin.js";
 import { rateLimit } from "./_ratelimit.js";
 
@@ -25,8 +25,15 @@ export default async function handler(req: any, res: any) {
   if (req.method === "GET") {
     const id = req.query?.id;
     if (!id) return res.status(400).json({ error: "Missing id" });
+    // Distinguish "Redis not configured" (deploy-time problem → 503) from
+    // "key not in Redis" (legitimate expired/not-found → 404). Without this
+    // split, every 404 looked like an expiry even when the env vars were
+    // missing entirely.
+    if (!isRedisAvailable()) {
+      return res.status(503).json({ error: "Share service unavailable — UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are not configured on this deployment." });
+    }
     const raw = await cacheGet(`share:${id}`);
-    if (!raw) return res.status(404).json({ error: "Document not found or expired" });
+    if (!raw) return res.status(404).json({ error: "Document not found or expired (links expire after 30 days)" });
     const hld = typeof raw === "string" ? JSON.parse(raw) : raw;
     return res.status(200).json({ hld });
   }

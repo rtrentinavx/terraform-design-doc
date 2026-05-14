@@ -1,6 +1,6 @@
 # Product Requirements Document
 ## Terraform Design Document Generator
-**Version:** 1.7.2 · **Date:** 2026-05-13 · **Status:** Production
+**Version:** 1.7.3 · **Date:** 2026-05-13 · **Status:** Production
 
 ---
 
