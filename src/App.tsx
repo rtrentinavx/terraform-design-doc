@@ -1274,7 +1274,7 @@ async function exportDocx(data:any,customerName:string){
 }
 
 // ── Doc Viewer ─────────────────────────────────────────────────────────────
-function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,generatingDcf}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,onShare?:()=>Promise<string>,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean,dcfEgress?:boolean,onToggleEgress?:()=>void}){
+function DocView({doc,selModel,dark,onExport,onShare,grounding,onGenerateDcf,generatingDcf,dcfEgress,onToggleEgress}:{doc:any,selModel:string,dark:boolean,onExport:()=>void,onShare?:()=>Promise<string>,grounding?:{verified:number,total:number,unverified:string[]}|null,onGenerateDcf?:()=>void,generatingDcf?:boolean,dcfEgress?:boolean,onToggleEgress?:()=>void}){
   useMermaid();
   const [tab,setTab]=useState("overview");
   const [exporting,setExporting]=useState(false);
