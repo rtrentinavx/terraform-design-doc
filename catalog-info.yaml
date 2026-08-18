@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: terraform-design-doc
+  description: AI-assisted tool for generating Terraform design documentation
+  annotations:
+    github.com/project-slug: rtrentinavx/terraform-design-doc
+  links:
+    - url: https://terraform-design-doc.vercel.app
+      title: Live App
+spec:
+  type: website
+  owner: user:default/rtrentinavx
+  lifecycle: production
