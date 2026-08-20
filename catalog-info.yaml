@@ -7,6 +7,7 @@ metadata:
     github.com/project-slug: rtrentinavx/terraform-design-doc
     backstage.io/techdocs-ref: dir:.
     sentry.io/project-slug: terraform-design-doc
+    vercel/project-name: terraform-design-doc
   links:
     - url: https://terraform-design-doc.vercel.app
       title: Live App
@@ -15,4 +16,3 @@ spec:
   type: website
   owner: user:default/rtrentinavx
   lifecycle: production
-
